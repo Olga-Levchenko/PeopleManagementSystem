@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+bin/
+obj/
+
+# Build output
+dist/
+build/
+.next/
+*.tsbuildinfo
+
+# Env files (commit .env.example only)
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Test/coverage
+coverage/
+playwright-report/
+test-results/
+
+# BMAD render/scratch output (keep planning-artifacts and implementation-artifacts, ignore render cache)
+_bmad/render/
+
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json
