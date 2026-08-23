@@ -34,6 +34,12 @@ test-results/
 
 # BMAD render/scratch output (keep planning-artifacts and implementation-artifacts, ignore render cache)
 _bmad/render/
+# BMAD per-user install answers (name, skill level) — regenerated per person, not team-shared
+_bmad/config.user.toml
+
+# Python bytecode cache (BMAD skill scripts)
+__pycache__/
+*.pyc
 
 # Claude Code local settings (machine-specific)
 .claude/settings.local.json
