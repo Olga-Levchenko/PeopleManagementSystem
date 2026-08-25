@@ -1,0 +1,78 @@
+---
+description: Access-control invariants — always in context, this is the graded primary quality attribute
+globs:
+alwaysApply: true
+---
+
+# Access control invariants
+
+Access control is the primary graded quality attribute (spec Section 7). These invariants come
+directly from `docs/requirements/project-requirements.md` Sections 2 and 3, which are
+[NORMATIVE] — do not redesign them. Any change touching profile sections, role resolution,
+permission checks, or resourcing/profile-sharing flows must be checked against
+`docs/access-control/section-matrix.md` and the rules below before it is considered done.
+
+Ported from `.claude/rules/access-control-invariants.md` — keep both in sync by hand if either
+changes.
+
+## Two independent dimensions — never collapse them
+
+- **Access roles** (Employee, Manager, People Partner) answer "what data can this person see
+  about that person." They are **derived from relationships**, never stored, never assigned.
+- **Functional roles** (Unit Manager, DM, PM, PP, HR Admin, and any custom role created later)
+  answer "what features does this person get." They are **assigned, stored data**, extensible at
+  runtime by HR Admin with no deploy.
+- A functional role never widens data access on its own. If a feature needs data, it operates
+  within the holder's existing access role.
+- Never hardcode a role name (`"DM"`, `"UnitManager"`, …) as a permission check anywhere in
+  application code. Access roles are resolved from relationships at request time; functional-role
+  permissions are resolved from stored, runtime-editable grants.
+
+## Access roles are computed per request, per relationship
+
+- Manager access is the transitive closure of two relations: **reports-to** and **is assigned to
+  a project managed by**. Both must feed the same resolution.
+- The same person can be Manager with respect to profile A, People Partner with respect to
+  profile B, and a plain colleague with respect to profile C, all within the same session. Never
+  cache or compute "the current user's role" as a single global value — resolve it per subject
+  profile, per section, per request.
+- When a project assignment ends, derived managerial access ends with it immediately — not sticky.
+  If access is cached anywhere, the cache must invalidate on relationship change (reporting-line
+  edit, project assignment start/end) — a stale permission cache is a data leak.
+- The one documented exception to "a Manager sees everything": a PM is a flag-gated reader on S7
+  management notes, not a full read-write holder like UM/DM/PP.
+
+## Section-level access is enforced server-side, always
+
+- No profile-level permission — every section (S1–S16) is gated independently, per audience, per
+  `docs/access-control/section-matrix.md`.
+- A section the viewer has no access to must not reach them through **any** surface: API response,
+  export, search result, notification, or error message. Never implement a `—` cell by hiding a
+  field client-side.
+
+## Colleague view is a whitelist, not a blacklist
+
+A colleague sees exactly: S1 (Identity card), S10 (Leaves, including type), S11 (project name
+only). Implement as "return only these fields," not "hide the rest."
+
+## S7 Management notes
+
+- Every note carries two independent flags, both **off by default**: `visible for employee` and
+  `visible for PM`.
+- UM, DM, and PP always have full RW regardless of flags. The employee sees only records flagged
+  visible for them; a PM sees only records flagged visible for PM, read-only.
+- Where a viewer reaches the same subject through multiple relationship paths, the most-permissive
+  resolved access wins — never compute S7 access from an arbitrarily-chosen single path.
+
+## Custom fields and filters must not leak
+
+Every custom field has its own visibility (`management`/`employee`/`colleague`). Filters and list
+columns on All Employees — including the on-screen column value, not just filter eligibility —
+must respect field visibility.
+
+## Definition of done, for this specific concern
+
+A change touching profile sections, role resolution, or permissions is not done until it matches
+`docs/access-control/section-matrix.md` cell-for-cell, has negative tests for every `—` cell it
+touches (plus the S7 unflagged case against both employee and PM), and reads functional-role
+permissions from stored grants rather than a hardcoded role name.

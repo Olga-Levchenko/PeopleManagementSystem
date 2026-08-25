@@ -1,0 +1,41 @@
+---
+description: Parallel-work boundaries — shared-contract seams that block other contributors if churned carelessly
+globs: libs/**,docs/access-control/**,docs/decisions/**
+alwaysApply: false
+---
+
+# Parallel work boundaries
+
+Per `docs/requirements/project-requirements.md` Section 8 [NORMATIVE]: parallel work over
+features is a strict rule for this project. "A situation where one person waits for another is
+unacceptable and will be treated as a process defect regardless of the output."
+
+Ported from `.claude/rules/parallel-work-boundaries.md` — keep both in sync by hand if either
+changes.
+
+## Parallelism comes from branches/worktrees, not repo boundaries
+
+This is a true monorepo (`services/*`, `libs/*`), not git submodules. Parallel work happens via
+feature branches or worktrees per contributor, not via repository boundaries.
+
+## You are editing a shared seam right now
+
+If you're touching a file under `libs/contracts`, `libs/config`, `docs/access-control/`, or
+`docs/decisions/`, you're in the one place a slow or careless change blocks every other
+contributor depending on it:
+
+- Land shared-seam changes in small, fast-reviewed commits — don't let a contract change sit
+  waiting on unrelated review cycles while other contributors are blocked on it.
+- Prefer additive changes (new optional field, new DTO) over breaking ones. A breaking change to a
+  shared contract is the one case where synchronous coordination (a call, not just an async PR) is
+  legitimate — record the resulting decision as an ADR in `docs/decisions/` rather than letting it
+  live only in chat.
+- If your own service's implementation depends on a contract or API shape that doesn't exist yet,
+  stub it (mock server, fixture, interface-first contract) rather than waiting for the upstream
+  service to be implemented first.
+
+## Foundation phase
+
+Foundation-phase findings (prototyping/design approach, tech choices, testing architecture)
+belong in `docs/decisions/` or `docs/integrations/` as they land, not held until a single
+end-of-phase document.

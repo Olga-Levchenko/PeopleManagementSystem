@@ -1,0 +1,45 @@
+---
+description: Self-review checklist for any change touching profile sections, role resolution, or resourcing/sharing access
+globs: services/people-service/**,services/resourcing-service/**,services/bff/**,docs/access-control/**
+alwaysApply: false
+---
+
+# Access-control self-review checklist
+
+Ported from `.claude/agents/access-control-reviewer.md`, a Claude Code subagent that reviews
+diffs against the access-control invariants. Cursor has no isolated read-only reviewer subagent,
+so treat this as a checklist to run against your own change (or ask the Cursor agent to run
+explicitly) before considering it done — access control is this project's primary graded quality
+attribute (spec Section 7).
+
+Ground truth, in priority order: `docs/requirements/project-requirements.md` Sections 2–3 (the
+spec) → `docs/access-control/section-matrix.md` (the living matrix) →
+`.cursor/rules/access-control-invariants.mdc` (the working summary). If the matrix and the spec
+disagree, the spec wins and the matrix has a bug.
+
+## Checklist
+
+- **No hardcoded role names as permission checks.** Search for role-name string comparisons
+  (`"DM"`, `"UnitManager"`, `"HRAdmin"`, etc.) gating data access. Functional roles only unlock
+  features via stored, runtime-editable grants; access roles must be resolved from relationships.
+- **Per-subject resolution, not per-session.** Access role computed fresh per subject profile
+  being viewed, never cached once per user session.
+- **Section-level enforcement is server-side.** For every section (S1–S16) touched, confirm the
+  API itself omits sections the requester can't see — not just a frontend component/route guard.
+- **Colleague view is a whitelist.** Confirm colleague-audience code paths explicitly select
+  {S1, S10 with leave type, S11 project name only} rather than filtering out a blocklist.
+- **S7 management notes flags.** Both `visible for employee` and `visible for PM` default to
+  false. UM/DM/PP bypass the flags (full RW); PM and Employee are flag-gated readers. Check for
+  negative test coverage: an unflagged note must not reach the employee or a PM.
+- **Custom field visibility.** New custom fields declare visibility and filters/columns on All
+  Employees — including the on-screen column value — respect it.
+- **Cache invalidation on relationship change.** If managerial/PP access is cached anywhere,
+  confirm invalidation on reporting-line edit and on project assignment start/end.
+- **Negative test coverage.** Every `—` cell the change touches should have a test asserting the
+  API does not return that section to that audience.
+- **Profile sharing specifics**, if touched: only a requester holding Manager/PP access over the
+  *subject* may create a share; sensitive sections (S2, S5, S6, S8) excluded by default; S3, S7,
+  S13 never shareable; shared links never grant write access; access logged.
+
+Report findings with evidence (the actual code path traced, not "this looks like it might") — the
+stakes here are high enough that speculative findings do more harm than good.

@@ -1,0 +1,46 @@
+---
+description: Turning a call transcript or meeting notes into a structured decision record
+globs: docs/decisions/**
+alwaysApply: false
+---
+
+# Meeting notes → decision records
+
+Ported from `.claude/agents/meeting-notes-specialist.md`. Section 8 [NORMATIVE] requires that
+inter-team communication and status be captured for analysis — a decision that only lives in a
+call transcript or someone's memory doesn't satisfy that requirement.
+
+## What to extract from raw meeting input
+
+- **Decisions made** — what was decided, and why (the reasoning, not just the outcome).
+- **Open questions** — things raised but not resolved. Record these too, not just resolutions.
+- **Action items** — owner + date, only if the meeting actually assigned them; don't invent one.
+- **Attendees and date**, if available.
+
+## Format — one file per decision (or tightly related cluster) in `docs/decisions/`
+
+```
+# <Decision title>
+
+Date: <date>
+Status: <proposed | confirmed | superseded by ...>
+
+## Context
+## Decision
+## Rationale
+## Open questions   (omit if none)
+## Action items     (omit if none)
+```
+
+Check `docs/decisions/` for an existing doc on the same topic before creating a new one — update
+and mark prior status superseded instead of duplicating.
+
+## Hard boundary: no fabrication, no real PII
+
+- Never invent a decision, owner, or date that wasn't actually stated. An inconclusive meeting
+  becomes an open question, not a smoothed-over false resolution.
+- Scrub real personal data (external candidate names, real contact details) from transcripts
+  before writing to the repo — see the `pseudonymized-data-only` rule. Meeting transcripts are a
+  common PII leak vector into a repo.
+- If unsure whether something was a firm decision or a floated suggestion, say so explicitly
+  ("proposed by X, not yet confirmed") rather than presenting it as settled.

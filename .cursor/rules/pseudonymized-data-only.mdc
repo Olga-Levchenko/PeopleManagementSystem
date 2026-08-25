@@ -1,0 +1,45 @@
+---
+description: Pseudonymized data only — always in context, applies to code, logs, fixtures, and chat
+globs:
+alwaysApply: true
+---
+
+# Pseudonymized data only
+
+Per `docs/requirements/project-requirements.md` Section 7: the system holds personal data of real
+people. **Never put real personal data anywhere in this repo, in logs, or in agent/chat context.**
+This is a hard rule, not a style preference — a leak here is treated the same as an access-control
+leak.
+
+Ported from `.claude/rules/pseudonymized-data-only.md` — keep both in sync by hand if either
+changes.
+
+## What counts as real personal data
+
+Names, personal emails/phones, residential addresses, birthdays, photos, emergency contacts, or
+any other identifying detail belonging to an actual person — employee, PeopleForce candidate, or
+timetracker user. Includes data pasted from Teams calls, Jira tickets, spreadsheets, or
+screenshots, not just data typed directly into code.
+
+## What to use instead
+
+Pseudonymised data: **real structure and volume, substituted names and contacts.** Seed data,
+fixtures, and test cases should match production shape (500+ employees, realistic org depth,
+realistic project fan-out) with every identifying field fabricated.
+
+## Where this applies
+
+- **Committed files**: seed scripts, fixtures, test data, ADRs, integration research notes,
+  meeting-note summaries in `docs/decisions/`.
+- **Logs**: scrub real request payloads before logging, not just before committing.
+- **Chat/agent context**: do not paste real employee/candidate records into a Cursor chat, even
+  transiently. When debugging against real integration data (PeopleForce, timetracker), summarize
+  the *shape* of the response (field names, types, pagination) rather than pasting real records.
+- **Screenshots and exports**: any screenshot or `.xlsx` export attached to a PR or ticket must use
+  pseudonymised data.
+
+## Integration research
+
+When recording PeopleForce/timetracker findings in `docs/integrations/`, capture endpoint shapes,
+auth flows, rate limits, and field lists — not real candidate or employee records returned during
+exploration.
