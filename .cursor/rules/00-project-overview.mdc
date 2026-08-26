@@ -1,0 +1,57 @@
+---
+description: People Management Platform — repo map and policy overview, always in context
+globs:
+alwaysApply: true
+---
+
+# People Management Platform — project overview
+
+Spec-driven monorepo for the People Management Platform (Iteration 2, AI-native SDLC bootcamp).
+This rule is the Cursor-native equivalent of the root `CLAUDE.md` (written for Claude Code, which
+this file does not read) — same content, kept in sync by hand. If the two ever disagree, treat it
+as a bug and fix whichever is stale.
+
+## Where things are
+
+- Source spec: `docs/requirements/project-requirements.md` — the normative scope; Sections 2 and 3
+  (roles, access matrix) cannot be redesigned.
+- Finalized PRD: `_bmad-output/planning-artifacts/prds/prd-PeopleManagementSystem-2026-08-25/prd.md`
+  — product capabilities derived from the spec (FRs, journeys, MVP scope, success metrics). Read
+  this before the raw spec when you want product framing rather than normative text.
+- Architecture/process decisions: `docs/decisions/` (ADRs)
+- Integration research (timetracker, PeopleForce): `docs/integrations/`
+- Access-control matrix as a living doc, traced to test coverage: `docs/access-control/`
+- HTML prototypes: `prototypes/`
+- Services: `services/frontend`, `services/bff`, `services/auth-service` (.NET + Keycloak),
+  `services/people-service`, `services/resourcing-service`, `services/integration-timetracker`,
+  `services/integration-peopleforce`
+- Shared code for Node services: `libs/contracts` (DTOs/API types), `libs/config` (lint/tsconfig/
+  jest bases) — not used by `auth-service`
+- Local dev environment: `infra/docker-compose.yml`
+- BMAD planning/implementation artifacts: `_bmad-output/`
+- This repo also carries Claude-Code-specific conventions under `.claude/rules/` and
+  `.claude/agents/` — the other rule files in `.cursor/rules/` are hand-ported equivalents of the
+  highest-stakes ones, but `.claude/agents/*.md` describe isolated subagents (their own tool
+  access, their own context window) that Cursor has no direct equivalent for. Skim them for
+  content even though Cursor won't execute them the same way.
+
+## Policy
+
+- This is a **true monorepo**, not git submodules — see `docs/decisions/` for why. Cross-service
+  changes (e.g. a shared DTO) should land in one commit, not split across repos.
+- **Never put real personal data anywhere in this repo, in logs, or in agent context** —
+  pseudonymised data only, per the spec's Section 7. Real structure/volume, substituted names and
+  contacts. See the `pseudonymized-data-only` rule for detail.
+- **Access control is the primary quality attribute.** Any change touching profile sections, role
+  resolution, or the section matrix must be checked against
+  `docs/access-control/section-matrix.md` before being considered done — see the
+  `access-control-invariants` rule.
+- Functional roles are data, not code (Section 2.3) — never hardcode a role name as a permission
+  check; resolve access roles from relationships and functional-role permissions from stored,
+  runtime-editable grants.
+
+## Running and verifying
+
+Nothing runs from the repo root yet. Once services are scaffolded, run each from inside its own
+directory per its `CLAUDE.md`/README. `infra/docker-compose.yml` will bring up shared
+infrastructure (Postgres, Keycloak) for local dev.

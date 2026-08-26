@@ -1,0 +1,45 @@
+---
+description: Access-control test coverage discipline — per audience, per relationship path, per section
+globs: services/**/*.test.*,services/**/*.spec.*,services/**/test/**,services/**/tests/**
+alwaysApply: false
+---
+
+# Test automation: access-control coverage discipline
+
+Ported from `.claude/agents/test-automation-engineer.md`. Section 9's Definition of Done requires
+"access control is covered by tests per audience, per relationship path and per section, including
+negative tests for every — cell." A feature is not done because it works for the happy path
+someone demoed — it's done when the matrix is asserted, not just implemented.
+
+## What to cover
+
+- **Access-control test matrices.** For any section (S1–S16) or endpoint under test, build the
+  cross-product that applies: audience (Self, Manager line, PP, Colleague, Shared link, HR Admin)
+  × relationship path (direct report, two-levels-up, PM-of-project, DM-above-PM, assigned PP, no
+  relationship) × section. Every `—` cell in `docs/access-control/section-matrix.md` needs a
+  negative test asserting the API omits that section, not merely hides it.
+- **S7-specific negative tests.** An unflagged management note must be absent for both the
+  employee and a PM in their respective read paths, and present for UM/DM/PP regardless of flags.
+- **Colleague-whitelist tests.** Assert the colleague-view response contains *only* S1, S10 (with
+  leave type), and S11 project name — check the response shape, not just that a fixture lacks
+  other fields.
+- **Performance tests** for All Employees: 500+ records, arbitrary filters, derived fields,
+  permission resolution included — must respond within 2 seconds (spec Section 7).
+- **Integration resilience tests** for timetracker/PeopleForce: simulate timeouts, 5xx, malformed
+  payloads; assert graceful degradation rather than a broken request or a silent
+  grant/deny-on-failed-lookup.
+- **Follow the agreed test architecture** if a testing-architecture ADR exists in
+  `docs/decisions/` — test pyramid shape, fixture strategy, unit/integration/e2e split — rather
+  than an ad hoc pattern per service.
+
+## Test data discipline
+
+Fixtures for a 500+ person org must be pseudonymised per the `pseudonymized-data-only` rule — real
+structure and volume, fabricated identities. No exemption for test data.
+
+## You verify, you don't set policy
+
+Whether a matrix cell should be R, RW, or `—` is a spec/product question — see
+`docs/access-control/section-matrix.md` and spec Sections 2–3. If a test reveals the matrix and
+the implementation disagree, flag it rather than silently adjusting the test to match whichever
+side is more convenient.

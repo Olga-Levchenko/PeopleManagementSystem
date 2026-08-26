@@ -1,0 +1,39 @@
+---
+description: Tooling parity policy — keep Claude Code and Cursor at equal functionality, always in context
+globs:
+alwaysApply: true
+---
+
+# Tooling parity: Claude Code and Cursor
+
+Ported from `.claude/rules/tooling-parity.md` — keep both in sync by hand if either changes (yes,
+this rule applies to itself).
+
+This repo has contributors on both Claude Code and Cursor. Keep the two tools' guardrails,
+subagents, and skills at equal functionality — never let one tool's users get access to a
+guardrail, checklist, or piece of context that the other tool's users don't.
+
+## Why this matters more than usual "keep docs in sync" advice
+
+Most of what's mirrored here isn't documentation — it's the access-control, data-privacy, and
+parallel-work guardrails from `docs/requirements/project-requirements.md` Sections 2, 3, and 7,
+which are safety-critical, not stylistic. A guardrail that only reaches one tool's users is a gap
+the other tool's contributor won't know exists, on a project where access control is explicitly
+the primary graded quality attribute.
+
+## The rule
+
+- Any new or edited `.cursor/rules/*.mdc` needs a matching `.claude/rules/*.md`, and vice versa.
+  Always-on Cursor rules (`alwaysApply: true`, empty `globs`) correspond to guardrails Claude Code
+  loads via root `CLAUDE.md`; glob-scoped Cursor rules correspond to path-scoped
+  `.claude/rules/*.md` or `.claude/agents/*.md` content.
+- `.claude/agents/*.md` subagents (isolated tools/context) don't have a literal Cursor equivalent
+  — port them as plain instructions/checklists in a glob-scoped `.mdc` instead, scoped to
+  whatever path the subagent was originally scoped to.
+- `.cursor/rules/00-project-overview.mdc` mirrors root `CLAUDE.md` — Cursor doesn't read
+  `CLAUDE.md` directly, so any change there needs the mirror updated too.
+- BMAD skills (`.claude/skills/bmad-*`) are already mirrored to `.agents/skills/bmad-*` by the
+  BMAD installer itself (`cursor` → `.agents/skills` per `bmad-method install --list-tools`) —
+  installer-managed, not hand-maintained.
+- When auditing parity, compare **topic coverage**, not byte-for-byte content — the two formats
+  differ by design (frontmatter, auto-attach model).

@@ -1,0 +1,50 @@
+---
+description: Keycloak/OIDC identity plumbing boundary — authentication only, never authorization
+globs: services/auth-service/**
+alwaysApply: false
+---
+
+# Identity and access: Keycloak/OIDC boundary
+
+Ported from `.claude/agents/identity-access-engineer.md`, a Claude Code subagent scoped to
+`services/auth-service`. Cursor has no direct subagent equivalent (no isolated context/tool
+restrictions per-persona), so this rule carries the same boundary as plain instructions for
+whoever is editing this service.
+
+## Standards to hold the line on
+
+- OAuth2/OIDC correctness: authorization code + PKCE for browser clients, never implicit flow or
+  resource-owner password grant for the frontend. Validate `iss`, `aud`, `exp`, `nbf` on every
+  token verification path, not just signature.
+- Short-lived access tokens; refresh token rotation with reuse detection if refresh tokens go to a
+  public client.
+- Token claims carry **stable identity facts** (subject id, email, employee id) — not derived
+  authorization decisions. Keycloak is the identity provider, not the authorization engine.
+- No client secrets or signing keys committed. Realm export files checked into the repo must have
+  secrets stripped/templated.
+- Logout must actually invalidate tokens server-side where the protocol allows it (OIDC
+  back-channel/front-channel logout) — clearing a cookie alone is a defect.
+
+## Hard boundary: identity vs. authorization
+
+Per `docs/requirements/project-requirements.md` Sections 2–3 and the `access-control-invariants`
+rule:
+
+- **Access roles** (Employee/Manager/People Partner) are derived per request from reporting-line
+  and project relationships — computed in the domain services, never encoded as Keycloak roles.
+  A person's Manager status is relationship-specific and can't be a static role claim.
+- **Functional roles** (UM/DM/PM/PP/HR Admin, plus runtime-created custom roles per Section 2.3)
+  are stored, runtime-editable data. Don't model these as Keycloak realm/client roles either —
+  HR Admin must be able to create a role and grant permissions with no deploy, which a static
+  Keycloak role/group config can't satisfy.
+- Your job in this service stops at: "this token belongs to this authenticated identity."
+  Resolving what that identity can see or do is downstream, application-level work. If a task
+  starts asking for "is a DM" or "can approve resourcing requests" to be encoded as a Keycloak
+  role or client scope, stop — that belongs in application-level permission resolution instead.
+
+## Before considering identity/auth work done
+
+- No functional-role or access-role logic leaked into Keycloak realm config, client scopes, or
+  token claim mappers beyond stable identity facts.
+- Token validation enforced on every service boundary that receives a token, not just at the edge.
+- Realm/client export files committed to the repo have secrets stripped.
