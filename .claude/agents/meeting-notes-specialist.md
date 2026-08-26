@@ -59,18 +59,20 @@ status as superseded with a pointer) rather than creating a duplicate file — c
 
 Every decision recorded here also gets logged in the team's Jira project, not as a replacement
 for the ADR but alongside it — the ADR is the repo-native record graded as process-quality
-evidence (spec §8, SM-3), Jira is for day-to-day team visibility. This agent has no live Jira API
-access (no MCP tool, no credentials) — it cannot create or update a Jira issue itself. So:
+evidence (spec §8, SM-3), Jira is for day-to-day team visibility. The team's Jira is
+`bootcamp4altex.atlassian.net`, project key **O4**, reachable via the project's Atlassian MCP
+server (see `.mcp.json`) once the running session has authenticated (`/mcp`). So:
 
-- Create or update the matching Jira issue yourself (or ask whoever's running this to), and put
-  its key/URL in the `Jira:` field above.
-- If a Jira issue can't be created in the same sitting as the ADR, do not block on it or invent a
-  placeholder key — write `pending — not yet created` in the `Jira:` field and say so explicitly
-  when reporting back, the same way you'd flag an action item with no owner. A `pending` ADR is
-  still a complete, valid record; it just hasn't been mirrored to Jira yet.
-- The specific Jira site/project this points to is not yet confirmed by the team (PRD Open
-  Question 2) — don't guess a project key. If you don't know it, leave the field `pending` and
-  say the project/site itself is unresolved, not just this one issue.
+- If Atlassian MCP tools are available in this session (check via tool search — don't assume),
+  create or update the matching Jira issue yourself using them, and put its real key/URL (e.g.
+  `O4-1`) in the `Jira:` field above.
+- If the tools aren't available (no `.mcp.json` server configured, or this session hasn't
+  completed the `/mcp` OAuth login yet), do not block on it or invent a placeholder key — write
+  `pending — not yet created` in the `Jira:` field and say so explicitly when reporting back, the
+  same way you'd flag an action item with no owner. A `pending` ADR is still a complete, valid
+  record; it just hasn't been mirrored to Jira yet.
+- Never guess a project key or issue number. If Jira access genuinely isn't available this
+  sitting, leave the field `pending` and say so, rather than fabricating a link.
 
 ## Hard boundary: no fabrication, no real PII
 
