@@ -1,5 +1,22 @@
 # PRD Quality Review — People Management Platform (prd-PeopleManagementSystem-2026-08-25)
 
+> **Superseded as of 2026-08-26.** Every finding below has since been fixed in `prd.md` (verified
+> directly against the live document, not just re-asserted from the party-mode session that first
+> flagged this as stale):
+> - **High** — bare citation ambiguity (spec §X.Y vs. this PRD's own §X.Y): fixed. Glossary and UJ
+>   citations now consistently use the "spec §X.Y; this PRD's §X.Y" dual form throughout.
+> - **High** — People Partner had a JTBD but no User Journey: fixed. UJ-6 (Chidi, PP) was added,
+>   plus UJ-7 (Priya).
+> - **Medium** — FR-31/34 cross-reference looked like a typo: fixed. The note now correctly reads
+>   FR-31/32.
+> - **Medium** — Accessibility NFR had no bound ("baseline" undefined): fixed. WCAG 2.1 AA is now
+>   the explicit `[ASSUMPTION]` baseline target (§6.2, Cross-Cutting NFRs, Assumptions Index).
+> - **Low** — Open Question 4 was an out-of-place staffing question: moot. §8 Open Questions has
+>   since been restructured/renumbered and no longer contains it.
+>
+> Kept as a historical record of the first review pass, not as live findings — re-verify against
+> the current `prd.md` before acting on anything below.
+
 ## Overall verdict
 
 This PRD is decision-ready and unusually disciplined for its stakes: the thesis (kill all-or-nothing
