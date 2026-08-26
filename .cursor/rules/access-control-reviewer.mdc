@@ -13,33 +13,56 @@ explicitly) before considering it done — access control is this project's prim
 attribute (spec Section 7).
 
 Ground truth, in priority order: `docs/requirements/project-requirements.md` Sections 2–3 (the
-spec) → `docs/access-control/section-matrix.md` (the living matrix) →
-`.cursor/rules/access-control-invariants.mdc` (the working summary). If the matrix and the spec
-disagree, the spec wins and the matrix has a bug.
+spec) **as amended by** `docs/requirements/Spec_Changelog_v1.2_to_v1.5.md` (v1.5, binding on
+conflict) → `docs/access-control/section-matrix.md` (the living matrix) →
+`.cursor/rules/access-control-invariants.mdc` (the working summary). If the matrix and the
+spec+changelog disagree, the spec+changelog wins and the matrix has a bug.
 
 ## Checklist
 
 - **No hardcoded role names as permission checks.** Search for role-name string comparisons
   (`"DM"`, `"UnitManager"`, `"HRAdmin"`, etc.) gating data access. Functional roles only unlock
-  features via stored, runtime-editable grants; access roles must be resolved from relationships.
+  features via stored, runtime-editable grants; access roles must be resolved from relationships
+  (reports-to + department-management + project-assignment, three relations as of v1.5). **HR
+  Admin is not a data-access role as of v1.5** — full access is a separate, journaled "Full profile
+  access" grant, never implied by an HR Admin functional-role assignment.
+- **Both dimensions gate a write where a permission also applies (v1.5).** Approve/reject
+  candidates, close a request, edit the career timeline, record a departure, etc. need the access
+  role *and* the stored permission grant to pass — check both are enforced, not just one.
 - **Per-subject resolution, not per-session.** Access role computed fresh per subject profile
   being viewed, never cached once per user session.
+- **Reporting line vs. Project line differ (v1.5).** Project line (PM/DM via project assignment)
+  loses S2/S3 entirely and gets S5 as CV+certificates only — narrower than Reporting line, which is
+  unaffected. S7's PM-only flag-gating is separate and narrower still (DM keeps full S7 RW).
 - **Section-level enforcement is server-side.** For every section (S1–S16) touched, confirm the
   API itself omits sections the requester can't see — not just a frontend component/route guard.
+- **S1's manager/PP/department fields need their own screen (v1.5).** Not writable through
+  ordinary S1 edit access — they're access-switch fields behind a dedicated, permissioned,
+  non-self-assignable, journal-writing flow.
 - **Colleague view is a whitelist.** Confirm colleague-audience code paths explicitly select
-  {S1, S10 with leave type, S11 project name only} rather than filtering out a blocklist.
+  {S1, S10 dates-only/no-type as of v1.5, S11 project name only} rather than filtering out a
+  blocklist. One exception: a campaign author sees name + completion status for their own
+  campaign's recipients (S14) only, until the campaign closes.
 - **S7 management notes flags.** Both `visible for employee` and `visible for PM` default to
   false. UM/DM/PP bypass the flags (full RW); PM and Employee are flag-gated readers. Check for
   negative test coverage: an unflagged note must not reach the employee or a PM.
 - **Custom field visibility.** New custom fields declare visibility and filters/columns on All
   Employees — including the on-screen column value — respect it.
-- **Cache invalidation on relationship change.** If managerial/PP access is cached anywhere,
-  confirm invalidation on reporting-line edit and on project assignment start/end.
+- **Cache invalidation within the stated bounds (v1.5).** Platform-owned relationship edits take
+  effect next request; project-assignment changes within 15 minutes; forced withdrawal within 4
+  hours if timetracker sync is failing.
+- **Journal writes (v1.5).** Manager/PP/department changes, department-manager changes, Full
+  profile access grants, and shared-link accesses should each write a journal entry — a narrow,
+  named list, not a generic audit log to assume is already covered.
 - **Negative test coverage.** Every `—` cell the change touches should have a test asserting the
   API does not return that section to that audience.
-- **Profile sharing specifics**, if touched: only a requester holding Manager/PP access over the
-  *subject* may create a share; sensitive sections (S2, S5, S6, S8) excluded by default; S3, S7,
-  S13 never shareable; shared links never grant write access; access logged.
+- **Profile sharing specifics**, if touched: shared links go to an **authenticated, named
+  recipient only** (v1.5, never anonymous), and access is **re-checked on every view**, not just
+  expiry. Sensitive sections (S2, S5, S6, S8) excluded by default; **never-share set is S3, S7,
+  S13, S14** (v1.5 adds S14); shared links never grant write access; access logged to the journal.
+  Revocation follows the *current* relationship holder, not necessarily the creator. Resourcing's
+  auto-generated candidate share has its own narrower set (S1, S4, S11, S12, S5-CV+certs, S6
+  optional; never S2/S3/S7/S8) — a deliberate sub-case, not an inconsistency.
 
 Report findings with evidence (the actual code path traced, not "this looks like it might") — the
 stakes here are high enough that speculative findings do more harm than good.

@@ -1,6 +1,14 @@
 Test Assignment: People Management Platform — Iteration 2
 Version: 1.2 Supersedes: Test Assignment: People Management & Resourcing MVP (Iteration 1) Status: Draft for review
 
+AMENDMENT NOTICE (2026-08-25): This body text is still Version 1.2. The spec has since moved to
+Version 1.5 via `docs/requirements/Spec_Changelog_v1.2_to_v1.5.md`, which contains breaking changes
+to Sections 2 and 3 among others. That changelog is binding wherever it conflicts with the v1.2
+text below — it is not optional supplementary reading. This body is kept unedited (it is the
+instructor's document, not ours to paraphrase); `docs/access-control/section-matrix.md`, the
+`.claude`/`.cursor` rule and agent files, the integration docs, and the PRD have all been updated
+to reflect the combined v1.2+changelog=v1.5 state and are the documents to work from day-to-day.
+
 0. How to read this document
 This is the functional and technical scope for Iteration 2 of the AI-native SDLC bootcamp.
 

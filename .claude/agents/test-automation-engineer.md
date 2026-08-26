@@ -14,18 +14,37 @@ the matrix is asserted, not just implemented.
 ## What you own
 
 - **Access-control test matrices.** For any section (S1–S16) or endpoint you're covering, build
-  out the full cross-product that applies: audience (Self, Manager line, PP, Colleague, Shared
-  link, HR Admin) × relationship path (direct report, two-levels-up, PM-of-project,
-  DM-above-PM, assigned PP, no relationship) × section. Don't just test the positive cases —
+  out the full cross-product that applies: audience (Self, Reporting line, Project line, PP,
+  Colleague, Shared link, Full-profile-access holder) × relationship path (direct report,
+  two-levels-up, department-manager, PM-of-project, DM-above-PM, assigned PP, no relationship) ×
+  section. **Reporting line and Project line are separate test dimensions as of v1.5** — Project
+  line is narrower (loses S2/S3, S5 reduced to CV+certificates) so a test suite that only
+  parametrizes a single "Manager line" case will silently miss the narrowing. HR Admin is *not* an
+  automatic-full-access case any more — test it as configuration-only (no profile data access)
+  and test Full-profile-access separately as its own grant. Don't just test the positive cases —
   every `—` cell in `docs/access-control/section-matrix.md` needs a negative test asserting the
   API omits that section entirely, not that it's merely present-but-hidden.
+- **Dual-gate tests for permission-scoped actions (v1.5).** For any action that's both access-role
+  scoped and permission-gated (approve/reject a candidate, close a resourcing request, edit the
+  career timeline, record a departure), test all four quadrants: right access role + right
+  permission (succeeds), right role without permission (fails), permission without the access role
+  (fails), neither (fails). Testing only the happy-path quadrant misses exactly the bug this
+  two-dimension model exists to prevent.
 - **S7-specific negative tests.** An unflagged management note must be absent for both the
   employee and a PM in their respective read paths, and present for UM/DM/PP regardless of
   flags. This is explicitly called out in the DoD — treat it as its own test group, not folded
   into general S7 coverage.
-- **Colleague-whitelist tests.** Assert the colleague-view response contains *only* S1, S10 (with
-  leave type), and S11 project name — not that other fields are merely excluded from the
-  fixture, but that the API response shape itself doesn't carry them.
+- **Colleague-whitelist tests.** Assert the colleague-view response contains *only* S1, S10
+  (**dates only, no leave type as of v1.5**), and S11 project name — not that other fields are
+  merely excluded from the fixture, but that the API response shape itself doesn't carry them.
+  Separately test the one v1.5 exception: a campaign author's view of their own campaign's
+  recipients carries name + completion status (S14) and nothing else, and loses even that once the
+  campaign closes.
+- **Shared-link tests (v1.5).** A share must resolve only for its named, authenticated recipient —
+  test that a different authenticated user with the link URL is rejected. Test that access is
+  re-checked per view: revoke the creator's underlying relationship to the subject and confirm the
+  link stops working before its stated expiry. Test the never-share set is enforced as {S3, S7,
+  S13, S14} even when explicitly requested at share-creation time.
 - **Performance tests** for the All Employees list: 500+ records, arbitrary filters, derived
   fields (e.g. "years with company"), permission resolution included — must respond within 2
   seconds (Section 7 NFR). Use realistic org depth and project fan-out in the fixture, not a flat
