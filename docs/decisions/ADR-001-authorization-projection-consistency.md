@@ -32,8 +32,11 @@ projection inconsistent if either operation fails.
    handling, and can rebuild or repair the projection by replaying supported events.
 6. Access-revoking changes, including ended reporting lines and project assignments, receive
    priority handling. Their events must update or invalidate the relevant authorization
-   projection promptly. The implementation must define and verify a bounded revocation
-   propagation expectation before production use.
+   projection within 15 minutes of the source event, degrading to a forced withdrawal within 4
+   hours if timetracker sync itself is failing — the bound stated in
+   `.claude/rules/access-control-invariants.md`, not a value left for implementation to pick.
+   Platform-owned relationship edits (reporting line, department, PP assignment) take effect on
+   the requester's next request instead.
 7. Synchronous People/Organization lookups are exceptional. They may be used when a caller
    explicitly requires stronger freshness or as a consistency fallback, but they are not
    required for every authorization decision.
@@ -43,6 +46,12 @@ projection inconsistent if either operation fails.
 9. RabbitMQ, projection, or integration failures must not cause an authorization bypass.
    The system may temporarily deny or degrade an operation, expose an operationally safe error,
    and retry or replay processing. It must never fall back to unrestricted access.
+10. Watermark/staleness checks only catch a relationship change whose event is *late*, not one
+    whose event was never published (an outbox or producer bug). Independent of the event
+    stream, Authorization runs a periodic reconciliation sweep against People/Organization's
+    authoritative relationship data (by count or hash) to detect that second case. A detected
+    mismatch is treated as a freshness-uncertain condition and triggers the same fail-closed
+    handling as an unconfirmed revocation.
 
 ## Consequences
 
@@ -56,15 +65,35 @@ projection inconsistent if either operation fails.
 - Idempotency, retries, dead-letter handling, and replay support operational recovery.
 - Revocation is treated as a security-critical propagation path rather than ordinary eventual
   consistency.
+- The periodic reconciliation sweep (Decision 10) catches a missed/never-published event, not
+  just a late one — closing the blind spot a watermark-only design leaves open.
 
 ### Negative
 
 - Authorization projection updates are normally asynchronous and require freshness monitoring.
 - Each authoritative event producer needs outbox storage and delivery processing.
 - Projection repair and replay procedures must be implemented and tested.
+- The reconciliation sweep is extra, ongoing operational load (a scheduled job comparing two
+  services' data) on top of the event-driven path, and needs its own cadence tuned so it's
+  frequent enough to matter without becoming a second source of load/noise.
 - Fail-closed behavior during uncertainty can temporarily deny legitimate access.
-- The exact propagation-time bound and alerting thresholds remain implementation decisions to be
-  established before production deployment.
+- Alerting thresholds and freshness telemetry remain implementation decisions to be established
+  before production deployment. (The propagation-time bound itself is fixed — see Decision 6 —
+  not open.)
+
+## Alternatives Considered
+
+- **Synchronous relationship check instead of a derived projection.** Evaluate relationships via
+  a direct, synchronous lookup against People/Organization on every authorization decision
+  (in-process or over a lightweight API), skipping the outbox/watermark/replay machinery
+  entirely. Not adopted for this iteration. This is a judgment call, not a measured one — no
+  benchmark of synchronous-lookup latency at expected scale (500+ employees, worst-case
+  department/project fan-out) was run against the NFR-access-control p95 ≤ 2s budget before
+  deciding. The team is proceeding with the async projection as designed (Decisions 1–10) for v1
+  without that benchmark, accepting the outbox/watermark/dead-letter/replay/reconciliation
+  machinery as a known, not-yet-quantified complexity cost. Revisit if the synchronous option is
+  later benchmarked and shown to comfortably fit the latency budget, or if the async machinery
+  proves harder to build or verify correctly than anticipated.
 
 ## Scope
 

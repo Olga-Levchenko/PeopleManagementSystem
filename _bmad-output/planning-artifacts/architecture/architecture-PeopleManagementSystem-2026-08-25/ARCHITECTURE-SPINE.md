@@ -68,7 +68,11 @@ but local development and the first delivery scope use one shared Docker Compose
   freshness is uncertain. Authorization records applied source versions and projection
   freshness/watermarks, rejects stale or out-of-order updates, and supports replay. A
   synchronous People lookup is an exceptional freshness check or fallback, not the default
-  request path.
+  request path. **The propagation bound is fixed, not open:** project-derived access is revoked
+  within 15 minutes of the source event, degrading to a forced withdrawal within 4 hours if
+  timetracker sync itself is failing; platform-owned relationship edits (reporting line,
+  department, PP assignment) take effect on the requester's next request rather than through this
+  propagation path (`.claude/rules/access-control-invariants.md`).
 
 ### AD-4 — Persistence ownership is isolated
 
@@ -263,8 +267,9 @@ development/test profiles as implementation needs them.
   baselines only after verifying current compatibility and recording the central compatibility
   baseline.
 - Exact RabbitMQ exchange, routing-key, queue, retry, and dead-letter topology.
-- Exact revocation propagation time target, freshness telemetry, alert thresholds, and the
-  operational procedure for projection rebuild/replay.
+- Freshness telemetry, alert thresholds, and the operational procedure for projection
+  rebuild/replay. (The revocation propagation bound itself — 15 minutes, 4-hour forced withdrawal
+  — is fixed in AD-3, not open.)
 - The detailed identity-link reconciliation workflow and external-identity conflict handling;
   People/Organization owns the links, while integration workers remain adapters.
 - Deployment provider, production topology, secret-management implementation, and full
