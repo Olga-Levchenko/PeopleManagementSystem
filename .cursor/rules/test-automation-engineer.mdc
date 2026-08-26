@@ -14,15 +14,26 @@ someone demoed — it's done when the matrix is asserted, not just implemented.
 ## What to cover
 
 - **Access-control test matrices.** For any section (S1–S16) or endpoint under test, build the
-  cross-product that applies: audience (Self, Manager line, PP, Colleague, Shared link, HR Admin)
-  × relationship path (direct report, two-levels-up, PM-of-project, DM-above-PM, assigned PP, no
-  relationship) × section. Every `—` cell in `docs/access-control/section-matrix.md` needs a
-  negative test asserting the API omits that section, not merely hides it.
+  cross-product that applies: audience (Self, Reporting line, Project line, PP, Colleague, Shared
+  link, Full-profile-access holder) × relationship path (direct report, two-levels-up,
+  department-manager, PM-of-project, DM-above-PM, assigned PP, no relationship) × section.
+  **Reporting line and Project line are separate dimensions as of v1.5** — Project line loses
+  S2/S3 and reduces S5 to CV+certificates, so don't collapse them into one "Manager line" case. HR
+  Admin is config-only now, not an automatic full-access case; test Full-profile-access separately.
+  Every `—` cell in `docs/access-control/section-matrix.md` needs a negative test asserting the API
+  omits that section, not merely hides it.
+- **Dual-gate tests (v1.5).** For access-role-scoped *and* permission-gated actions (approve/reject
+  a candidate, close a request, edit the career timeline, record a departure), test all four
+  quadrants of role×permission — only the both-present quadrant should succeed.
 - **S7-specific negative tests.** An unflagged management note must be absent for both the
   employee and a PM in their respective read paths, and present for UM/DM/PP regardless of flags.
-- **Colleague-whitelist tests.** Assert the colleague-view response contains *only* S1, S10 (with
-  leave type), and S11 project name — check the response shape, not just that a fixture lacks
-  other fields.
+- **Colleague-whitelist tests.** Assert the colleague-view response contains *only* S1, S10
+  (**dates only, no type as of v1.5**), and S11 project name — check the response shape, not just
+  that a fixture lacks other fields. Separately test the campaign-author exception: name +
+  completion status only, for that campaign's recipients, until it closes.
+- **Shared-link tests (v1.5).** Link resolves only for its named, authenticated recipient; access
+  re-checked per view (revoke the underlying relationship, confirm the link dies before expiry);
+  never-share set enforced as {S3, S7, S13, S14} even if explicitly requested at creation.
 - **Performance tests** for All Employees: 500+ records, arbitrary filters, derived fields,
   permission resolution included — must respond within 2 seconds (spec Section 7).
 - **Integration resilience tests** for timetracker/PeopleForce: simulate timeouts, 5xx, malformed

@@ -22,25 +22,54 @@ changes.
 - **Functional roles** (Unit Manager, DM, PM, PP, HR Admin, and any custom role created later)
   answer "what features does this person get." They are **assigned, stored data**, extensible at
   runtime by HR Admin with no deploy.
+- **As of the v1.5 spec changelog, HR Admin is not a data-access role at all** — configuration-only
+  (custom fields, dictionaries, departments, functional roles/permissions), no standing read/write
+  over any profile section. Full read/write everywhere is a separate, journaled **Full profile
+  access** grant (spec §2.4): only an existing holder can grant it, no self-assignment, first
+  holder seeded at deployment, last holder can never be removed.
+- **A write requires both dimensions to permit it (v1.5).** The section matrix says what an access
+  role may read/write; a functional-role permission grant says who may perform a given action —
+  both must pass wherever an action is also permission-gated.
 - A functional role never widens data access on its own. If a feature needs data, it operates
   within the holder's existing access role.
-- Never hardcode a role name (`"DM"`, `"UnitManager"`, …) as a permission check anywhere in
-  application code. Access roles are resolved from relationships at request time; functional-role
-  permissions are resolved from stored, runtime-editable grants.
+- Never hardcode a role name (`"DM"`, `"UnitManager"`, `"HRAdmin"`, …) as a permission check
+  anywhere in application code. Access roles are resolved from relationships at request time;
+  functional-role permissions are resolved from stored, runtime-editable grants.
 
 ## Access roles are computed per request, per relationship
 
-- Manager access is the transitive closure of two relations: **reports-to** and **is assigned to
-  a project managed by**. Both must feed the same resolution.
+- Manager access is the transitive closure of **three** relations as of v1.5: **reports-to**,
+  **department management**, and **is assigned to a project managed by**. Reports-to/department
+  relations form the **Reporting line**; project-assignment relations form the **Project line** —
+  as of v1.5 these are no longer equivalent for data access.
 - The same person can be Manager with respect to profile A, People Partner with respect to
   profile B, and a plain colleague with respect to profile C, all within the same session. Never
   cache or compute "the current user's role" as a single global value — resolve it per subject
   profile, per section, per request.
+- **The "HR line" (v1.5)** is the people partner's own manager chain *inside HR*, recursive,
+  without limit — not the subject employee's chain. Resolving PP access via the employee's own
+  reporting line is a distinct bug from a Manager-access miscalculation.
 - When a project assignment ends, derived managerial access ends with it immediately — not sticky.
-  If access is cached anywhere, the cache must invalidate on relationship change (reporting-line
-  edit, project assignment start/end) — a stale permission cache is a data leak.
-- The one documented exception to "a Manager sees everything": a PM is a flag-gated reader on S7
-  management notes, not a full read-write holder like UM/DM/PP.
+  Revocation timing is split (v1.5): platform-owned relationship edits take effect on the *next
+  request*; project-derived access changes within **15 minutes**, degrading to a forced withdrawal
+  within **4 hours** if timetracker sync itself is failing. Any cache must invalidate within these
+  bounds — a stale permission cache is a data leak.
+- **Two documented exceptions to "a Manager sees everything" as of v1.5** (was one): (1) a PM is a
+  flag-gated reader on S7 management notes, not a full read-write holder like UM/DM/PP; (2) the
+  **Project line is narrowed** — PM/DM via project assignment lose S2/S3 entirely and get S5 as
+  CV+certificates only, everything else (incl. S6) identical to the Reporting line, which is not
+  narrowed.
+
+## Organisational relationship changes are a distinct, journaled operation (v1.5)
+
+- **Manager, people partner, and department are not writable through S1.** These, plus a
+  department's manager, are access switches, not profile data — changing one is a dedicated
+  operation with its own permission and screen, never a side effect of a general S1 edit. No
+  self-assignment.
+- **A narrow journal exists** (spec §3.4) — not a general audit log. It records exactly six event
+  types: manager/PP/department changes, department-manager changes, Full profile access grants,
+  and shared-link accesses. Any code path performing one of these must write a journal entry as
+  part of the same operation.
 
 ## Section-level access is enforced server-side, always
 
@@ -52,8 +81,10 @@ changes.
 
 ## Colleague view is a whitelist, not a blacklist
 
-A colleague sees exactly: S1 (Identity card), S10 (Leaves, including type), S11 (project name
-only). Implement as "return only these fields," not "hide the rest."
+A colleague sees exactly: S1 (Identity card), S10 (Leaves — **dates only, no type as of v1.5**),
+S11 (project name only). Implement as "return only these fields," not "hide the rest." **One
+exception (v1.5):** a campaign author sees name and completion status for their own campaign's
+recipients only (S14), nothing else, until the campaign closes.
 
 ## S7 Management notes
 
