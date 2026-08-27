@@ -4,7 +4,7 @@ globs: docs/decisions/**
 alwaysApply: false
 ---
 
-# Meeting notes → decision records
+# Meeting notes → decision records, dual-logged to Jira
 
 Ported from `.claude/agents/meeting-notes-specialist.md`. Section 8 [NORMATIVE] requires that
 inter-team communication and status be captured for analysis — a decision that only lives in a
@@ -24,6 +24,7 @@ call transcript or someone's memory doesn't satisfy that requirement.
 
 Date: <date>
 Status: <proposed | confirmed | superseded by ...>
+Jira: <issue key/URL, or "pending — not yet created">
 
 ## Context
 ## Decision
@@ -34,6 +35,16 @@ Status: <proposed | confirmed | superseded by ...>
 
 Check `docs/decisions/` for an existing doc on the same topic before creating a new one — update
 and mark prior status superseded instead of duplicating.
+
+## Dual-log to Jira (PRD Open Question 2, resolved: ADR + Jira, both)
+
+Every decision gets logged in Jira too, alongside the ADR, not instead of it — the ADR is the
+repo-native record graded as process-quality evidence (spec §8, SM-3), Jira is for day-to-day
+team visibility. The team's Jira is `bootcamp4altex.atlassian.net`, project key **O4**. Cursor has
+no equivalent of Claude Code's MCP tool access, so create/update the matching Jira issue by hand
+(via the Jira web UI or whatever Jira access you have) and put its real key/URL (e.g. `O4-1`) in
+the `Jira:` field. If that can't happen in the same sitting, write `pending — not yet created` and
+flag it when reporting back — don't invent a key or guess a project.
 
 ## Hard boundary: no fabrication, no real PII
 
