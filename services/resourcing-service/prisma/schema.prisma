@@ -1,0 +1,12 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  // NestJS runs on CommonJS — without this the generated client is ESM and breaks the build
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Domain models go here — none seeded yet.

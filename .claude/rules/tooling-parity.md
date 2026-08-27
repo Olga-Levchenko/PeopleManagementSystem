@@ -41,3 +41,8 @@ the primary graded quality attribute.
   guardrails this parity requirement currently covers, each with a `.cursor/rules/*.mdc`
   counterpart.
 - `.claude/agents/*.md` — the five subagents, each with a `.cursor/rules/*.mdc` counterpart.
+- The per-area service rules under `services/*/.claude/rules/*.md` (four `nest-*.md` files shared
+  by the six NestJS backend services, eight `react-*.md` files for `services/frontend`) are also
+  mirrored — as root-level, glob-scoped `.cursor/rules/{nest,react}-*.mdc` files, since Cursor
+  rules aren't looked up per-service the way `.claude/rules/` is. `nest-prisma.mdc` excludes `bff`
+  in its `globs` (that service has no Prisma scaffold).

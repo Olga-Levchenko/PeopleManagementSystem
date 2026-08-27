@@ -37,3 +37,8 @@ the primary graded quality attribute.
   installer-managed, not hand-maintained.
 - When auditing parity, compare **topic coverage**, not byte-for-byte content — the two formats
   differ by design (frontmatter, auto-attach model).
+- Per-area rules that live under a service's own `services/<name>/.claude/rules/*.md` (e.g. the
+  `nest-*.md` rules shared by the six NestJS backend services, or `services/frontend`'s
+  `react-*.md` rules) are mirrored as root-level `.cursor/rules/{nest,react}-*.mdc` files with
+  `globs` scoped to the relevant service path(s), since Cursor doesn't look up rules per-service
+  the way Claude Code does.

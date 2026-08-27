@@ -9,7 +9,11 @@ Spec-driven monorepo for the People Management Platform (Iteration 2, AI-native 
 - Integration research (timetracker, PeopleForce): `docs/integrations/`
 - Access-control matrix as a living doc, traced to test coverage: `docs/access-control/`
 - HTML prototypes: `prototypes/`
-- Services: `services/frontend`, `services/bff`, `services/auth-service` (.NET + Keycloak), `services/people-service`, `services/resourcing-service`, `services/integration-timetracker`, `services/integration-peopleforce`
+- Services: `services/frontend`, `services/bff`, `services/auth-service` (.NET + Keycloak),
+  `services/authorization-service` (.NET — policy and derived-relationship-projection engine,
+  separate from `auth-service`), `services/people-service`, `services/work-management-service`
+  (risks, action items, CDS, mentorship, campaigns, feedback), `services/resourcing-service`,
+  `services/integration-timetracker`, `services/integration-peopleforce`
 - Shared code for Node services: `libs/contracts` (DTOs/API types), `libs/config` (lint/tsconfig/jest bases) — not used by `auth-service`
 - Local dev environment: `infra/docker-compose.yml`
 - BMAD planning/implementation artifacts: `_bmad-output/`
@@ -27,4 +31,4 @@ Spec-driven monorepo for the People Management Platform (Iteration 2, AI-native 
 
 ## Running and verifying
 
-Nothing runs from the repo root yet. Once services are scaffolded, run each from inside its own directory per its `CLAUDE.md`. `infra/docker-compose.yml` will bring up shared infrastructure (Postgres, Keycloak) for local dev.
+Nothing runs from the repo root yet — run each service from inside its own directory per its `CLAUDE.md`. `infra/docker-compose.yml` brings up shared infrastructure (Postgres — one instance, one database per service, see `infra/postgres-init/`; Keycloak in dev mode; RabbitMQ) for local dev: `cp infra/.env.example infra/.env && docker compose -f infra/docker-compose.yml --env-file infra/.env up -d`.
