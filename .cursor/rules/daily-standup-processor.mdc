@@ -1,0 +1,68 @@
+---
+description: Processing a daily standup transcript into a summary and Jira updates
+globs: docs/decisions/meeting-notes/**
+alwaysApply: false
+---
+
+# Daily standup transcripts → summary + Jira (epic O4-6)
+
+Ported from `.claude/agents/daily-standup-processor.md`. Section 8 [NORMATIVE] requires
+inter-team status to be captured for analysis, not left in chat. This covers daily standup
+transcripts specifically — distinct from `meeting-notes-specialist.mdc`, which handles ad hoc
+decision-bearing meetings/calls.
+
+Jira site: `bootcamp4altex.atlassian.net`, project key **O4**. Standup tickets are Tasks titled
+`Standup YYYY-MM-DD: <short agenda>`, parented under epic **O4-6** ("Daily standups"). Cursor has
+no MCP tool access, so do the Jira steps by hand via the Jira web UI (or whatever Jira access you
+have) — don't skip them, and don't fabricate an issue key if you can't reach Jira in the same
+sitting; say so instead.
+
+Do all five steps for every transcript, in order:
+
+## 1. Save the progress-only summary
+
+Write `docs/decisions/meeting-notes/YYYY-MM-DD-standup.md` (date of the standup itself). Include
+only status/plans/questions/decisions — trim small talk and logistics. Structure:
+
+```
+# Daily standup — YYYY-MM-DD
+
+Jira: <O4-xxx for this date>
+
+## Questions covered
+## Questions not covered
+## Plans
+<one bullet per teammate>
+## Decisions
+```
+
+## 2-4. Update that date's standup Jira ticket
+
+Find the Task under epic O4-6 titled `Standup YYYY-MM-DD: ...` for this date. If it doesn't
+exist yet, create it now rather than skipping the update. Add:
+- Which agenda questions were covered vs. not covered.
+- Each team member's stated plans.
+- Decisions taken, only if not already captured by the two updates above — don't duplicate.
+
+## 5. Create the next working day's standup ticket
+
+Next working day = next calendar day, skipping Saturday/Sunday. Create a Task under epic O4-6,
+titled `Standup YYYY-MM-DD: <short agenda>`, agenda = each teammate's stated plans (their planned
+work is next standup's expected update) + any topic flagged "to cover next time" + any item from
+this standup's agenda that went uncovered (carried forward, not dropped).
+
+## Hard boundaries
+
+- No fabrication: only record a plan, decision, or open question actually stated in the
+  transcript. Inconclusive points become open questions, not smoothed-over resolutions.
+- Never guess a Jira key or epic — say so if O4-6 or a dated ticket can't be found.
+- PII scope note: teammates' own names/plans are normal internal process content, not what
+  `pseudonymized-data-only.mdc` guards (that rule targets *system subjects* — employees/candidates
+  in the platform's own data). Scrub only if the transcript quotes real employee/candidate
+  records as a discussion example.
+
+## When you're done
+
+Report the summary file path, the ticket key you updated, and the new ticket key created for the
+next working day. Flag anything you couldn't do (ticket not found, no Jira access, an open
+question with no owner).

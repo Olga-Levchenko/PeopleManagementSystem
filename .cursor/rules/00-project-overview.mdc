@@ -49,6 +49,9 @@ as a bug and fix whichever is stale.
 - Functional roles are data, not code (Section 2.3) — never hardcode a role name as a permission
   check; resolve access roles from relationships and functional-role permissions from stored,
   runtime-editable grants.
+- **Always return a PR summary to the user after creating a pull request** — title, what changed
+  in plain language, and anything the requester should act on before merge, not just the URL.
+  See `pr-summaries.mdc`.
 
 ## Running and verifying
 
