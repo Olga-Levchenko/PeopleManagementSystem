@@ -1,0 +1,26 @@
+name: shared libs CI
+
+on:
+  push:
+    paths:
+      - 'libs/contracts/**'
+      - 'libs/config/**'
+      - '.github/workflows/libs-ci.yml'
+      - '.github/workflows/_reusable-node-ci.yml'
+  pull_request:
+    paths:
+      - 'libs/contracts/**'
+      - 'libs/config/**'
+      - '.github/workflows/libs-ci.yml'
+      - '.github/workflows/_reusable-node-ci.yml'
+
+jobs:
+  contracts:
+    uses: ./.github/workflows/_reusable-node-ci.yml
+    with:
+      service_path: libs/contracts
+
+  config:
+    uses: ./.github/workflows/_reusable-node-ci.yml
+    with:
+      service_path: libs/config

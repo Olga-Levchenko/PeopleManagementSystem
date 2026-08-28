@@ -1,0 +1,19 @@
+name: integration-peopleforce CI
+
+on:
+  push:
+    paths:
+      - 'services/integration-peopleforce/**'
+      - '.github/workflows/integration-peopleforce-ci.yml'
+      - '.github/workflows/_reusable-node-ci.yml'
+  pull_request:
+    paths:
+      - 'services/integration-peopleforce/**'
+      - '.github/workflows/integration-peopleforce-ci.yml'
+      - '.github/workflows/_reusable-node-ci.yml'
+
+jobs:
+  ci:
+    uses: ./.github/workflows/_reusable-node-ci.yml
+    with:
+      service_path: services/integration-peopleforce

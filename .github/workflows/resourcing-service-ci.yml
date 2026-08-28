@@ -1,0 +1,19 @@
+name: resourcing-service CI
+
+on:
+  push:
+    paths:
+      - 'services/resourcing-service/**'
+      - '.github/workflows/resourcing-service-ci.yml'
+      - '.github/workflows/_reusable-node-ci.yml'
+  pull_request:
+    paths:
+      - 'services/resourcing-service/**'
+      - '.github/workflows/resourcing-service-ci.yml'
+      - '.github/workflows/_reusable-node-ci.yml'
+
+jobs:
+  ci:
+    uses: ./.github/workflows/_reusable-node-ci.yml
+    with:
+      service_path: services/resourcing-service

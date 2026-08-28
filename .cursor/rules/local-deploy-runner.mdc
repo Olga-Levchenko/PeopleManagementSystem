@@ -1,0 +1,50 @@
+---
+description: Pulling CI-built Docker-image artifacts and running them locally
+globs: infra/**,.github/workflows/**
+alwaysApply: false
+---
+
+# Local deploy: pull CI artifacts, run them on this machine
+
+Ported from `.claude/agents/local-deploy-runner.md`. This covers running an already-built service
+locally for a quick end-to-end check — not a real deployment, a local one. Nothing here targets a
+remote host or a registry.
+
+## Steps
+
+1. **Locate the run.** Default to the latest successful run of `all-services-artifacts.yml` on
+   `main`. If a specific service, branch, commit, or run ID is named, use that instead. Look it up
+   with `gh run list --workflow=all-services-artifacts.yml --status=success --limit=1` (or the
+   equivalent for a named service's own workflow) — never guess a run ID.
+2. **Download.** `gh run download <run-id> -D <dest>` pulls every artifact on that run. Each is
+   `<service>-image.tar.gz`, produced only for services that had a `Dockerfile` at build time. No
+   artifacts on the run means every service still lacks a `Dockerfile` — say that plainly rather
+   than fabricating a deployment.
+3. **Load.** `docker load -i <service>.tar.gz` per tarball, then confirm with `docker images` that
+   each one landed before wiring it into anything.
+4. **Run.**
+   - If `infra/docker-compose.yml` exists: write or update a local override file (e.g.
+     `infra/docker-compose.local-artifacts.yml`) pinning each service's `image:` to the tag just
+     loaded (`<service>:<sha>`), then run
+     `docker compose -f infra/docker-compose.yml -f infra/docker-compose.local-artifacts.yml up -d`.
+   - If `infra/docker-compose.yml` doesn't exist yet: don't invent one. Report it's missing and, at
+     most, offer the plain `docker run` command per loaded image — without guessing ports, env
+     vars, or secrets not already documented in the repo.
+
+## Hard boundaries
+
+- Local only — never push a loaded image to a registry, never target a remote host, never touch
+  deploy config outside `infra/`.
+- Confirm before triggering new CI work: downloading artifacts from a completed run needs no
+  confirmation, but triggering a fresh run (`gh workflow run ...`) burns shared CI minutes and is
+  visible to the whole team in the Actions tab — ask first.
+- No fabrication: if the compose file, an `.env` template, or a service's `Dockerfile` is missing,
+  say so and stop rather than guessing a topology, port mapping, or secret.
+- If any seed/fixture data ships inside an image, don't let logs or the report quote real records —
+  see `pseudonymized-data-only.mdc`.
+
+## When done
+
+Report which run was pulled from, which services had artifacts vs. were skipped (no Dockerfile
+yet), which images loaded successfully, and exactly how they were started (the compose command
+run, or fallback `docker run` commands if no compose file exists).
