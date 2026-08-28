@@ -1,6 +1,7 @@
 # PeopleForce integration
 
-Status: **research pending** — no API investigation has happened yet. The v1.5 spec changelog
+Status: **good-to-have; reduced v1.5 scope retained**. API investigation remains pending. The v1.5
+spec changelog
 (`docs/requirements/Spec_Changelog_v1.2_to_v1.5.md`) has already resolved the *scope* question this
 doc used to leave fully open, even though the API-shape investigation itself hasn't started.
 
@@ -31,6 +32,9 @@ was chosen and why, once decided.
   not the pull integration itself ships in time. This is the anchor for whatever cross-system
   identity resolution gets decided later (see Identity resolution below), so it must be captured
   from day one even in the external-link-fallback mode.
+- **Candidate-to-employee lifecycle linkage is explicitly deferred from v1.5.** The stored
+  PeopleForce candidate ID remains the candidate-side anchor, but v1.5 does not link a hired
+  candidate forward to an Employee record.
 - **No PeopleForce vacancy sync in either direction.** The resourcing request/vacancy entity is
   platform-native only (v1.5) — do not build a PeopleForce-vacancy read or write path at all.
 
@@ -71,10 +75,9 @@ candidate data reasonably fresh during an active resourcing request.
 Per Section 6: a person may exist as a PeopleForce candidate, then later as an employee in this
 system. **v1.5 has already decided the anchor for this**: the PeopleForce candidate ID is stored
 on every external candidate unconditionally (see above), independent of whether the pull
-integration ships. What's still open: how (or whether) a hired candidate's stored PeopleForce ID
-gets linked forward to their eventual employee record once they're onboarded — pre-onboarding
-linkage is explicitly out of scope for this iteration (spec Section 10), so this may only need to
-cover the "still a candidate, proposed in resourcing" case, not full lifecycle linkage.
+integration ships. Candidate-to-employee lifecycle linkage is deferred from v1.5. The integration
+must support the candidate-side ID persistence and the resourcing proposal/prefill use case, but
+must not expand into hired-candidate onboarding or forward lifecycle reconciliation this iteration.
 
 ### Failure handling
 Per Section 7 and 4.7: if PeopleForce is unreachable, the resourcing flow's candidate-proposal
@@ -83,6 +86,15 @@ to an external link, per the spec's explicit allowance) rather than the request/
 breaking entirely.
 
 ## Decision log
+
+### 2026-08-28 — PeopleForce scope and candidate identity anchor
+- **Decision:** Keep PeopleForce as a good-to-have integration limited to candidate prefill by
+  candidate ID, with external-link fallback if needed. Persist the PeopleForce candidate ID on
+  every external candidate. Defer candidate-to-employee lifecycle linkage from v1.5.
+- **Why:** The approved v1.5 scope makes the platform the source of truth for vacancies and
+  removes any need for general PeopleForce synchronization. Candidate-ID persistence preserves
+  the required external anchor without expanding PeopleForce beyond its approved good-to-have
+  scope.
 
 <!-- As decisions are made, append entries here in the ADR-lite style used in docs/decisions/:
      what was decided, why, and date. Cross-link to a full ADR in docs/decisions/ if the decision

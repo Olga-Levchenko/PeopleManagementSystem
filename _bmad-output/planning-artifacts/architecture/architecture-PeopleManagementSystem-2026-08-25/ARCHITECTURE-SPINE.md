@@ -7,14 +7,17 @@ paradigm: service-oriented bounded contexts with hexagonal service internals
 scope: platform boundaries, ownership, integration, authorization consistency, and delivery conventions
 status: final
 created: 2026-08-25
-updated: 2026-08-25
+updated: 2026-08-28
 binds: [FR-1..FR-45, NFR-access-control, NFR-performance, NFR-availability, NFR-accessibility]
 sources:
   - docs/requirements/project-requirements.md
   - docs/access-control/section-matrix.md
   - _bmad-output/planning-artifacts/prds/prd-PeopleManagementSystem-2026-08-25/prd.md
   - docs/decisions/ADR-001-authorization-projection-consistency.md
+  - docs/integrations/timetracker.md
+  - docs/integrations/peopleforce.md
   - user-provided architecture-options-presentation.md
+  - docs/integrations/contracts/timetracker-openapi-v1.0.0.json
 companions: []
 ---
 
@@ -68,11 +71,16 @@ but local development and the first delivery scope use one shared Docker Compose
   freshness is uncertain. Authorization records applied source versions and projection
   freshness/watermarks, rejects stale or out-of-order updates, and supports replay. A
   synchronous People lookup is an exceptional freshness check or fallback, not the default
-  request path. **The propagation bound is fixed, not open:** project-derived access is revoked
-  within 15 minutes of the source event, degrading to a forced withdrawal within 4 hours if
+  request path. **The propagation bound is fixed, not open:** project-derived access changes
+  within **15 minutes of the underlying Timetracker assignment change** under normal sync —
+  the clock starts at the provider-side assignment change, not at poll time, diff detection,
+  or internal event publication — degrading to a forced withdrawal within **4 hours** if
   timetracker sync itself is failing; platform-owned relationship edits (reporting line,
   department, PP assignment) take effect on the requester's next request rather than through this
-  propagation path (`.claude/rules/access-control-invariants.md`).
+  propagation path (`.claude/rules/access-control-invariants.md`). API visibility delay, polling
+  cadence, adapter processing, outbox publication, projection update, and cache invalidation
+  must together fit within that 15-minute bound; if the supplied provider contract cannot
+  support it, treat that as an integration feasibility issue — do not weaken the requirement.
 
 ### AD-4 — Persistence ownership is isolated
 
@@ -151,6 +159,35 @@ but local development and the first delivery scope use one shared Docker Compose
   filters, sorting, list columns, exports, and search. Colleague responses are constructed from
   the exact S1/S10/S11 whitelist. A denied section or field is absent from the response and from
   error or notification content.
+
+### AD-11 — Timetracker adapter ingests state and publishes internal relationship changes
+
+- **Binds:** FR-43, FR-44, SM-2, AD-1, AD-3, AD-6
+- **Prevents:** treating provider retrieval as native events, granting project-derived access on
+  unverified identity, inferring assignment removal from incomplete responses, and weakening the
+  fixed propagation bounds
+- **Rule:** Under the supplied TimeTracker External API contract v1.0.0,
+  `integration-timetracker` retrieves project and team-member state through
+  `GET /api/projects/talents` (and leave-related state through the documented
+  `POST /api/accounting/report` endpoint). That contract documents no provider events or webhooks; the architecture makes no
+  claim that the provider lacks undocumented or future event capability — only that platform
+  ingestion for this iteration is state retrieval, not provider push. The adapter diffs retrieved
+  state against the last successful snapshot and causes People/Organization to publish a
+  **provider-neutral internal normalized relationship-change contract** through its transactional
+  outbox (AD-3, AD-6). The stub producer built in Epic 1 and the real adapter must publish the
+  **same internal contract**; Authorization consumes only that contract, never raw provider
+  payloads. Persist Timetracker `Employee.id` as an opaque provider-scoped external identifier;
+  do not assume immutability or non-reuse; do not use `Employee.hash` for identity.
+  `AccountTalentDto.email` is a lookup attribute only — email alone never verifies or activates
+  a link. Project-derived access requires an explicitly verified `Employee.id`-to-`person_id`
+  mapping owned by People/Organization (AD-1); missing, ambiguous, stale, or unverified mappings
+  **fail closed** — no project-line access for that member. Unresolved `projectManager` and
+  `deliveryManager` strings cannot grant access until their identity semantics are confirmed.
+  Do not treat absence from a response as assignment removal until response completeness,
+  pagination, and provider removal semantics are confirmed; only positively evidenced changes
+  may produce internal grant or revoke events. PeopleForce candidate-to-employee lifecycle
+  linkage remains deferred from v1.5; store the PeopleForce candidate ID as the candidate-side
+  anchor only (FR-45).
 
 ### Dependency direction
 
@@ -258,7 +295,7 @@ development/test profiles as implementation needs them.
 | FR-31 timeline and FR-32 manual timeline overrides | People/Organization service; events from People and Work Management | AD-1, AD-4, AD-6 |
 | FR-33..FR-38 CDS and mentorship | Work Management service, with timeline events consumed by People/Organization | AD-1, AD-4, AD-6 |
 | FR-39..FR-42 campaigns and feedback | Work Management service | AD-1, AD-2, AD-5 |
-| FR-43..FR-45 Timetracker and PeopleForce | Integration workers through explicit service APIs/events | AD-1, AD-6, AD-7 |
+| FR-43..FR-45 Timetracker and PeopleForce | Integration workers through explicit service APIs/events | AD-1, AD-6, AD-7, AD-11 |
 | NFR and definition of done | All services, infra, and CI | AD-3, AD-6, AD-7 |
 
 ## Deferred
@@ -268,10 +305,19 @@ development/test profiles as implementation needs them.
   baseline.
 - Exact RabbitMQ exchange, routing-key, queue, retry, and dead-letter topology.
 - Freshness telemetry, alert thresholds, and the operational procedure for projection
-  rebuild/replay. (The revocation propagation bound itself — 15 minutes, 4-hour forced withdrawal
-  — is fixed in AD-3, not open.)
-- The detailed identity-link reconciliation workflow and external-identity conflict handling;
-  People/Organization owns the links, while integration workers remain adapters.
+  rebuild/replay. (The revocation propagation bound itself — 15 minutes from the underlying
+  Timetracker assignment change, 4-hour forced withdrawal on sync failure — is fixed in AD-3
+  and AD-11, not open.)
+- Timetracker polling cadence, documented rate limits, API visibility delay, response
+  completeness, pagination behavior, and provider removal semantics (including whether absence
+  from a response means assignment removal).
+- Timetracker `projectManager` and `deliveryManager` string identity semantics and multiplicity.
+- Timetracker `Employee.id` lifecycle properties (immutability, non-reuse).
+- The operational workflow for creating, explicitly verifying, auditing, deactivating, and
+  resolving conflicts in Timetracker `Employee.id`-to-`person_id` mappings.
+- The exact mechanism for detecting a four-hour sync-failure window for forced access withdrawal.
+- PeopleForce candidate-to-employee lifecycle linkage (deferred from v1.5; candidate ID
+  persistence is in scope).
 - Deployment provider, production topology, secret-management implementation, and full
   observability platform; the initial scope owns local Compose and proportional CI only.
 - Whether any bounded context should split into additional deployable services after usage and
