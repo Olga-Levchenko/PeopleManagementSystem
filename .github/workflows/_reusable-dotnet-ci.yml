@@ -1,0 +1,79 @@
+name: Reusable .NET service CI
+
+on:
+  workflow_call:
+    inputs:
+      service_path:
+        required: true
+        type: string
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.service_path }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check whether service is scaffolded
+        id: scaffolded
+        run: |
+          if compgen -G "*.csproj" > /dev/null || compgen -G "*.sln" > /dev/null; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip (not yet scaffolded)
+        if: steps.scaffolded.outputs.present == 'false'
+        run: echo "::notice::${{ inputs.service_path }} has no .csproj/.sln yet - skipping until the service is scaffolded."
+
+      - name: Setup .NET
+        if: steps.scaffolded.outputs.present == 'true'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        if: steps.scaffolded.outputs.present == 'true'
+        run: dotnet restore
+
+      - name: Build
+        if: steps.scaffolded.outputs.present == 'true'
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        if: steps.scaffolded.outputs.present == 'true'
+        run: dotnet test --no-build --configuration Release
+
+      - name: Check for Dockerfile
+        id: dockerized
+        if: steps.scaffolded.outputs.present == 'true'
+        run: |
+          if [ -f Dockerfile ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Determine image name
+        id: image
+        if: steps.dockerized.outputs.present == 'true'
+        run: echo "name=$(basename "${{ inputs.service_path }}")" >> "$GITHUB_OUTPUT"
+
+      - name: Build Docker image
+        if: steps.dockerized.outputs.present == 'true'
+        run: docker build -t "${{ steps.image.outputs.name }}:${{ github.sha }}" .
+
+      - name: Save Docker image
+        if: steps.dockerized.outputs.present == 'true'
+        run: docker save "${{ steps.image.outputs.name }}:${{ github.sha }}" | gzip > "${{ steps.image.outputs.name }}.tar.gz"
+
+      - name: Upload image artifact
+        if: steps.dockerized.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.image.outputs.name }}-image
+          path: ${{ inputs.service_path }}/${{ steps.image.outputs.name }}.tar.gz
+          retention-days: 14

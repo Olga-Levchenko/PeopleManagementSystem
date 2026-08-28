@@ -1,0 +1,27 @@
+name: All services - build artifacts
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+
+jobs:
+  node-services:
+    strategy:
+      fail-fast: false
+      matrix:
+        service_path:
+          - services/frontend
+          - services/bff
+          - services/people-service
+          - services/resourcing-service
+          - services/integration-timetracker
+          - services/integration-peopleforce
+    uses: ./.github/workflows/_reusable-node-ci.yml
+    with:
+      service_path: ${{ matrix.service_path }}
+
+  auth-service:
+    uses: ./.github/workflows/_reusable-dotnet-ci.yml
+    with:
+      service_path: services/auth-service
