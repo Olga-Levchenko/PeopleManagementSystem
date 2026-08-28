@@ -1184,9 +1184,13 @@ still applies.
    minutes under normal sync, forced withdrawal within 4 hours if sync itself is failing (FR-2,
    FR-44). Number kept as item 1, marked resolved rather than deleted, so cross-references elsewhere
    in this document ("Open Question 1") stay valid.
-2. Decision-logging approach for Teams calls (ADR-in-repo vs. Jira vs. both) — proposed as
-   `docs/decisions/` ADRs, not yet confirmed; affects where SM-3's "process quality" evidence
-   actually lives. Unaffected by the v1.5 changelog.
+2. ~~Decision-logging approach for Teams calls (ADR-in-repo vs. Jira vs. both)~~ **RESOLVED**:
+   both. Every decision still gets a `docs/decisions/` ADR (the repo-native record SM-3's
+   "process quality" evidence is graded against), and is also logged/linked in the team's Jira
+   project for day-to-day visibility — see `.claude/agents/meeting-notes-specialist.md`. The Jira
+   site/project is now confirmed (`bootcamp4altex.atlassian.net`, project **O4**, board 3) and
+   reachable live via the project's Atlassian MCP server (`.mcp.json`, per-contributor OAuth) —
+   first real link is O4-1. Fully resolved; unaffected by the v1.5 changelog.
 3. Real pain points with the current internal system being replaced are not yet known firsthand —
    the problem framing in §1 Vision is derived from the spec's stated functional gaps rather than
    direct user complaints. Worth a short conversation with actual HR/manager users if time

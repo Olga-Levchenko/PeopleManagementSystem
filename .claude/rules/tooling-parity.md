@@ -37,6 +37,7 @@ the primary graded quality attribute.
 - `.cursor/rules/tooling-parity.mdc` — the Cursor-side mirror of this file (this rule applies to
   itself).
 - `.claude/rules/access-control-invariants.md`, `.claude/rules/pseudonymized-data-only.md`,
-  `.claude/rules/parallel-work-boundaries.md` — the three guardrails this parity requirement
-  currently covers, each with a `.cursor/rules/*.mdc` counterpart.
-- `.claude/agents/*.md` — the four subagents, each with a `.cursor/rules/*.mdc` counterpart.
+  `.claude/rules/parallel-work-boundaries.md`, `.claude/rules/pr-summaries.md` — the four
+  guardrails this parity requirement currently covers, each with a `.cursor/rules/*.mdc`
+  counterpart.
+- `.claude/agents/*.md` — the five subagents, each with a `.cursor/rules/*.mdc` counterpart.

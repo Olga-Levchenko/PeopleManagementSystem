@@ -1,0 +1,25 @@
+---
+description: Always return a PR summary to the user after creating a pull request
+globs:
+alwaysApply: true
+---
+
+# Always return a PR summary after creating a pull request
+
+Ported from `.claude/rules/pr-summaries.md`. Creating a PR is a visible, shared-state action —
+getting confirmation to open it is not the same as telling the user what actually shipped. On a
+project with contributors on both Claude Code and Cursor working async
+(`parallel-work-boundaries.mdc`), the PR description isn't guaranteed to be read the moment it's
+created.
+
+## The rule
+
+Whenever a pull request is created in this repo, follow it with a written summary in the chat
+response, not just the PR URL. Include:
+
+- The PR title and URL.
+- What changed, in plain language — not a copy of the diff.
+- Anything the requester should act on before merge: an incomplete test-plan item, an open
+  question the PR doesn't resolve, or a follow-up it depends on.
+
+A bare "PR created: `<url>`" does not satisfy this rule.
