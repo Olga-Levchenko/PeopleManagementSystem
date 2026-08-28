@@ -17,11 +17,18 @@ jobs:
           - services/resourcing-service
           - services/integration-timetracker
           - services/integration-peopleforce
+          - services/work-management-service
     uses: ./.github/workflows/_reusable-node-ci.yml
     with:
       service_path: ${{ matrix.service_path }}
 
-  auth-service:
+  dotnet-services:
+    strategy:
+      fail-fast: false
+      matrix:
+        service_path:
+          - services/authentication-service
+          - services/access-control-service
     uses: ./.github/workflows/_reusable-dotnet-ci.yml
     with:
-      service_path: services/auth-service
+      service_path: ${{ matrix.service_path }}

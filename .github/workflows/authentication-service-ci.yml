@@ -1,0 +1,19 @@
+name: authentication-service CI
+
+on:
+  push:
+    paths:
+      - 'services/authentication-service/**'
+      - '.github/workflows/authentication-service-ci.yml'
+      - '.github/workflows/_reusable-dotnet-ci.yml'
+  pull_request:
+    paths:
+      - 'services/authentication-service/**'
+      - '.github/workflows/authentication-service-ci.yml'
+      - '.github/workflows/_reusable-dotnet-ci.yml'
+
+jobs:
+  ci:
+    uses: ./.github/workflows/_reusable-dotnet-ci.yml
+    with:
+      service_path: services/authentication-service

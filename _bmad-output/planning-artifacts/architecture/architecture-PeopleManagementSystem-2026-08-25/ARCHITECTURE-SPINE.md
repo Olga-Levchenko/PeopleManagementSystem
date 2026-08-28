@@ -45,27 +45,27 @@ but local development and the first delivery scope use one shared Docker Compose
   resourcing-specific workflow state. Integration services own adapters and genuinely
   integration-owned normalized records only.
 
-### AD-2 — Authorization is a separate policy boundary
+### AD-2 — Access Control is a separate policy boundary
 
 - **Binds:** FR-1..FR-7, FR-20, FR-25..FR-30, FR-39, NFR-access-control
 - **Prevents:** functional roles being mistaken for data access and client-side or distributed
   permission decisions
-- **Rule:** Authorization owns access-role resolution, functional permissions, and section,
+- **Rule:** Access Control owns access-role resolution, functional permissions, and section,
   record, and operation policy decisions. Functional permissions are stored runtime data.
   Access roles are derived per viewer/subject/request from relationship inputs. No other service
   may replace this with a hardcoded role-name check.
 
-### AD-3 — Authorization uses a derived relationship projection
+### AD-3 — Access Control uses a derived relationship projection
 
 - **Binds:** FR-1, FR-2, FR-4..FR-7, FR-20, FR-25..FR-30, FR-39, ADR-001
 - **Prevents:** synchronous People calls on every request and stale access surviving silently
   after a relationship revocation
-- **Rule:** People/Organization is authoritative for relationships. Authorization owns only the
+- **Rule:** People/Organization is authoritative for relationships. Access Control owns only the
   derived projection needed for policy evaluation. RabbitMQ is the normal synchronization path.
   Relationship changes are published through transactional outboxes; events carry an event id,
   source aggregate/version, occurred-at timestamp, schema version, and whether the change grants
   or revokes access. Revocations receive priority propagation and fail-closed handling while
-  freshness is uncertain. Authorization records applied source versions and projection
+  freshness is uncertain. Access Control records applied source versions and projection
   freshness/watermarks, rejects stale or out-of-order updates, and supports replay. A
   synchronous People lookup is an exceptional freshness check or fallback, not the default
   request path. **The propagation bound is fixed, not open:** project-derived access is revoked
@@ -89,7 +89,7 @@ but local development and the first delivery scope use one shared Docker Compose
 - **Prevents:** domain rules leaking into the frontend or the BFF becoming a second policy engine
 - **Rule:** React communicates through the BFF/API gateway. The BFF validates Keycloak-issued
   authentication, adds correlation context, calls and composes domain APIs, and returns
-  consistent errors. It must not own authorization policy or bypass the Authorization Service.
+  consistent errors. It must not own authorization policy or bypass the Access Control Service.
   Restricted sections and fields are omitted server-side before reaching React.
 
 ### AD-6 — Cross-service messages are durable and replay-safe
@@ -119,12 +119,12 @@ but local development and the first delivery scope use one shared Docker Compose
   500+ employees with permission resolution. Integration failures degrade safely and never grant
   unauthorized access.
 
-### AD-8 — Shared profile views are authorization-owned grants
+### AD-8 — Shared profile views are access-control-owned grants
 
 - **Binds:** FR-29..FR-30, profile sharing, resourcing candidate review
 - **Prevents:** a share link becoming an alternate permission system or granting unintended write
   and sensitive-section access
-- **Rule:** Authorization owns share grants and their policy state; the BFF exposes the flow and
+- **Rule:** Access Control owns share grants and their policy state; the BFF exposes the flow and
   domain services request decisions. A grant identifies its subject, recipient, allowed-section
   allowlist, creator, expiry, revocation state, and access log. S2, S5, S6, and S8 are excluded
   by default; S3, S7, and S13 are never shareable. Every access is logged, expiry and revocation
@@ -146,7 +146,7 @@ but local development and the first delivery scope use one shared Docker Compose
 - **Binds:** FR-4, FR-7..FR-12, NFR-access-control, exports, search, notifications, list columns
 - **Prevents:** hidden-field inference through filters, sorting, exports, search, composed payloads,
   or client-side omission
-- **Rule:** Every surface that can return or use profile data obtains an Authorization decision
+- **Rule:** Every surface that can return or use profile data obtains an Access Control decision
   before querying/composing that section or field. Custom-field visibility is enforced for values,
   filters, sorting, list columns, exports, and search. Colleague responses are constructed from
   the exact S1/S10/S11 whitelist. A denied section or field is absent from the response and from
@@ -157,9 +157,9 @@ but local development and the first delivery scope use one shared Docker Compose
 ```mermaid
 flowchart LR
     React[React frontend] --> BFF[BFF / API gateway]
-    BFF --> Identity[Auth service]
+    BFF --> Identity[Authentication service]
     Identity --> Keycloak[Keycloak]
-    BFF --> Auth[Authorization service]
+    BFF --> AccessControl[Access Control service]
     BFF --> People[People / Organization service]
     BFF --> Work[Work Management service]
     BFF --> Resourcing[Resourcing service]
@@ -167,10 +167,10 @@ flowchart LR
     People --> Broker[RabbitMQ]
     Work --> Broker
     Resourcing --> Broker
-    Broker --> Auth
-    Auth -. exceptional freshness lookup .-> People
+    Broker --> AccessControl
+    AccessControl -. exceptional freshness lookup .-> People
     People --> PeopleDB[(People-owned PostgreSQL)]
-    Auth --> AuthDB[(Authorization-owned PostgreSQL)]
+    AccessControl --> AccessControlDB[(AccessControl-owned PostgreSQL)]
     Work --> WorkDB[(Work-owned PostgreSQL)]
     Resourcing --> ResourcingDB[(Resourcing-owned PostgreSQL)]
     Broker --> Redis[(Redis cache, where justified)]
@@ -182,7 +182,7 @@ flowchart LR
 | --- | --- |
 | Naming | Domain-oriented service and event names; explicit API and message versions; stable identifiers across contracts; no role-name constants as policy checks |
 | Data & formats | REST/JSON APIs described by OpenAPI; versioned contracts; ISO 8601 timestamps; consistent structured error envelope; service-owned PostgreSQL migrations; pseudonymized non-production data |
-| State & cross-cutting | Auth service validates Keycloak-issued identity at the edge; server-side section authorization; transactional outbox; idempotent consumers; retries and dead letters; correlation IDs in structured logs; fail closed on authorization uncertainty |
+| State & cross-cutting | Authentication service validates Keycloak-issued identity at the edge; server-side section authorization; transactional outbox; idempotent consumers; retries and dead letters; correlation IDs in structured logs; fail closed on authorization uncertainty |
 | Caching | Redis only where a measured need justifies it; never the system of record; authorization caches must not preserve revoked access beyond the approved propagation bound |
 | Testing | Unit, service integration, API contract, migration, and focused end-to-end tests; authorization matrix tests assert API-level inclusion and exclusion |
 
@@ -192,7 +192,7 @@ flowchart LR
 | --- | --- |
 | React | Approved frontend; version must be verified and centrally pinned before implementation |
 | Node.js / TypeScript | Approved core business-service runtime; versions must be verified and centrally pinned before implementation |
-| .NET | Approved Authorization Service runtime; version must be verified and centrally pinned before implementation |
+| .NET | Approved Access Control Service runtime; version must be verified and centrally pinned before implementation |
 | Keycloak | Approved identity provider; deployment version must be verified and pinned before implementation |
 | PostgreSQL | Approved primary data store; deployment version must be verified and pinned before implementation |
 | RabbitMQ | Approved message broker; deployment version must be verified and pinned before implementation |
@@ -215,8 +215,8 @@ repository-root/
   services/
     frontend/                  # React application
     bff/                       # browser-facing composition boundary
-    auth-service/               # Keycloak integration and identity plumbing
-    authorization-service/      # .NET policy and derived relationship projection
+    authentication-service/     # Keycloak integration and identity plumbing
+    access-control-service/     # .NET policy and derived relationship projection
     people-service/             # People/Organization authoritative domain
     work-management-service/    # risks, tasks, CDS, mentorship, campaigns, feedback
     resourcing-service/         # requests, candidates, proposals, approvals, history
@@ -229,7 +229,7 @@ flowchart TB
     subgraph Platform[Local Docker Compose platform]
         Frontend[React]
         Gateway[BFF]
-        Domain[People / Authorization / Work / Resourcing]
+        Domain[People / Access Control / Work / Resourcing]
         Adapters[Integration workers]
         Infra[RabbitMQ + PostgreSQL + Redis]
         Frontend --> Gateway
@@ -250,11 +250,11 @@ development/test profiles as implementation needs them.
 
 | Capability / Area | Lives in | Governed by |
 | --- | --- | --- |
-| FR-1..FR-7 role resolution and section authorization | Authorization service, with People relationship events | AD-2, AD-3, AD-6 |
+| FR-1..FR-7 role resolution and section authorization | Access Control service, with People relationship events | AD-2, AD-3, AD-6 |
 | FR-8..FR-15 profiles, list, self-service, custom fields | People/Organization service and BFF | AD-1, AD-4, AD-5 |
 | FR-16..FR-19 dashboards | Work Management/Resourcing APIs composed by BFF | AD-1, AD-5 |
 | FR-20..FR-24 tasks and risks | Work Management service | AD-1, AD-2, AD-4 |
-| FR-25..FR-30 resourcing and profile sharing | Resourcing service plus Authorization decisions | AD-1, AD-2, AD-5 |
+| FR-25..FR-30 resourcing and profile sharing | Resourcing service plus Access Control decisions | AD-1, AD-2, AD-5 |
 | FR-31 timeline and FR-32 manual timeline overrides | People/Organization service; events from People and Work Management | AD-1, AD-4, AD-6 |
 | FR-33..FR-38 CDS and mentorship | Work Management service, with timeline events consumed by People/Organization | AD-1, AD-4, AD-6 |
 | FR-39..FR-42 campaigns and feedback | Work Management service | AD-1, AD-2, AD-5 |
@@ -278,3 +278,6 @@ development/test profiles as implementation needs them.
   team ownership justify it.
 - Detailed API resource shapes, event schemas, database attributes, and frontend component tree;
   these belong to contracts and implementation, subject to the invariants above.
+- Each service's `/health` endpoint checking RabbitMQ connectivity, not just its own database.
+  Deferred until a service actually integrates an AMQP client — health-checking a broker
+  connection nothing uses yet would be speculative wiring, not a real signal.

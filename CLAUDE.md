@@ -9,12 +9,12 @@ Spec-driven monorepo for the People Management Platform (Iteration 2, AI-native 
 - Integration research (timetracker, PeopleForce): `docs/integrations/`
 - Access-control matrix as a living doc, traced to test coverage: `docs/access-control/`
 - HTML prototypes: `prototypes/`
-- Services: `services/frontend`, `services/bff`, `services/auth-service` (.NET + Keycloak),
-  `services/authorization-service` (.NET — policy and derived-relationship-projection engine,
-  separate from `auth-service`), `services/people-service`, `services/work-management-service`
+- Services: `services/frontend`, `services/bff`, `services/authentication-service` (.NET + Keycloak),
+  `services/access-control-service` (.NET — policy and derived-relationship-projection engine,
+  separate from `authentication-service`), `services/people-service`, `services/work-management-service`
   (risks, action items, CDS, mentorship, campaigns, feedback), `services/resourcing-service`,
   `services/integration-timetracker`, `services/integration-peopleforce`
-- Shared code for Node services: `libs/contracts` (DTOs/API types), `libs/config` (lint/tsconfig/jest bases) — not used by `auth-service`
+- Shared code for Node services: `libs/contracts` (DTOs/API types), `libs/config` (lint/tsconfig/jest bases) — not used by `authentication-service`
 - Local dev environment: `infra/docker-compose.yml`
 - BMAD planning/implementation artifacts: `_bmad-output/`
 - Tooling for AI-assisted development: `.claude/` (skills, rules, subagents) for Claude Code;

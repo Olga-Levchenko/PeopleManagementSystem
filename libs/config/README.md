@@ -3,7 +3,7 @@
 Shared lint/tsconfig/jest/prettier bases for Node services (`services/bff`,
 `services/people-service`, `services/resourcing-service`, `services/work-management-service`,
 `services/integration-timetracker`, `services/integration-peopleforce`, `services/frontend`) — not
-used by `auth-service` (.NET).
+used by `authentication-service` (.NET).
 
 - `eslint-node.config.mjs` / `eslint-react.config.js` — flat-config arrays a service's own
   `eslint.config.{mjs,js}` imports and spreads, then appends service-specific overrides.

@@ -23,11 +23,11 @@ services:
       retries: 5
       start_period: 10s
 
-  # Identity provider for auth-service. Dev-mode only (ephemeral storage, no TLS) —
-  # realm/client configuration is owned by auth-service, not this compose file.
+  # Identity provider for authentication-service. Dev-mode only (ephemeral storage, no TLS) —
+  # realm/client configuration is owned by authentication-service, not this compose file.
   keycloak:
     # Version placeholder: architecture spine marks Keycloak's deployment version as
-    # "must be verified and pinned before implementation" — pin for real once auth-service lands.
+    # "must be verified and pinned before implementation" — pin for real once authentication-service lands.
     image: quay.io/keycloak/keycloak:26.0
     restart: unless-stopped
     command: start-dev
@@ -38,6 +38,8 @@ services:
       - '${KEYCLOAK_PORT:-8080}:8080'
 
   # Cross-service messaging (AD-6): relationship-change propagation, domain events.
+  # Note: no service's /health endpoint checks this broker yet — deferred until a service
+  # actually integrates an AMQP client (see ARCHITECTURE-SPINE.md "Deferred").
   rabbitmq:
     # Version placeholder: same "verify and pin before implementation" caveat as Keycloak.
     image: rabbitmq:4-management-alpine

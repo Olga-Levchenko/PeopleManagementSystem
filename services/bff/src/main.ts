@@ -17,10 +17,15 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
+      forbidNonWhitelisted: true,
       transform: true,
     }),
   );
 
+  // TODO(AD-5): wire the Authorization Service guard here before any real endpoint ships.
+  // This bootstrap performs no authentication/authorization check yet — per the architecture
+  // spine, the BFF is the browser boundary and must validate Keycloak-issued identity and defer
+  // policy decisions to the Authorization Service, not bypass it.
   app.enableCors({
     origin: config.getOrThrow<string>('CORS_ORIGIN'),
   });
