@@ -40,6 +40,17 @@ jobs:
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
+      - name: Install shared libs/config dependencies
+        # Services import libs/config's ESLint/Jest bases by relative path, but Node resolves
+        # their bare-specifier imports (e.g. @eslint/js) from libs/config's own node_modules,
+        # not the service's - so libs/config needs its own install too.
+        if: steps.scaffolded.outputs.present == 'true'
+        working-directory: libs/config
+        run: |
+          if [ -f package.json ]; then
+            if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          fi
+
       - name: Lint
         if: steps.scaffolded.outputs.present == 'true'
         run: npm run lint --if-present
