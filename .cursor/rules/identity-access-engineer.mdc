@@ -1,13 +1,13 @@
 ---
 description: Keycloak/OIDC identity plumbing boundary — authentication only, never authorization
-globs: services/auth-service/**
+globs: services/authentication-service/**
 alwaysApply: false
 ---
 
 # Identity and access: Keycloak/OIDC boundary
 
 Ported from `.claude/agents/identity-access-engineer.md`, a Claude Code subagent scoped to
-`services/auth-service`. Cursor has no direct subagent equivalent (no isolated context/tool
+`services/authentication-service`. Cursor has no direct subagent equivalent (no isolated context/tool
 restrictions per-persona), so this rule carries the same boundary as plain instructions for
 whoever is editing this service.
 

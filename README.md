@@ -8,8 +8,8 @@ React frontend + NestJS microservices (BFF + domain services) + a .NET auth serv
 
 - `docs/` — requirements, architecture decisions (`decisions/`), integration research (`integrations/`), the access-control matrix as a living doc (`access-control/`)
 - `prototypes/` — HTML prototypes from the foundation phase
-- `services/` — one folder per deployable service (frontend, bff, auth-service, people-service, resourcing-service, integration-timetracker, integration-peopleforce)
-- `libs/` — code shared across Node services (contracts/DTOs, shared config) — not used by `auth-service`, which is .NET
+- `services/` — one folder per deployable service (frontend, bff, authentication-service, people-service, resourcing-service, integration-timetracker, integration-peopleforce)
+- `libs/` — code shared across Node services (contracts/DTOs, shared config) — not used by `authentication-service`, which is .NET
 - `infra/` — local dev docker-compose, CI pipeline config
 - `_bmad/`, `_bmad-output/` — BMAD framework install and its generated planning/implementation artifacts
 - `.claude/` — skills, rules, and subagents for AI-assisted development in this repo

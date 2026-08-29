@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Code Review Crew — Services Scaffolding Review — 2026-08-28</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --bg: #f4f1ea;
+    --panel: #ffffff;
+    --ink: #23211d;
+    --sub: #6b6459;
+    --line: #e4dfd3;
+    --accent: #b0492c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #171512;
+      --panel: #211f1b;
+      --ink: #ecE7dc;
+      --sub: #a39a89;
+      --line: #38352d;
+      --accent: #e2825f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+    padding: 2.5rem 1rem 5rem;
+  }
+  .wrap { max-width: 780px; margin: 0 auto; }
+  header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+  }
+  header .kicker {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    color: var(--sub);
+  }
+  header h1 {
+    margin: 0.4rem 0 0.2rem;
+    font-size: 1.9rem;
+  }
+  header .date {
+    color: var(--sub);
+    font-size: 0.9rem;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  .roster {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    justify-content: center;
+    margin: 1.5rem 0 0;
+  }
+  .chip {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 0.78rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0.3rem 0.75rem;
+    color: var(--sub);
+  }
+  .scene {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1.1rem 1.3rem;
+    margin-bottom: 2rem;
+    font-size: 0.92rem;
+    color: var(--sub);
+    font-style: italic;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  .turn {
+    display: flex;
+    gap: 0.85rem;
+    margin: 1.15rem 0;
+    opacity: 0;
+    animation: rise 0.5s ease forwards;
+  }
+  .turn .icon {
+    flex: none;
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: 50%;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+  }
+  .turn .bubble {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    flex: 1;
+  }
+  .turn .name {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-weight: 700;
+    font-size: 0.85rem;
+    margin-bottom: 0.15rem;
+    color: var(--accent);
+  }
+  .turn p { margin: 0.2rem 0; line-height: 1.55; font-size: 0.98rem; }
+  .turn code {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 0.05rem 0.35rem;
+    font-size: 0.85em;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .n1 { animation-delay: 0.05s } .n2 { animation-delay: 0.12s } .n3 { animation-delay: 0.19s }
+  .n4 { animation-delay: 0.26s } .n5 { animation-delay: 0.33s } .n6 { animation-delay: 0.40s }
+  .n7 { animation-delay: 0.47s } .n8 { animation-delay: 0.54s }
+
+  .divider {
+    text-align: center;
+    color: var(--sub);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    margin: 2.3rem 0 1.4rem;
+  }
+  .ledger {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1.2rem 1.4rem;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 0.92rem;
+  }
+  .ledger h2 { font-family: Georgia, serif; font-size: 1.15rem; margin-top: 0; }
+  .ledger ol { padding-left: 1.2rem; }
+  .ledger li { margin-bottom: 0.6rem; line-height: 1.5; }
+  .fixed { color: #3f8a4d; font-weight: 700; }
+  @media (prefers-color-scheme: dark) { .fixed { color: #6fce7f; } }
+  footer {
+    text-align: center;
+    margin-top: 2.5rem;
+    color: var(--sub);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 0.78rem;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="kicker">Party Mode · Keepsake</div>
+    <h1>The Code Review Crew</h1>
+    <div class="date">Services scaffolding review — August 28, 2026</div>
+    <div class="roster">
+      <span class="chip">🔒 Vex — Security</span>
+      <span class="chip">😤 Grumbal — The Adversary</span>
+      <span class="chip">🌶️ Boundary — Edge-Case Hunter</span>
+      <span class="chip">🎯 Yui — The Craftsman</span>
+      <span class="chip">🚢 Dana — The Pragmatist</span>
+    </div>
+  </header>
+
+  <div class="scene">Adversarial code review of the six freshly-scaffolded NestJS services. No rubber-stamping, no praise sandwiches — point at the line, name the failure mode, defend it when someone pushes back.</div>
+
+  <div class="turn n1"><div class="icon">🔒</div><div class="bubble">
+    <div class="name">Vex</div>
+    <p><code>services/bff/src/main.ts</code> — byte-identical to every other service's bootstrap. Zero auth deps in <code>bff/package.json</code>. AD-5 says the BFF must validate Keycloak identity and never bypass the Authorization Service. Right now it validates nothing.</p>
+  </div></div>
+
+  <div class="turn n2"><div class="icon">😤</div><div class="bubble">
+    <div class="name">Grumbal</div>
+    <p>Nobody's paged yet because nobody's called it from outside <code>localhost:4200</code>. That's the whole danger — it works fine, right up until it doesn't.</p>
+  </div></div>
+
+  <div class="turn n3"><div class="icon">🚢</div><div class="bubble">
+    <div class="name">Dana</div>
+    <p>Is that a bug, or "the feature doesn't exist yet"? Nobody's shipped a business endpoint anywhere. What would you even wire the guard to right now?</p>
+  </div></div>
+
+  <div class="turn n4"><div class="icon">🌶️</div><div class="bubble">
+    <div class="name">Boundary</div>
+    <p><code>whitelist: true</code>, no <code>forbidNonWhitelisted</code>. Unknown fields vanish silently instead of a 400. First person to hit it loses an hour wondering why.</p>
+  </div></div>
+
+  <div class="turn n5"><div class="icon">🎯</div><div class="bubble">
+    <div class="name">Yui</div>
+    <p>Six identical <code>main.ts</code> copies. Flip that flag and it's six files to touch, and I'd bet one gets missed.</p>
+  </div></div>
+
+  <div class="turn n6"><div class="icon">🚢</div><div class="bubble">
+    <div class="name">Dana</div>
+    <p><code>parallel-work-boundaries.md</code> chose independent per-service ownership over a shared framework layer on purpose — pick the fight with the ADR, not the scaffold for following it.</p>
+  </div></div>
+
+  <div class="turn n7"><div class="icon">😤</div><div class="bubble">
+    <div class="name">Grumbal</div>
+    <p>No correlation ID anywhere. Six services, a message broker in the mix, and when something fails across the chain you get six unrelated log lines with no shared thread.</p>
+  </div></div>
+
+  <div class="turn n8"><div class="icon">🌶️</div><div class="bubble">
+    <div class="name">Boundary</div>
+    <p>Credit where due, though: ports 3001–3006 and every Postgres DB name line up exactly with <code>postgres-init/01-create-databases.sh</code>. No collisions. Somebody was careful.</p>
+  </div></div>
+
+  <div class="divider">What actually shipped</div>
+
+  <div class="ledger">
+    <h2>Four findings → four outcomes</h2>
+    <ol>
+      <li><span class="fixed">Fixed.</span> BFF's <code>main.ts</code> now carries an explicit AD-5 TODO at the exact spot a real endpoint would need an Authorization Service guard — a landmine, not silence.</li>
+      <li><span class="fixed">Fixed.</span> <code>forbidNonWhitelisted: true</code> added next to <code>whitelist: true</code> in all six services' <code>ValidationPipe</code> — unknown DTO fields now 400 instead of disappearing.</li>
+      <li><span class="fixed">Fixed.</span> A real <code>CorrelationIdMiddleware</code> now runs in all six services — reads or generates <code>x-correlation-id</code>, echoes it on the response, logs it. No new dependencies needed.</li>
+      <li><span class="fixed">Tracked, not faked.</span> RabbitMQ health-checking has no AMQP client to check yet — recorded as a Deferred item in the architecture spine and flagged in <code>docker-compose.yml</code>, rather than wiring a fake connection just to say "done."</li>
+    </ol>
+  </div>
+
+  <footer>Code Review Crew · session mode · a Claude Code party-mode keepsake</footer>
+</div>
+</body>
+</html>

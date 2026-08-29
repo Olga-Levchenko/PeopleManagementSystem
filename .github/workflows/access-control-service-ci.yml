@@ -1,0 +1,19 @@
+name: access-control-service CI
+
+on:
+  push:
+    paths:
+      - 'services/access-control-service/**'
+      - '.github/workflows/access-control-service-ci.yml'
+      - '.github/workflows/_reusable-dotnet-ci.yml'
+  pull_request:
+    paths:
+      - 'services/access-control-service/**'
+      - '.github/workflows/access-control-service-ci.yml'
+      - '.github/workflows/_reusable-dotnet-ci.yml'
+
+jobs:
+  ci:
+    uses: ./.github/workflows/_reusable-dotnet-ci.yml
+    with:
+      service_path: services/access-control-service

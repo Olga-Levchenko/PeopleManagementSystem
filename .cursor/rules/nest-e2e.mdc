@@ -1,0 +1,35 @@
+---
+description: NestJS e2e testing conventions for the Node backend services
+globs: services/{bff,people-service,resourcing-service,work-management-service,integration-timetracker,integration-peopleforce}/test/**
+alwaysApply: false
+---
+
+# E2E Testing Conventions
+
+Ported from `.claude/rules/nest-e2e.md`, scoped identically across the six NestJS backend
+services.
+
+- Files: `test/<area>.e2e-spec.ts`; run with `npm run test:e2e` against the REAL Postgres from
+  `infra/docker-compose.yml` (services that own a database only — `bff` has none)
+- Build the app from `AppModule` via `Test.createTestingModule`
+
+## Bootstrap config is NOT inherited
+
+`main.ts` settings (global `/api` prefix, versioning, pipes) do not apply to the test app:
+
+- Routes are unprefixed in e2e: request `/health`, not `/api/v1/health`
+- Re-enable the pipe manually, mirroring main.ts:
+  `app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }))`
+
+## Data isolation
+
+- Unique test values with a run prefix, e.g. `` const emailPrefix = `e2e-${Date.now()}` ``
+- Clean up in `afterAll` before `await app.close()` for any records the test created
+
+## Style
+
+- `import request from 'supertest'` — default import (namespace import is not callable under
+  esModuleInterop)
+- Type response bodies explicitly, e.g. `const body = res.body as HealthCheckResult`
+- Cover the full flow including error codes (409 duplicate, 400 validation, 404 missing) once a
+  feature module exists — `test/app.e2e-spec.ts` is currently the only spec, covering `/health`

@@ -20,7 +20,7 @@ cross-repo sync scripts) into this repo.
 Each `services/<name>` directory is meant to be an independently workable unit once its contract
 with the rest of the system is agreed:
 
-- `services/frontend`, `services/bff`, `services/auth-service`, `services/people-service`,
+- `services/frontend`, `services/bff`, `services/authentication-service`, `services/people-service`,
   `services/resourcing-service`, `services/integration-timetracker`,
   `services/integration-peopleforce` — different contributors can build these concurrently once
   the shapes crossing their boundary are settled.

@@ -1,0 +1,27 @@
+---
+description: NestJS env configuration conventions for the Node backend services
+globs: services/{bff,people-service,resourcing-service,work-management-service,integration-timetracker,integration-peopleforce}/src/config/**,services/{bff,people-service,resourcing-service,work-management-service,integration-timetracker,integration-peopleforce}/.env.example
+alwaysApply: false
+---
+
+# Environment Configuration Conventions
+
+Ported from `.claude/rules/nest-config.md`, scoped identically across the six NestJS backend
+services (`bff`, `people-service`, `resourcing-service`, `work-management-service`,
+`integration-timetracker`, `integration-peopleforce`).
+
+## Adding a new env variable — three places, always
+
+1. `.env` — the actual local value (gitignored)
+2. `.env.example` — the committed template
+3. `src/config/env.validation.ts` — the Joi schema entry, with a `.default(...)` when a sane
+   default exists, `.required()` otherwise
+
+A variable missing from the Joi schema is silently stripped from `ConfigService` typing
+discipline — never skip step 3.
+
+## Access
+
+- Only via `ConfigService` — `config.getOrThrow<string>('KEY')` for required values
+- No `process.env` in application code. The single exception: `prisma.config.ts` (runs outside
+  Nest DI, loads env via `dotenv/config`) — not applicable to `bff`, which has no Prisma.

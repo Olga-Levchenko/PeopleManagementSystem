@@ -40,6 +40,17 @@ jobs:
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
+      - name: Install shared libs/config dependencies
+        # Services import libs/config's ESLint/Jest bases by relative path, but Node resolves
+        # their bare-specifier imports (e.g. @eslint/js) from libs/config's own node_modules,
+        # not the service's - so libs/config needs its own install too.
+        if: steps.scaffolded.outputs.present == 'true'
+        working-directory: libs/config
+        run: |
+          if [ -f package.json ]; then
+            if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          fi
+
       - name: Lint
         if: steps.scaffolded.outputs.present == 'true'
         run: npm run lint --if-present
@@ -47,6 +58,22 @@ jobs:
       - name: Build
         if: steps.scaffolded.outputs.present == 'true'
         run: npm run build --if-present
+
+      - name: Check for Playwright
+        id: playwright
+        if: steps.scaffolded.outputs.present == 'true'
+        run: |
+          if ls playwright.config.* >/dev/null 2>&1; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Playwright browsers
+        # npm install only pulls the @playwright/test package, not the actual browser binaries
+        # `playwright test` launches - those are a separate download.
+        if: steps.playwright.outputs.present == 'true'
+        run: npx playwright install --with-deps
 
       - name: Test
         if: steps.scaffolded.outputs.present == 'true'

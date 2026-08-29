@@ -1,0 +1,19 @@
+name: work-management-service CI
+
+on:
+  push:
+    paths:
+      - 'services/work-management-service/**'
+      - '.github/workflows/work-management-service-ci.yml'
+      - '.github/workflows/_reusable-node-ci.yml'
+  pull_request:
+    paths:
+      - 'services/work-management-service/**'
+      - '.github/workflows/work-management-service-ci.yml'
+      - '.github/workflows/_reusable-node-ci.yml'
+
+jobs:
+  ci:
+    uses: ./.github/workflows/_reusable-node-ci.yml
+    with:
+      service_path: services/work-management-service

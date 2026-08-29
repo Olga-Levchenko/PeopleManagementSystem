@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # Default connect-to database only; the five service databases are created
+      # by postgres-init/01-create-databases.sh on first boot.
+      POSTGRES_DB: postgres
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      # PG18 image: mount at /var/lib/postgresql (PGDATA is version-specific inside)
+      - pgdata:/var/lib/postgresql
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # -h 127.0.0.1 forces TCP: socket-based check can report healthy too early
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U $${POSTGRES_USER}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Identity provider for authentication-service. Dev-mode only (ephemeral storage, no TLS) —
+  # realm/client configuration is owned by authentication-service, not this compose file.
+  keycloak:
+    # Version placeholder: architecture spine marks Keycloak's deployment version as
+    # "must be verified and pinned before implementation" — pin for real once authentication-service lands.
+    image: quay.io/keycloak/keycloak:26.0
+    restart: unless-stopped
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+    ports:
+      - '${KEYCLOAK_PORT:-8080}:8080'
+
+  # Cross-service messaging (AD-6): relationship-change propagation, domain events.
+  # Note: no service's /health endpoint checks this broker yet — deferred until a service
+  # actually integrates an AMQP client (see ARCHITECTURE-SPINE.md "Deferred").
+  rabbitmq:
+    # Version placeholder: same "verify and pin before implementation" caveat as Keycloak.
+    image: rabbitmq:4-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    ports:
+      - '${RABBITMQ_PORT:-5672}:5672'
+      - '${RABBITMQ_MANAGEMENT_PORT:-15672}:15672'
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # Redis is deferred (spine: "only where a measured need justifies it") — add a service
+  # here once a caching need is actually identified, not preemptively.
+
+volumes:
+  pgdata:

@@ -1,0 +1,16 @@
+{
+  "name": "@pms/config",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Shared devDependencies for libs/config's ESLint bases. Run `npm install` here so services importing ../../libs/config/eslint-*.config.* can resolve these packages (Node module resolution for bare specifiers starts at the importing file's own directory, not the service that imports it).",
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^10.0.1",
+    "eslint-plugin-prettier": "^5.2.2",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.3",
+    "globals": "^17.0.0",
+    "typescript-eslint": "^8.20.0"
+  }
+}
