@@ -54,6 +54,8 @@ as a bug and fix whichever is stale.
 - **Always return a PR summary to the user after creating a pull request** — title, what changed
   in plain language, and anything the requester should act on before merge, not just the URL.
   See `pr-summaries.mdc`.
+- **Always test before committing.** If a change is testable, run it locally before committing —
+  don't use a CI run as the first real execution of a change. See `test-before-commit.mdc`.
 
 ## Running and verifying
 

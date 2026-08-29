@@ -27,6 +27,7 @@ Spec-driven monorepo for the People Management Platform (Iteration 2, AI-native 
 - **Access control is the primary quality attribute.** Any change touching profile sections, role resolution, or the section matrix must be checked against `docs/access-control/section-matrix.md` before being considered done — see `.claude/rules/access-control-invariants.md`.
 - Functional roles are data, not code (Section 2.3) — never hardcode a role name as a permission check; resolve access roles from relationships and functional-role permissions from stored, runtime-editable grants.
 - **Always return a PR summary to the user after creating a pull request** — title, what changed in plain language, and anything the requester should act on before merge, not just the URL. See `.claude/rules/pr-summaries.md`.
+- **Always test before committing.** If a change is testable, run it locally before committing — don't use a CI run as the first real execution of a change. See `.claude/rules/test-before-commit.md`.
 - **Keep Claude Code and Cursor at equal functionality.** The team has contributors on both. Any new or edited `.claude/rules/*.md` or `.claude/agents/*.md` needs a matching `.cursor/rules/*.mdc`, and vice versa — see `.claude/rules/tooling-parity.md`.
 
 ## Running and verifying

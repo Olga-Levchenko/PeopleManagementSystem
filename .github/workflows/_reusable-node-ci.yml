@@ -59,6 +59,22 @@ jobs:
         if: steps.scaffolded.outputs.present == 'true'
         run: npm run build --if-present
 
+      - name: Check for Playwright
+        id: playwright
+        if: steps.scaffolded.outputs.present == 'true'
+        run: |
+          if ls playwright.config.* >/dev/null 2>&1; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Playwright browsers
+        # npm install only pulls the @playwright/test package, not the actual browser binaries
+        # `playwright test` launches - those are a separate download.
+        if: steps.playwright.outputs.present == 'true'
+        run: npx playwright install --with-deps
+
       - name: Test
         if: steps.scaffolded.outputs.present == 'true'
         run: npm test --if-present
