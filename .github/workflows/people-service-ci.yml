@@ -1,0 +1,19 @@
+name: people-service CI
+
+on:
+  push:
+    paths:
+      - 'services/people-service/**'
+      - '.github/workflows/people-service-ci.yml'
+      - '.github/workflows/_reusable-node-ci.yml'
+  pull_request:
+    paths:
+      - 'services/people-service/**'
+      - '.github/workflows/people-service-ci.yml'
+      - '.github/workflows/_reusable-node-ci.yml'
+
+jobs:
+  ci:
+    uses: ./.github/workflows/_reusable-node-ci.yml
+    with:
+      service_path: services/people-service

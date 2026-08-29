@@ -1,0 +1,19 @@
+name: integration-timetracker CI
+
+on:
+  push:
+    paths:
+      - 'services/integration-timetracker/**'
+      - '.github/workflows/integration-timetracker-ci.yml'
+      - '.github/workflows/_reusable-node-ci.yml'
+  pull_request:
+    paths:
+      - 'services/integration-timetracker/**'
+      - '.github/workflows/integration-timetracker-ci.yml'
+      - '.github/workflows/_reusable-node-ci.yml'
+
+jobs:
+  ci:
+    uses: ./.github/workflows/_reusable-node-ci.yml
+    with:
+      service_path: services/integration-timetracker
