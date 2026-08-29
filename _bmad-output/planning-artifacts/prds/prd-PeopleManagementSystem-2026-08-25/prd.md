@@ -2,7 +2,7 @@
 title: People Management Platform
 status: final
 created: 2026-08-25
-updated: 2026-08-26
+updated: 2026-08-28
 ---
 
 # PRD: People Management Platform
@@ -334,9 +334,10 @@ as `spec §X.Y` to avoid colliding with this PRD's own §4.1–§4.16 feature nu
   employment status only, and it is the platform's single definition of "departed" (analytics
   defines nothing of its own).
 - **Candidate** — A person proposed for a resourcing request: either an internal Employee or an
-  external PeopleForce candidate. Where the candidate is later hired, how their PeopleForce
-  identity links to their resulting Employee record is an open cross-system identity-resolution
-  question (spec §6; see Integration and Dependencies, Open Question 4).
+  external PeopleForce candidate. The PeopleForce candidate ID is stored on every external
+  candidate as the candidate-side external anchor. Linking a hired candidate to a later Employee
+  record is deferred from v1.5 because employee creation and pre-onboarding are out of scope
+  (spec §6, §10; see Open Question 4).
 - **Form campaign** — A PP/manager-created task broadcast to a filtered audience, backed by an
   external form; generates one action item per recipient on activation (spec §4.12; this PRD's
   §4.13).
@@ -993,11 +994,17 @@ the research-in-progress record of API specifics.
   the feed being down), project-derived access must be **forcibly withdrawn within 4 hours**
   regardless of last-known state — fail closed past that bound rather than leaving stale access
   active indefinitely behind the outage banner below.
-- `[ASSUMPTION, still open]` Whether the Projects and people API delivers **events** (assignment
-  created/ended) or only **state at sync time** (requiring the platform to diff snapshots itself)
-  is not settled by the changelog — it explicitly calls this out as still-to-establish from the
-  API documentation. This affects whether the 15-minute bound is achievable by polling alone.
-  Tracked in `docs/integrations/timetracker.md`.
+- The supplied `TimeTracker External API` contract, version `1.0.0`, exposes
+  `GET /api/projects/talents` for project and team-member state retrieval. It documents no event
+  or webhook endpoints. The provider may have undocumented capabilities; this PRD makes no claim
+  beyond the supplied contract.
+- The integration may convert successfully retrieved state into an internal normalized
+  relationship-change event contract for access-resolution processing. This does not imply that
+  the provider emits native events.
+- Polling cadence, rate limits, pagination, response completeness, source visibility delay, and
+  the semantics of absence versus assignment removal remain pending confirmation. A polling
+  interval, including five minutes, must not be treated as committed until its end-to-end latency
+  and rate-limit implications are verified.
 
 **Feature-specific NFRs:**
 - `[v1.5, was open, now concrete]` A timetracker outage degrades to stale-but-labeled leave/project
@@ -1027,8 +1034,9 @@ research-in-progress record.
   data, employment status, risk. These are either access-sensitive or platform-owned facts that
   must not be populated from a less-trusted external source.
 - `[v1.5]` The PeopleForce candidate ID is stored on every external candidate **unconditionally**,
-  whether or not this prefill button is implemented in a given environment — it's the anchor for
-  whatever cross-system identity resolution gets decided later (§8, Open Question 4).
+  whether or not this prefill button is implemented in a given environment — it is the
+  candidate-side external anchor. Candidate-to-employee lifecycle linkage is deferred from v1.5
+  (§8, Open Question 4).
 - Where the prefill button isn't implemented in time, the fallback is an external link to the
   candidate in PeopleForce — this is an explicitly spec-sanctioned degraded mode, not a defect,
   provided it's a deliberate, recorded decision (log to `docs/integrations/peopleforce.md`).
@@ -1156,7 +1164,9 @@ still applies.
   real test-environment API over the seeded population by delivery (the platform's only *required*
   integration as of v1.5). PeopleForce's prefill button runs against the real API if time allows,
   or an explicitly recorded and justified fallback to the external-link mode — no longer a
-  co-equal requirement with the timetracker. Validates FR-43–45.
+  co-equal requirement with the timetracker. Validates FR-43–45, including the verified
+  Timetracker identity mapping, fail-closed handling for unresolved project members, and the
+  contract-level state-retrieval behavior described in FR-44.
 - **SM-3**: Process quality — the intelligent repository (specs, decisions, rules, skills) stays
   in sync with shipped behavior at delivery, and the team demonstrably worked in parallel across
   the 2-week window without a documented blocking dependency (spec §1, §8).
@@ -1196,13 +1206,16 @@ still applies.
    direct user complaints. Worth a short conversation with actual HR/manager users if time
    allows, to sharpen §1 and the dashboard "what matters most" prioritization within the
    [DESIGN FREEDOM] widget list. Unaffected by the v1.5 changelog.
-4. `[v1.5, narrowed]` How is identity resolved across PeopleForce candidate, employee, and
-   timetracker user records (spec §6)? Email alone is spec-flagged as insufficient. **Partially
-   answered**: the PeopleForce candidate ID is now stored on every external candidate
-   unconditionally (FR-45/FR-26), giving a concrete anchor for the candidate side. **Still open**:
-   how a hired candidate's stored PeopleForce ID links forward to their eventual employee record,
-   and how an employee identity maps to their timetracker user. Pending research in
-   `docs/integrations/timetracker.md` and `docs/integrations/peopleforce.md`.
+4. `[v1.5, narrowed]` **Identity linkage across PeopleForce, Employee, and Timetracker records.**
+   **Resolved for the current Timetracker integration:** persist Timetracker `Employee.id` as an
+   opaque provider-scoped external ID and use project-member email only to locate a candidate
+   mapping. Email alone never verifies or activates the mapping. Project-derived access is granted
+   only after the mapping between Timetracker `Employee.id` and internal `person_id` has been
+   explicitly verified. Missing, ambiguous, stale, or unverified mappings fail closed. The
+   supplied contract does not establish that `Employee.id` is immutable or non-reusable, and
+   `Employee.hash` is not used for identity. **Deferred from v1.5:** linking a hired PeopleForce
+   candidate to a later Employee record; employee creation and pre-onboarding are out of scope.
+   PeopleForce candidate-ID persistence remains in scope.
 5. `[v1.5, sharpened, not resolved]` **Mentor visibility to Colleagues — spec self-contradiction,
    now harder to resolve.** Spec §3.2/§3.3 (the S1 row and the "a colleague sees exactly S1..."
    rule) implies a Colleague sees the mentor, since mentor is listed as S1 content and Colleague is
@@ -1219,10 +1232,16 @@ still applies.
    also a PM on one of their projects get the Reporting line's full view, or does the narrower path
    somehow apply? FR-6a currently assumes most-permissive-wins by analogy to S7; needs spec-owner
    confirmation.
-7. `[v1.5, new]` **Events vs. state-at-sync-time for the timetracker Projects API (FR-44).** The
-   changelog explicitly flags this as still-to-establish from the API documentation — it determines
-   whether the 15-minute revocation guarantee is achievable by polling alone or needs a push/event
-   feed. Tracked in `docs/integrations/timetracker.md`.
+7. `[v1.5, new]` **Timetracker Projects API update model (FR-44).** **Resolved for the supplied
+   contract:** `GET /api/projects/talents` exposes project and member state retrieval, and the
+   supplied OpenAPI documents no event or webhook endpoints. This does not prove that the provider
+   has no undocumented event capability. Internal normalized relationship-change events may be
+   produced from retrieved state.
+
+   **Still pending:** polling cadence, rate limits, pagination, response completeness, source
+   visibility delay, and whether absence from a response means assignment removal. Five-minute
+   polling is not committed. The 15-minute normal-sync and four-hour forced-withdrawal
+   requirements remain fixed in FR-44.
 8. `[v1.5, new]` **Default permission grants for the expanded permission list (FR-3).** The
    changelog states defaults are "drafted by each team and confirmed by the PO" before the roles
    screen ships — this is a pending team/PO decision, not a spec ambiguity, but it blocks FR-3's
@@ -1238,9 +1257,16 @@ still applies.
 - §4.2 FR-6a — most-permissive-path-wins assumed to generalize from S7 to the Project line's
   S2/S3/S5 narrowing when Reporting line and Project line both apply to the same subject; logged
   as Open Question 6. `[v1.5, new]`
-- ~~§4.15 FR-44 — sync latency bound for project-assignment access resolution~~ **RESOLVED (v1.5)**,
-  see above; the one still-genuinely-open sub-question (events vs. state-at-sync-time for the
-  Projects API) is Open Question 7, not an assumption this PRD is making.
+- §4.15 FR-44 — the supplied OpenAPI establishes only that the Projects API exposes state
+  retrieval and documents no events or webhooks. It does not establish provider capabilities,
+  polling cadence, rate limits, pagination, completeness, visibility delay, or removal semantics.
+  These remain pending under Open Question 7.
+- §4.15 / Integration Dependencies — project-member identity resolution uses the verified
+  `email → Timetracker Employee.id → internal person_id` mapping. Email is used only to locate a
+  candidate mapping; it does not verify or activate the mapping. The `Employee.id` is treated as
+  opaque; immutability and non-reuse are not assumed. `Employee.hash` is not an identity field.
+- §4.16 / Open Question 4 — candidate-to-employee lifecycle linkage is deferred from v1.5;
+  PeopleForce candidate-ID persistence remains in scope.
 - §4.1 FR-3 — default permission grants for the v1.5-expanded permission list are drafted pending
   PO confirmation, logged as Open Question 8. `[v1.5, new]`
 - Cross-Cutting NFRs, Accessibility — WCAG 2.1 AA assumed as the reference standard since the spec
@@ -1342,12 +1368,18 @@ real, load-bearing dependencies.)*
   only for "who is this."
 - **Cross-system identity resolution** (spec §6) — a real person exists as up to three separate
   identities: a PeopleForce candidate, an employee in this platform, and a timetracker user.
-  Email alone is spec-flagged as insufficient to match them. This platform is the joining point:
-  it must decide and record how a candidate's PeopleForce identity links (or doesn't, pending
-  hire) to their eventual employee record, and how an employee identity maps to their timetracker
-  user — both are open per-integration decisions, not yet made (see Open Question below and the
-  identity-resolution subsections already scaffolded in `docs/integrations/timetracker.md` and
-  `docs/integrations/peopleforce.md`).
+  Email alone is spec-flagged as insufficient to match them.
+- For the required Timetracker integration, persist `Employee.id` as an opaque,
+  provider-scoped external ID. The supplied contract does not establish that it is immutable or
+  non-reusable, and it does not establish identity semantics for `Employee.hash`; neither claim
+  is made here.
+- Project-member email is used only to locate a candidate mapping. Email alone cannot verify or
+  activate that mapping. Project-derived access is granted only after the mapping between
+  Timetracker `Employee.id` and internal `person_id` has been explicitly verified. Missing,
+  ambiguous, stale, or unverified mappings fail closed.
+- PeopleForce candidate-ID persistence remains in scope. Forward linkage from a hired candidate
+  to an Employee record is deferred from v1.5 because employee creation and pre-onboarding are
+  out of scope.
 
 ## Why Now
 
