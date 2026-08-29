@@ -57,7 +57,7 @@
     "typescript-eslint": "^8.20.0"
   },
   "jest": {
-    "preset": "../../libs/config/jest-node.preset.cjs",
+    "preset": "../../../libs/config/jest-node.preset.cjs",
     "rootDir": "src",
     "coverageDirectory": "../coverage"
   }

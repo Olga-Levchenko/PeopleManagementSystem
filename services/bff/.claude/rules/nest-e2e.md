@@ -14,7 +14,7 @@ paths:
 
 - Routes are unprefixed in e2e: request `/users`, not `/api/v1/users`
 - Re-enable the pipe manually, mirroring main.ts:
-  `app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }))`
+  `app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))`
 
 ## Data isolation
 
