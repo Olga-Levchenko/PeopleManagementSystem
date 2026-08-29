@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Key screen — Delivery Manager Dashboard</title>
+<style>
+  /*
+    Spine sections this mock illustrates:
+    - EXPERIENCE.md > Information Architecture > "Delivery/Project Manager Dashboard"
+    - EXPERIENCE.md > Key Flows > Flow 3 (Diana, DM reviewing/closing a request)
+    - EXPERIENCE.md > Component Patterns > StatusPill
+    - DESIGN.md > Colors, Components (status-pill), Shapes
+    Two states shown: "All projects" selector (top) vs a single project filtered (would replace
+    the table area on click — not two separate screens, the same page re-filtered).
+  */
+  :root {
+    --background: oklch(1 0 0); --foreground: oklch(0.145 0.004 286);
+    --card: oklch(1 0 0); --secondary: oklch(0.961 0.003 286);
+    --secondary-foreground: oklch(0.205 0.008 286); --muted: oklch(0.961 0.003 286);
+    --muted-foreground: oklch(0.556 0.012 286); --border: oklch(0.898 0.003 286);
+    --primary: oklch(0.488 0.243 264.376); --primary-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.577 0.245 27.325); --destructive-foreground: oklch(0.985 0 0);
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background: var(--muted); font-family: system-ui, sans-serif; color: var(--foreground); padding: 24px; }
+  .browser { max-width: 1180px; margin: 0 auto; background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+  .chrome { display:flex; align-items:center; gap:6px; padding:10px 14px; background: var(--secondary); border-bottom: 1px solid var(--border); }
+  .dot { width:10px; height:10px; border-radius:999px; background: var(--border); }
+  .url { margin-left:12px; font-size:12px; color: var(--muted-foreground); background: var(--card); border:1px solid var(--border); border-radius:6px; padding:3px 10px; flex:1; }
+  .content { padding: 24px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { font-size: 13px; color: var(--muted-foreground); margin: 0 0 20px; }
+  .toolbar { display:flex; align-items:center; gap:12px; margin-bottom: 20px; }
+  .selector { border: 1px solid var(--border); border-radius: 999px; padding: 6px 14px; font-size: 13px; display:flex; align-items:center; gap:8px; background: var(--card); }
+  .selector .chip { background: var(--primary); color: var(--primary-foreground); border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 600; }
+  .counters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+  .counter { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+  .counter .num { font-size: 24px; font-weight: 700; }
+  .counter .lbl { font-size: 11px; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.04em; }
+  .proj-block { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; overflow: hidden; }
+  .proj-head { padding: 10px 16px; background: var(--secondary); font-weight: 600; font-size: 13px; display:flex; justify-content: space-between; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 16px; color: var(--muted-foreground); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; border-bottom: 1px solid var(--border); }
+  td { padding: 8px 16px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  .pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 999px; background: var(--secondary); color: var(--secondary-foreground); }
+  .pill-review { background: color-mix(in oklch, var(--primary) 15%, white); color: var(--primary); }
+  .unassigned { border-color: var(--muted-foreground); }
+</style>
+</head>
+<body>
+<div class="browser">
+  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    <span class="url">app.pms.internal/dashboard</span></div>
+  <div class="content">
+    <h1>Diana's Dashboard</h1>
+    <p class="sub">Delivery Manager · grouped by project</p>
+
+    <div class="toolbar">
+      <div class="selector">Project: <span class="chip">All projects</span></div>
+    </div>
+
+    <div class="counters">
+      <div class="counter"><div class="num">14</div><div class="lbl">People (all projects)</div></div>
+      <div class="counter"><div class="num">3</div><div class="lbl">Active risks</div></div>
+      <div class="counter"><div class="num">2</div><div class="lbl">Open requests</div></div>
+      <div class="counter"><div class="num">1</div><div class="lbl">Overdue action items</div></div>
+    </div>
+
+    <div class="proj-block">
+      <div class="proj-head"><span>Atlas Platform</span><span style="color:var(--muted-foreground); font-weight:400;">6 people</span></div>
+      <table>
+        <tr><th>Name</th><th>Risk</th><th>Leave status</th></tr>
+        <tr><td>Chidi Igwe</td><td><span class="pill">Low</span></td><td>Upcoming Aug 12–19</td></tr>
+        <tr><td>Oleksii Semenov</td><td><span class="pill">Medium</span></td><td>—</td></tr>
+      </table>
+    </div>
+
+    <div class="proj-block">
+      <div class="proj-head"><span>Nimbus Migration</span><span style="color:var(--muted-foreground); font-weight:400;">5 people</span></div>
+      <table>
+        <tr><th>Name</th><th>Risk</th><th>Leave status</th></tr>
+        <tr><td>Oleh Boiko</td><td><span class="pill">Low</span></td><td>—</td></tr>
+      </table>
+    </div>
+
+    <div class="proj-block unassigned">
+      <div class="proj-head"><span>Unassigned</span><span style="color:var(--muted-foreground); font-weight:400;">1 request, no project yet</span></div>
+      <table>
+        <tr><th>Request</th><th>Status</th><th>Created</th></tr>
+        <tr><td>1x Backend Developer, Engineering management</td>
+            <td><span class="pill pill-review">Candidate proposed — pending review</span></td>
+            <td>3 days ago</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Key screen — Employee Profile (Self vs Colleague)</title>
+<style>
+  /*
+    Spine sections this mock illustrates:
+    - EXPERIENCE.md > Information Architecture > "Employee Profile" row (one page, many audiences)
+    - EXPERIENCE.md > Component Patterns > "Section omission" (the load-bearing rule)
+    - EXPERIENCE.md > Key Flows > Flow 1 (Chidi, self-service) and Flow 7 (Vagif, colleague)
+    - DESIGN.md > Colors, Typography, Shapes tokens
+    Two columns = one profile (Chidi's), two audiences: Self (left) vs Colleague (right).
+    Note: production typeface is Geist Variable; this offline mock uses system-ui as a stand-in
+    since mocks render with no network/font loading.
+  */
+  :root {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0.004 286);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.145 0.004 286);
+    --secondary: oklch(0.961 0.003 286);
+    --secondary-foreground: oklch(0.205 0.008 286);
+    --muted: oklch(0.961 0.003 286);
+    --muted-foreground: oklch(0.556 0.012 286);
+    --accent: oklch(0.961 0.003 286);
+    --border: oklch(0.898 0.003 286);
+    --primary: oklch(0.488 0.243 264.376);
+    --primary-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.577 0.245 27.325);
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--muted); font-family: system-ui, sans-serif;
+    color: var(--foreground); padding: 24px;
+  }
+  .browser {
+    max-width: 1180px; margin: 0 auto; background: var(--card);
+    border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  }
+  .chrome {
+    display: flex; align-items: center; gap: 6px; padding: 10px 14px;
+    background: var(--secondary); border-bottom: 1px solid var(--border);
+  }
+  .dot { width: 10px; height: 10px; border-radius: 999px; background: var(--border); }
+  .url {
+    margin-left: 12px; font-size: 12px; color: var(--muted-foreground);
+    background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+    padding: 3px 10px; flex: 1;
+  }
+  .split { display: grid; grid-template-columns: 1fr 1fr; }
+  .pane { padding: 24px; }
+  .pane + .pane { border-left: 1px solid var(--border); }
+  .pane-label {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--primary); margin-bottom: 4px;
+  }
+  .pane-sub { font-size: 12px; color: var(--muted-foreground); margin-bottom: 20px; }
+  .header {
+    display: flex; gap: 14px; align-items: center; padding-bottom: 16px;
+    border-bottom: 1px solid var(--border); margin-bottom: 16px;
+  }
+  .avatar {
+    width: 56px; height: 56px; border-radius: 999px; background: var(--primary);
+    color: var(--primary-foreground); display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 20px; flex: none;
+  }
+  .name { font-size: 22px; font-weight: 700; margin: 0; }
+  .role { font-size: 13px; color: var(--muted-foreground); margin: 2px 0 0; }
+  .section {
+    border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px;
+    margin-bottom: 12px;
+  }
+  .section h3 {
+    font-size: 13px; font-weight: 600; margin: 0 0 10px; display: flex;
+    align-items: center; justify-content: space-between;
+  }
+  .badge-rw {
+    font-size: 10px; font-weight: 600; color: var(--primary); background: color-mix(in oklch, var(--primary) 12%, white);
+    padding: 2px 8px; border-radius: 999px;
+  }
+  .row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; }
+  .row .k { color: var(--muted-foreground); }
+  .absent {
+    border: 1px dashed var(--border); border-radius: var(--radius); padding: 18px;
+    text-align: center; color: var(--muted-foreground); font-size: 12px; margin-bottom: 12px;
+  }
+  .colleague-list { display: flex; flex-direction: column; gap: 8px; }
+</style>
+</head>
+<body>
+<div class="browser">
+  <div class="chrome">
+    <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    <span class="url">app.pms.internal/profile/chidi-igwe</span>
+  </div>
+  <div class="split">
+
+    <div class="pane">
+      <div class="pane-label">Viewer: Chidi (Self)</div>
+      <div class="pane-sub">Same URL, same route — full read/write on own sections</div>
+      <div class="header">
+        <div class="avatar">CI</div>
+        <div>
+          <p class="name">Chidi Igwe</p>
+          <p class="role">.NET Developer · Tbilisi (GMT+4)</p>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Personal contacts <span class="badge-rw">RW</span></h3>
+        <div class="row"><span class="k">Personal email</span><span>chidi.i@personal.example</span></div>
+        <div class="row"><span class="k">Residential address</span><span>New apartment — updated today</span></div>
+      </div>
+
+      <div class="section">
+        <h3>Emergency contact <span class="badge-rw">RW</span></h3>
+        <div class="row"><span class="k">Contact person</span><span>Updated — new roommate</span></div>
+        <div class="row"><span class="k">Relationship</span><span>Roommate</span></div>
+      </div>
+
+      <div class="section">
+        <h3>CDS — IDP</h3>
+        <div class="row"><span class="k">Deadline</span><span style="color: var(--destructive); font-weight:600;">In 3 days</span></div>
+        <div class="row"><span class="k">Complete</span><span>Not yet — reviewing external doc</span></div>
+      </div>
+
+      <div class="section">
+        <h3>Leaves <span class="badge-rw" style="color:var(--muted-foreground); background:var(--secondary);">R</span></h3>
+        <div class="row"><span class="k">Upcoming</span><span>Aug 12–19 · Vacation</span></div>
+      </div>
+
+      <div class="section">
+        <h3>Mentorship</h3>
+        <div class="row"><span class="k">Open to mentoring</span><span style="color: var(--primary); font-weight:600;">On</span></div>
+      </div>
+    </div>
+
+    <div class="pane">
+      <div class="pane-label">Viewer: Vagif (Colleague)</div>
+      <div class="pane-sub">Same profile, same URL — whitelist only, server-assembled</div>
+      <div class="header">
+        <div class="avatar">CI</div>
+        <div>
+          <p class="name">Chidi Igwe</p>
+          <p class="role">.NET Developer · Tbilisi (GMT+4)</p>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Leaves</h3>
+        <div class="row"><span class="k">Away</span><span>Aug 12–19</span></div>
+        <div class="row"><span class="k">Type</span><span style="color: var(--muted-foreground);">— not shown —</span></div>
+      </div>
+
+      <div class="section">
+        <h3>Project</h3>
+        <div class="row"><span class="k">Current</span><span>Atlas Platform</span></div>
+      </div>
+
+      <div class="absent">
+        Personal contacts, emergency contact, CDS/IDP, mentorship, risk, management notes,
+        documents, feedback — <strong>not rendered</strong>. Not hidden, not greyed out:
+        absent from the response entirely.
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

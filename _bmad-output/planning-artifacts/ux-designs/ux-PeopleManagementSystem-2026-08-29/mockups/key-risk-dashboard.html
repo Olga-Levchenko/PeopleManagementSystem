@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Key screen — Risk Dashboard</title>
+<style>
+  /*
+    Spine sections this mock illustrates:
+    - EXPERIENCE.md > Information Architecture > "Risk Dashboard"
+    - EXPERIENCE.md > Key Flows > Flow 6 (Viktor, risk record + trend)
+    - EXPERIENCE.md > Component Patterns > SeverityBadge (color + label + trend arrow)
+    - DESIGN.md > Colors (severity-* ramp), Components (severity-badge)
+    Severity dot + text label always paired, per the accessibility floor — never color alone.
+  */
+  :root {
+    --background: oklch(1 0 0); --foreground: oklch(0.145 0.004 286);
+    --card: oklch(1 0 0); --secondary: oklch(0.961 0.003 286);
+    --muted-foreground: oklch(0.556 0.012 286); --border: oklch(0.898 0.003 286);
+    --primary: oklch(0.488 0.243 264.376); --primary-foreground: oklch(0.985 0 0);
+    --severity-low: oklch(0.65 0.15 145);
+    --severity-attention: oklch(0.75 0.15 90);
+    --severity-medium: oklch(0.75 0.18 60);
+    --severity-high: oklch(0.577 0.245 27.325);
+    --severity-leaver: oklch(0.55 0.20 310);
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background: var(--secondary); font-family: system-ui, sans-serif; color: var(--foreground); padding: 24px; }
+  .browser { max-width: 1180px; margin: 0 auto; background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+  .chrome { display:flex; align-items:center; gap:6px; padding:10px 14px; background: var(--secondary); border-bottom: 1px solid var(--border); }
+  .dot { width:10px; height:10px; border-radius:999px; background: var(--border); }
+  .url { margin-left:12px; font-size:12px; color: var(--muted-foreground); background: var(--card); border:1px solid var(--border); border-radius:6px; padding:3px 10px; flex:1; }
+  .content { padding: 24px; }
+  h1 { font-size: 22px; margin: 0 0 16px; }
+  .counts { display: flex; gap: 12px; margin-bottom: 24px; }
+  .count { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 16px; text-align: center; flex: 1; }
+  .count .n { font-size: 20px; font-weight: 700; }
+  .count .l { font-size: 11px; color: var(--muted-foreground); }
+  .count.emph { border-width: 2px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 12px; color: var(--muted-foreground); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .sev { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+  .sev-dot { width: 9px; height: 9px; border-radius: 999px; flex: none; }
+  .trend { font-size: 12px; margin-left: 4px; }
+  .trend-up { color: var(--severity-high); }
+  .trend-down { color: var(--severity-low); }
+</style>
+</head>
+<body>
+<div class="browser">
+  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    <span class="url">app.pms.internal/risk-dashboard</span></div>
+  <div class="content">
+    <h1>Risk Dashboard</h1>
+
+    <div class="counts">
+      <div class="count"><div class="n">18</div><div class="l">Low</div></div>
+      <div class="count"><div class="n">6</div><div class="l">Need attention</div></div>
+      <div class="count emph" style="border-color: var(--severity-medium);"><div class="n">4</div><div class="l">Medium</div></div>
+      <div class="count emph" style="border-color: var(--severity-high);"><div class="n">2</div><div class="l">High</div></div>
+      <div class="count emph" style="border-color: var(--severity-leaver);"><div class="n">1</div><div class="l">Leaver</div></div>
+    </div>
+
+    <table>
+      <tr><th>Name</th><th>Risk</th><th>Trend</th><th>Department</th><th>Project</th><th>Date</th></tr>
+      <tr>
+        <td>Oleksii Semenov</td>
+        <td><span class="sev"><span class="sev-dot" style="background: var(--severity-leaver);"></span>Leaver</span></td>
+        <td class="trend trend-up">↑</td>
+        <td>Python</td><td>Atlas Platform</td><td>Today</td>
+      </tr>
+      <tr>
+        <td>[Reports to Viktor]</td>
+        <td><span class="sev"><span class="sev-dot" style="background: var(--severity-high);"></span>High</span></td>
+        <td class="trend trend-up">↑</td>
+        <td>Engineering management</td><td>Nimbus Migration</td><td>Today</td>
+      </tr>
+      <tr>
+        <td>Adam Keem</td>
+        <td><span class="sev"><span class="sev-dot" style="background: var(--severity-medium);"></span>Medium</span></td>
+        <td></td>
+        <td>.NET</td><td>Atlas Platform</td><td>2 weeks ago</td>
+      </tr>
+      <tr>
+        <td>Oleksandr Dorosh</td>
+        <td><span class="sev"><span class="sev-dot" style="background: var(--severity-attention);"></span>Need attention</span></td>
+        <td class="trend trend-down">↓</td>
+        <td>JS</td><td>—</td><td>1 month ago</td>
+      </tr>
+      <tr>
+        <td>Chidi Igwe</td>
+        <td><span class="sev"><span class="sev-dot" style="background: var(--severity-low);"></span>Low</span></td>
+        <td></td>
+        <td>.NET</td><td>Atlas Platform</td><td>3 months ago</td>
+      </tr>
+    </table>
+  </div>
+</div>
+</body>
+</html>
