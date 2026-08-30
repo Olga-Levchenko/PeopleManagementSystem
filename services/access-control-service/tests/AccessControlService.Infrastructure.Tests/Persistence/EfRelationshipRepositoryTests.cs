@@ -131,4 +131,108 @@ public sealed class EfRelationshipRepositoryTests : IAsyncLifetime
         var parentOfHeadquarters = await _repository.GetParentDepartmentIdAsync(parentOfEngineering!.Value);
         Assert.Null(parentOfHeadquarters);
     }
+
+    // -- spec-1-1c: Project-line lookups, against the real, migrated, seeded project-assignment data. --
+
+    [Fact]
+    public async Task GetProjectIdsManagedAsDmOrPmAsync_KnownDm_ReturnsSeededProjectId()
+    {
+        var projectIds = await _repository.GetProjectIdsManagedAsDmOrPmAsync(FixtureSeedData.DeliveryManagerOnlyId);
+
+        Assert.Equal(new[] { FixtureSeedData.ProjectPhoenixId }, projectIds);
+    }
+
+    [Fact]
+    public async Task GetProjectIdsManagedAsDmOrPmAsync_KnownPm_ReturnsSeededProjectId()
+    {
+        var projectIds = await _repository.GetProjectIdsManagedAsDmOrPmAsync(FixtureSeedData.ProjectManagerOnlyId);
+
+        Assert.Equal(new[] { FixtureSeedData.ProjectPhoenixId }, projectIds);
+    }
+
+    [Fact]
+    public async Task GetProjectIdsManagedAsDmOrPmAsync_PersonWhoIsDmOnTwoProjects_ReturnsBothSeededProjectIds()
+    {
+        // PlatformLead is seeded as DM on both Project Orion and Project Zephyr -- proves the
+        // query actually aggregates multiple project ids for one person, not just that it returns
+        // a single seeded row. Sort before comparing since the method makes no ordering guarantee.
+        var projectIds = await _repository.GetProjectIdsManagedAsDmOrPmAsync(FixtureSeedData.PlatformLeadId);
+
+        Assert.Equal(
+            new[] { FixtureSeedData.ProjectOrionId, FixtureSeedData.ProjectZephyrId }.OrderBy(id => id),
+            projectIds.OrderBy(id => id));
+    }
+
+    [Fact]
+    public async Task GetProjectIdsManagedAsDmOrPmAsync_PlainMemberNotDmOrPm_ReturnsEmpty()
+    {
+        // ProjectAssignee is seeded as a plain Member on Project Phoenix -- must not be returned by
+        // the DM/PM-only lookup.
+        var projectIds = await _repository.GetProjectIdsManagedAsDmOrPmAsync(FixtureSeedData.ProjectAssigneeId);
+
+        Assert.Empty(projectIds);
+    }
+
+    [Fact]
+    public async Task GetProjectIdsManagedAsDmOrPmAsync_UnknownPersonId_ReturnsEmpty()
+    {
+        var projectIds = await _repository.GetProjectIdsManagedAsDmOrPmAsync(Guid.NewGuid());
+
+        Assert.Empty(projectIds);
+    }
+
+    [Fact]
+    public async Task GetAssignedProjectIdsAsync_KnownAssignee_ReturnsSeededProjectId()
+    {
+        var projectIds = await _repository.GetAssignedProjectIdsAsync(FixtureSeedData.ProjectAssigneeId);
+
+        Assert.Equal(new[] { FixtureSeedData.ProjectPhoenixId }, projectIds);
+    }
+
+    [Fact]
+    public async Task GetAssignedProjectIdsAsync_PersonWithNoProjectAssignment_ReturnsEmpty()
+    {
+        // Executive has reports-to/department fixture data but no project-assignment row at all.
+        var projectIds = await _repository.GetAssignedProjectIdsAsync(FixtureSeedData.ExecutiveId);
+
+        Assert.Empty(projectIds);
+    }
+
+    [Fact]
+    public async Task GetAssignedProjectIdsAsync_UnknownPersonId_ReturnsEmpty()
+    {
+        var projectIds = await _repository.GetAssignedProjectIdsAsync(Guid.NewGuid());
+
+        Assert.Empty(projectIds);
+    }
+
+    [Fact]
+    public async Task AddProjectAssignment_DuplicateProjectAndPersonPair_SaveChangesThrowsOnUniqueConstraintViolation()
+    {
+        // ProjectAssignment.cs's and AccessControlDbContext.cs's doc comments claim a duplicate
+        // (ProjectId, PersonId) row is "a write-time error, not a silent ambiguity", enforced via a
+        // unique index -- nothing previously proved that by actually attempting the write. Use a
+        // project id not touched by any seeded row, so this only exercises the constraint this
+        // test itself sets up.
+        var projectId = Guid.NewGuid();
+
+        _dbContext.ProjectAssignments.Add(new ProjectAssignment
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = projectId,
+            PersonId = FixtureSeedData.ExecutiveId,
+            Role = ProjectAssignmentRole.Member,
+        });
+        await _dbContext.SaveChangesAsync();
+
+        _dbContext.ProjectAssignments.Add(new ProjectAssignment
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = projectId,
+            PersonId = FixtureSeedData.ExecutiveId,
+            Role = ProjectAssignmentRole.DeliveryManager,
+        });
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => _dbContext.SaveChangesAsync());
+    }
 }

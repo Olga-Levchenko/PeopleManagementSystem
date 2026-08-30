@@ -34,9 +34,9 @@
   summary: Consider extracting a shared .NET service-scaffold library (correlation-id middleware, health-check response writer, AppConfig-style validated config pattern) once `authentication-service` is stood up, analogous to `libs/config`'s role for the Node services.
   evidence: Second review pass noted access-control-service is currently the only .NET service and these three pieces have no shared extraction point; premature to build a shared lib for a single consumer, but authentication-service will otherwise likely reimplement the same patterns from scratch.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-1-1b-access-role-resolution-engine.md`
-  summary: Implement Project-line resolution (DM/PM via project-assignment) on top of Reporting-line resolution — the provider-neutral RabbitMQ project-assignment event contract, an idempotent/replay-safe/watermark-tracked consumer, a fake test producer, and extending AccessRoleResolver's output to a dual-line flags result (Reporting/Project/both/neither). Target filename when written: `spec-1-1c-project-line-resolution.md`.
-  evidence: The combined Reporting-line + Project-line resolver spec estimated ~2,200 tokens, over the 1,600 target. Reporting-line resolution (EF Core domain model + fixture-seeded reports-to/department-management data + the 3-project restructure) is independently shippable/reviewable via fixture data alone, with no RabbitMQ plumbing required; Project-line resolution depends on new infrastructure (RabbitMQ client, event contract, stub producer) that is a distinct, larger concern, so it was deferred to a follow-up spec.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-1c-project-line-resolution.md`
+  summary: Implement the RabbitMQ project-assignment event contract, an idempotent/replay-safe/watermark-tracked consumer, and a fake test producer that populate the project-assignment projection `spec-1-1c` resolves against (currently fixture-seeded). Target filename when written: `spec-1-1d-project-assignment-event-consumer.md`.
+  evidence: `spec-1-1c` (data model + `AccessRoleResolver`'s Project-line extension) already estimated as likely to exceed the 1,600-token budget on its own, being at least as large as the combined spec that hit ~2,200 tokens for less; pre-split before drafting rather than measure-then-split again. RabbitMQ event consumption depends on new infrastructure (client library, event contract, stub producer) that is a distinct, larger concern from the resolver/data-model work, so it's deferred to a follow-up spec, mirroring exactly how Reporting-line's own EF Core work shipped fixture-seeded before any event-sourcing plumbing existed.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1b-access-role-resolution-engine.md`
   summary: Add an HTTP endpoint exposing access-role resolution once a real consumer (e.g. the BFF, or Story 1.6's section-gated profile response) needs to call it.
@@ -51,9 +51,17 @@
   evidence: Review found this ambiguity fails in the safe (access-denying) direction and has zero blast radius today since no real HTTP consumer exists yet to pass unsynced ids, but it needs a real decision before any consumer is wired up, since a data-sync gap could otherwise masquerade indefinitely as "correctly no access."
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1b-access-role-resolution-engine.md`
-  summary: Optimize `AccessRoleResolver`'s reports-to/department-management walk from one DB round-trip per hop to a single recursive query (Postgres recursive CTE), before real org-scale data exists.
-  evidence: Review noted the current N+1-style walk costs nothing against 7 fixture people/4 departments but risks the architecture spine's explicit p95<=2s/500+ employees permission-resolution performance gate (AD-7) once real organizational depth exists.
+  summary: Optimize `AccessRoleResolver`'s relationship checks — the reports-to/department-management walk (one DB round-trip per hop) and the Project-line check's two sequential repository calls plus O(n·m) list-intersection — into single recursive/set-based queries (Postgres recursive CTE / a single overlap query) before real org-scale data exists.
+  evidence: Review noted the current approach costs nothing against fixture-scale data but risks the architecture spine's explicit p95<=2s/500+ employees permission-resolution performance gate (AD-7) once real organizational/project depth exists; the Project-line check's two non-atomic reads also carries a narrow TOCTOU window (a project-assignment change landing between the two awaits) worth closing in the same pass, once spec-1-1d's consumer can write concurrently with reads.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1b-access-role-resolution-engine.md`
   summary: Share one Testcontainers Postgres instance across `EfRelationshipRepositoryTests`' test methods (via a class/collection fixture) instead of starting a fresh container per `[Fact]`.
   evidence: Second review pass noted `IAsyncLifetime` is implemented directly on the test class, so xUnit's per-method instantiation spins up and tears down a new container for each of the ten test methods (~25s total); not blocking, but will keep growing linearly as more repository tests are added.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-1c-project-line-resolution.md`
+  summary: Decide whether one person can hold both DM and PM roles simultaneously on the same project (the current unique `(ProjectId, PersonId)` index only allows one role per person per project), and extend the schema if real org data needs it.
+  evidence: Review noted the I/O matrix's "PM and DM same project" scenario is tested using two different people rather than one person holding both roles; zero blast radius today since data is fixture-only, but worth a real decision before spec-1-1d's consumer starts writing real project-assignment data.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-1c-project-line-resolution.md`
+  summary: Add a `Project` table (or equivalent validation) so `ProjectAssignment.ProjectId` can't silently reference a nonexistent/stale project — currently unvalidated, matching `Department`'s existing lack of a real upstream source.
+  evidence: Review noted a typo'd or stale project id would silently seed as an orphaned assignment today with nothing to detect it; low risk against hand-written fixtures, but a real concern once spec-1-1d's RabbitMQ consumer populates this same schema from less-controlled event data.

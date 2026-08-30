@@ -5,7 +5,8 @@ namespace AccessControlService.Infrastructure.Persistence;
 
 /// <summary>
 /// EF Core implementation of <see cref="IRelationshipRepository"/> against this service's own
-/// fixture-only reports-to / department-management schema (<see cref="AccessControlDbContext"/>).
+/// fixture-only reports-to / department-management / project-assignment schema
+/// (<see cref="AccessControlDbContext"/>).
 /// </summary>
 /// <remarks>
 /// An id that doesn't match any seeded row (unknown person or department) currently resolves to
@@ -56,4 +57,19 @@ public sealed class EfRelationshipRepository : IRelationshipRepository
             .Where(d => d.Id == departmentId)
             .Select(d => d.ParentDepartmentId)
             .SingleOrDefaultAsync(cancellationToken);
+
+    public async Task<IReadOnlyCollection<Guid>> GetProjectIdsManagedAsDmOrPmAsync(Guid personId, CancellationToken cancellationToken = default) =>
+        await _dbContext.ProjectAssignments
+            .AsNoTracking()
+            .Where(pa => pa.PersonId == personId
+                && (pa.Role == ProjectAssignmentRole.ProjectManager || pa.Role == ProjectAssignmentRole.DeliveryManager))
+            .Select(pa => pa.ProjectId)
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyCollection<Guid>> GetAssignedProjectIdsAsync(Guid personId, CancellationToken cancellationToken = default) =>
+        await _dbContext.ProjectAssignments
+            .AsNoTracking()
+            .Where(pa => pa.PersonId == personId)
+            .Select(pa => pa.ProjectId)
+            .ToListAsync(cancellationToken);
 }

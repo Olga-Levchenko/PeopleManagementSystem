@@ -20,6 +20,8 @@ public sealed class AccessControlDbContext : DbContext
 
     public DbSet<Department> Departments => Set<Department>();
 
+    public DbSet<ProjectAssignment> ProjectAssignments => Set<ProjectAssignment>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Department>(department =>
@@ -80,6 +82,33 @@ public sealed class AccessControlDbContext : DbContext
                 ManagerId = p.ManagerId,
                 DepartmentId = p.DepartmentId,
                 ManagesDepartmentId = p.ManagesDepartmentId,
+            }));
+        });
+
+        modelBuilder.Entity<ProjectAssignment>(projectAssignment =>
+        {
+            projectAssignment.ToTable("project_assignments");
+            projectAssignment.HasKey(pa => pa.Id);
+            projectAssignment.Property(pa => pa.Role).IsRequired();
+
+            // FK to Person only -- ProjectId is a deliberately opaque grouping id with no table of
+            // its own, see ProjectAssignment's doc comment.
+            projectAssignment.HasOne<Person>()
+                .WithMany()
+                .HasForeignKey(pa => pa.PersonId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // A person appears at most once per project, in exactly one role -- a database
+            // constraint so a duplicate assignment is a write-time error, not a silent ambiguity
+            // for the two Project-line lookups to resolve arbitrarily.
+            projectAssignment.HasIndex(pa => new { pa.ProjectId, pa.PersonId }).IsUnique();
+
+            projectAssignment.HasData(FixtureSeedData.ProjectAssignments.Select(pa => new ProjectAssignment
+            {
+                Id = pa.Id,
+                ProjectId = pa.ProjectId,
+                PersonId = pa.PersonId,
+                Role = pa.Role,
             }));
         });
     }

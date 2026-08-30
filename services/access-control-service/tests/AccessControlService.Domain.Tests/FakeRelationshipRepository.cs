@@ -23,11 +23,15 @@ public sealed class FakeRelationshipRepository : IRelationshipRepository
     private readonly Dictionary<Guid, Guid?> _departmentByPerson = new();
     private readonly Dictionary<Guid, Guid?> _managerByDepartment = new();
     private readonly Dictionary<Guid, Guid?> _parentByDepartment = new();
+    private readonly Dictionary<Guid, HashSet<Guid>> _dmOrPmProjectIdsByPerson = new();
+    private readonly Dictionary<Guid, HashSet<Guid>> _assignedProjectIdsByPerson = new();
 
     public int ManagerLookupCount { get; private set; }
     public int DepartmentLookupCount { get; private set; }
     public int DepartmentManagerLookupCount { get; private set; }
     public int ParentDepartmentLookupCount { get; private set; }
+    public int DmOrPmProjectLookupCount { get; private set; }
+    public int AssignedProjectLookupCount { get; private set; }
 
     public FakeRelationshipRepository SetManager(Guid personId, Guid? managerId)
     {
@@ -50,6 +54,20 @@ public sealed class FakeRelationshipRepository : IRelationshipRepository
     public FakeRelationshipRepository SetParentDepartment(Guid departmentId, Guid? parentDepartmentId)
     {
         _parentByDepartment[departmentId] = parentDepartmentId;
+        return this;
+    }
+
+    /// <summary>Marks <paramref name="personId"/> as DM or PM of every project in <paramref name="projectIds"/>.</summary>
+    public FakeRelationshipRepository SetProjectsManagedAsDmOrPm(Guid personId, params Guid[] projectIds)
+    {
+        _dmOrPmProjectIdsByPerson[personId] = new HashSet<Guid>(projectIds);
+        return this;
+    }
+
+    /// <summary>Marks <paramref name="personId"/> as assigned to every project in <paramref name="projectIds"/>.</summary>
+    public FakeRelationshipRepository SetAssignedProjects(Guid personId, params Guid[] projectIds)
+    {
+        _assignedProjectIdsByPerson[personId] = new HashSet<Guid>(projectIds);
         return this;
     }
 
@@ -79,6 +97,26 @@ public sealed class FakeRelationshipRepository : IRelationshipRepository
         ParentDepartmentLookupCount++;
         ThrowIfRunaway(ParentDepartmentLookupCount);
         return Task.FromResult(_parentByDepartment.GetValueOrDefault(departmentId));
+    }
+
+    public Task<IReadOnlyCollection<Guid>> GetProjectIdsManagedAsDmOrPmAsync(Guid personId, CancellationToken cancellationToken = default)
+    {
+        DmOrPmProjectLookupCount++;
+        ThrowIfRunaway(DmOrPmProjectLookupCount);
+        IReadOnlyCollection<Guid> result = _dmOrPmProjectIdsByPerson.TryGetValue(personId, out var projectIds)
+            ? projectIds
+            : Array.Empty<Guid>();
+        return Task.FromResult(result);
+    }
+
+    public Task<IReadOnlyCollection<Guid>> GetAssignedProjectIdsAsync(Guid personId, CancellationToken cancellationToken = default)
+    {
+        AssignedProjectLookupCount++;
+        ThrowIfRunaway(AssignedProjectLookupCount);
+        IReadOnlyCollection<Guid> result = _assignedProjectIdsByPerson.TryGetValue(personId, out var projectIds)
+            ? projectIds
+            : Array.Empty<Guid>();
+        return Task.FromResult(result);
     }
 
     private static void ThrowIfRunaway(int callCount)

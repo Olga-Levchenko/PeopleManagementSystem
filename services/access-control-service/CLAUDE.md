@@ -13,9 +13,18 @@ Story 1.1 part 1 scaffolded the service skeleton (no domain logic). Story 1.1 pa
 role resolution (transitive reports-to + department-management) via a three-project
 Domain/Infrastructure/Api split (hexagonal internals, AD-1), backed by an EF Core domain model and
 fixture-seeded test data — no RabbitMQ consumer/producer, no calls into `people-service`, and no
-HTTP endpoint exposing the resolver yet. Project-line resolution (project-assignment, RabbitMQ) is
-a separate, deferred spec; see `_bmad-output/implementation-artifacts/deferred-work.md` for that
-and the other follow-ups this spec left open.
+HTTP endpoint exposing the resolver yet. Story 1.1 part 2b (`spec-1-1c-project-line-resolution.md`)
+added Project-line access role resolution alongside it: `AccessRole.ProjectLine`, an independent
+flag from `ReportingLine` — a viewer qualifies for Project-line when they're DM or PM (direct,
+non-transitive check) on a project the subject is assigned to, resolved from a fixture-seeded
+`ProjectAssignment` EF Core entity in this service's own schema, same pattern as `Person`/
+`Department`. The real population mechanism (a RabbitMQ consumer) is still a separate, deferred
+spec (`spec-1-1d`); see `_bmad-output/implementation-artifacts/deferred-work.md` for that, plus
+this build session's other ad-hoc carve-offs from these two specs (whether one person can hold
+both DM and PM on the same project, and the missing `Project`-table/id validation). Precedence
+between qualifying lines, revocation, and the section-gated HTTP response are not deferred-work
+carve-offs — they're already-planned Epic 1 stories (1.9, 1.2, and 1.6 respectively), tracked in
+`_bmad-output/planning-artifacts/epics.md` and `_bmad-output/implementation-artifacts/sprint-status.yaml`.
 
 ## Tech Stack
 
@@ -60,12 +69,14 @@ and the other follow-ups this spec left open.
 
 - `AccessControlService.sln` — solution file at the service root (CI-glob-compatible)
 - `src/AccessControlService.Domain/` — pure resolution logic, zero external dependencies:
-  `AccessRole.cs` (result type, shaped for a later Project-line flag), `IRelationshipRepository.cs`
-  (the port Infrastructure implements), `AccessRoleResolver.cs` (the transitive
-  reports-to/department-management walk, with a bounded cycle guard)
+  `AccessRole.cs` (result type — `ReportingLine` and `ProjectLine`, two independent flags, never
+  collapsed), `IRelationshipRepository.cs` (the port Infrastructure implements),
+  `AccessRoleResolver.cs` (the transitive reports-to/department-management walk with a bounded
+  cycle guard, plus the direct, non-transitive project-assignment intersection check)
 - `src/AccessControlService.Infrastructure/Persistence/` — `AccessControlDbContext.cs` (EF Core,
-  Npgsql provider), `Person.cs`/`Department.cs` (fixture-only entities, stubbed pending a real
-  synced relationship projection from `people-service` — see deferred-work.md),
+  Npgsql provider), `Person.cs`/`Department.cs`/`ProjectAssignment.cs`/`ProjectAssignmentRole.cs`
+  (fixture-only entities, stubbed pending a real synced relationship/project-assignment projection
+  from `people-service`/the timetracker integration — see deferred-work.md),
   `EfRelationshipRepository.cs` (the `IRelationshipRepository` implementation),
   `FixtureSeedData.cs` (the seed data shared between the migration's `HasData` and the
   Infrastructure integration tests), `Migrations/` (EF Core migrations)

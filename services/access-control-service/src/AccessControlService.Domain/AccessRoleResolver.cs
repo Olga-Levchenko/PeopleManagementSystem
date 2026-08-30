@@ -1,10 +1,11 @@
 namespace AccessControlService.Domain;
 
 /// <summary>
-/// Computes Reporting-line access-role qualification for a single (viewer, subject) pair, from
-/// real reports-to / department-management relationship data via <see cref="IRelationshipRepository"/>
-/// -- never from a stored or cached role flag. Resolve per (viewer, subject) pair on every call;
-/// never cache a single "current user role" across subjects or requests.
+/// Computes Reporting-line and Project-line access-role qualification for a single
+/// (viewer, subject) pair, from real reports-to / department-management / project-assignment
+/// relationship data via <see cref="IRelationshipRepository"/> -- never from a stored or cached
+/// role flag. Resolve per (viewer, subject) pair on every call; never cache a single
+/// "current user role" across subjects or requests.
 /// </summary>
 public sealed class AccessRoleResolver
 {
@@ -24,13 +25,16 @@ public sealed class AccessRoleResolver
     }
 
     /// <summary>
-    /// Resolves whether <paramref name="viewerId"/> qualifies for Reporting-line access toward
-    /// <paramref name="subjectId"/>: transitive reports-to at any depth, OR department-management
-    /// of the subject's department or any ancestor department. Returns
-    /// <see cref="AccessRole.None"/> (i.e. <c>ReportingLine = false</c>) when
+    /// Resolves whether <paramref name="viewerId"/> qualifies for Reporting-line and/or
+    /// Project-line access toward <paramref name="subjectId"/>. Reporting-line qualifies via
+    /// transitive reports-to at any depth, OR department-management of the subject's department or
+    /// any ancestor department. Project-line qualifies when the viewer is DM or PM of a project the
+    /// subject is assigned to. The two flags are resolved independently -- both, either, or neither
+    /// can be true in the same result; one qualifying does not short-circuit the other's check.
+    /// Returns <see cref="AccessRole.None"/> (both flags <c>false</c>) when
     /// <paramref name="viewerId"/> equals <paramref name="subjectId"/> -- a person is never their
-    /// own manager; Self is a separate access role the caller must check before consulting this
-    /// resolver, not an unreviewed edge case here.
+    /// own manager or their own DM/PM; Self is a separate access role the caller must check before
+    /// consulting this resolver, not an unreviewed edge case here.
     /// </summary>
     /// <remarks>
     /// Call sequentially, once per (viewer, subject) pair, per resolver instance. This resolver
@@ -49,17 +53,18 @@ public sealed class AccessRoleResolver
             return AccessRole.None;
         }
 
-        if (await IsTransitiveManagerAsync(viewerId, subjectId, cancellationToken))
+        var reportingLine =
+            await IsTransitiveManagerAsync(viewerId, subjectId, cancellationToken)
+            || await ManagesSubjectsDepartmentOrAncestorAsync(viewerId, subjectId, cancellationToken);
+
+        var projectLine = await QualifiesViaProjectAssignmentAsync(viewerId, subjectId, cancellationToken);
+
+        if (!reportingLine && !projectLine)
         {
-            return new AccessRole { ReportingLine = true };
+            return AccessRole.None;
         }
 
-        if (await ManagesSubjectsDepartmentOrAncestorAsync(viewerId, subjectId, cancellationToken))
-        {
-            return new AccessRole { ReportingLine = true };
-        }
-
-        return AccessRole.None;
+        return new AccessRole { ReportingLine = reportingLine, ProjectLine = projectLine };
     }
 
     /// <summary>
@@ -132,5 +137,32 @@ public sealed class AccessRoleResolver
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Resolves whether the viewer qualifies for Project-line access toward the subject: the
+    /// viewer is DM or PM of at least one project the subject is also assigned to. A single,
+    /// direct check -- deliberately not transitive/hop-based like the two Reporting-line checks
+    /// above, per this spec's scope (spec-1-1c): no precedence/narrowing decision and no
+    /// reports-to-chain walk above the DM/PM is made here.
+    /// </summary>
+    private async Task<bool> QualifiesViaProjectAssignmentAsync(
+        Guid viewerId,
+        Guid subjectId,
+        CancellationToken cancellationToken)
+    {
+        var viewerProjectIds = await _repository.GetProjectIdsManagedAsDmOrPmAsync(viewerId, cancellationToken);
+        if (viewerProjectIds.Count == 0)
+        {
+            return false;
+        }
+
+        var subjectProjectIds = await _repository.GetAssignedProjectIdsAsync(subjectId, cancellationToken);
+        if (subjectProjectIds.Count == 0)
+        {
+            return false;
+        }
+
+        return viewerProjectIds.Any(subjectProjectIds.Contains);
     }
 }

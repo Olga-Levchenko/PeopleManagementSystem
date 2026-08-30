@@ -240,6 +240,31 @@ public class AccessRoleResolverTests
     }
 
     [Fact]
+    public async Task ResolveAsync_ViewerEqualsSubjectAndGenuinelyDmOnTheirOwnAssignedProject_ReturnsNone()
+    {
+        // Proves the self-resolution short-circuit applies to Project-line too, not just an
+        // accident of unpopulated project data: the person is genuinely seeded as DM on a project
+        // they're also assigned to (so, absent the self-check, the direct DM/PM-vs-assigned-project
+        // intersection check would find a real overlap and qualify ProjectLine). The self-check
+        // must still win, and must do so without even calling the project-lookup methods.
+        var personId = Guid.NewGuid();
+        var project = Guid.NewGuid();
+        var repository = new FakeRelationshipRepository()
+            .SetProjectsManagedAsDmOrPm(personId, project)
+            .SetAssignedProjects(personId, project);
+
+        var resolver = new AccessRoleResolver(repository);
+
+        var result = await resolver.ResolveAsync(personId, personId);
+
+        Assert.Equal(AccessRole.None, result);
+        Assert.False(result.ReportingLine);
+        Assert.False(result.ProjectLine);
+        Assert.Equal(0, repository.DmOrPmProjectLookupCount);
+        Assert.Equal(0, repository.AssignedProjectLookupCount);
+    }
+
+    [Fact]
     public async Task ResolveAsync_CyclicReportsToChain_StopsWithinABoundedNumberOfLookups()
     {
         // A -> B -> C -> A: a cyclic reports-to chain with no path to the viewer at all.
@@ -293,5 +318,122 @@ public class AccessRoleResolverTests
         Assert.True(
             repository.ParentDepartmentLookupCount <= 3,
             $"Expected a bounded number of parent-department lookups for a 3-node cycle, got {repository.ParentDepartmentLookupCount}.");
+    }
+
+    // -- spec-1-1c: Project-line resolution -- I/O & Edge-Case Matrix coverage below. --
+
+    [Fact]
+    public async Task ResolveAsync_ProjectLineViaDm_ProjectLineQualifies()
+    {
+        var dm = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+        var project = Guid.NewGuid();
+
+        var repository = new FakeRelationshipRepository()
+            .SetProjectsManagedAsDmOrPm(dm, project)
+            .SetAssignedProjects(subject, project);
+
+        var resolver = new AccessRoleResolver(repository);
+
+        var result = await resolver.ResolveAsync(dm, subject);
+
+        Assert.True(result.ProjectLine);
+        Assert.False(result.ReportingLine);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ProjectLineViaPm_ProjectLineQualifies()
+    {
+        var pm = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+        var project = Guid.NewGuid();
+
+        var repository = new FakeRelationshipRepository()
+            .SetProjectsManagedAsDmOrPm(pm, project)
+            .SetAssignedProjects(subject, project);
+
+        var resolver = new AccessRoleResolver(repository);
+
+        var result = await resolver.ResolveAsync(pm, subject);
+
+        Assert.True(result.ProjectLine);
+        Assert.False(result.ReportingLine);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_PmAndDmOnSameProject_BothQualifyViaTwoSeparateResolutions()
+    {
+        var pm = Guid.NewGuid();
+        var dm = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+        var project = Guid.NewGuid();
+
+        var repository = new FakeRelationshipRepository()
+            .SetProjectsManagedAsDmOrPm(pm, project)
+            .SetProjectsManagedAsDmOrPm(dm, project)
+            .SetAssignedProjects(subject, project);
+
+        var resolver = new AccessRoleResolver(repository);
+
+        var pmResult = await resolver.ResolveAsync(pm, subject);
+        var dmResult = await resolver.ResolveAsync(dm, subject);
+
+        Assert.True(pmResult.ProjectLine);
+        Assert.True(dmResult.ProjectLine);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ViewerDmButSubjectNotAssignedToThatProject_ProjectLineDoesNotQualify()
+    {
+        var dm = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+        var viewersProject = Guid.NewGuid();
+        var subjectsProject = Guid.NewGuid();
+
+        var repository = new FakeRelationshipRepository()
+            .SetProjectsManagedAsDmOrPm(dm, viewersProject)
+            .SetAssignedProjects(subject, subjectsProject);
+
+        var resolver = new AccessRoleResolver(repository);
+
+        var result = await resolver.ResolveAsync(dm, subject);
+
+        Assert.False(result.ProjectLine);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ViewerBothReportsToManagerAndProjectDm_BothLinesQualifySimultaneously()
+    {
+        var viewer = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+        var project = Guid.NewGuid();
+
+        var repository = new FakeRelationshipRepository()
+            .SetManager(subject, viewer)
+            .SetProjectsManagedAsDmOrPm(viewer, project)
+            .SetAssignedProjects(subject, project);
+
+        var resolver = new AccessRoleResolver(repository);
+
+        var result = await resolver.ResolveAsync(viewer, subject);
+
+        Assert.True(result.ReportingLine);
+        Assert.True(result.ProjectLine);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_NoRelationshipPathIncludingNoProjectOverlap_NeitherLineQualifies()
+    {
+        var viewer = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+
+        // Repository knows about neither person on any relation, including project assignment.
+        var repository = new FakeRelationshipRepository();
+        var resolver = new AccessRoleResolver(repository);
+
+        var result = await resolver.ResolveAsync(viewer, subject);
+
+        Assert.False(result.ReportingLine);
+        Assert.False(result.ProjectLine);
     }
 }

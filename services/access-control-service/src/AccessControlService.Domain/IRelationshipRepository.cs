@@ -2,10 +2,13 @@ namespace AccessControlService.Domain;
 
 /// <summary>
 /// Read-only relationship lookups <see cref="AccessRoleResolver"/> walks to resolve Reporting-line
-/// qualification. Defined in Domain (the hexagonal port); implemented in Infrastructure against EF
-/// Core (<c>EfRelationshipRepository</c>), so Domain itself never depends on EF Core or any other
-/// external package. Each method answers exactly one hop of one relation -- the resolver composes
-/// them into a transitive walk; no method here performs the walk itself.
+/// and Project-line qualification. Defined in Domain (the hexagonal port); implemented in
+/// Infrastructure against EF Core (<c>EfRelationshipRepository</c>), so Domain itself never depends
+/// on EF Core or any other external package. Each Reporting-line method answers exactly one hop of
+/// one relation -- the resolver composes them into a transitive walk. The two Project-line methods
+/// are deliberately not hop-shaped: project assignment is a single, direct (non-transitive) check
+/// per this spec (spec-1-1c) -- the resolver only needs each side's full project-id set to compute
+/// an intersection, not a walk.
 /// </summary>
 public interface IRelationshipRepository
 {
@@ -35,4 +38,18 @@ public interface IRelationshipRepository
     /// root department, or the id isn't a known department.
     /// </summary>
     Task<Guid?> GetParentDepartmentIdAsync(Guid departmentId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The ids of every project <paramref name="personId"/> is DM or PM of. Empty (never
+    /// <c>null</c>) if the person holds neither role on any project, or the id isn't a known
+    /// person.
+    /// </summary>
+    Task<IReadOnlyCollection<Guid>> GetProjectIdsManagedAsDmOrPmAsync(Guid personId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The ids of every project <paramref name="personId"/> is assigned to, in any role. Empty
+    /// (never <c>null</c>) if the person has no project assignment on file, or the id isn't a
+    /// known person.
+    /// </summary>
+    Task<IReadOnlyCollection<Guid>> GetAssignedProjectIdsAsync(Guid personId, CancellationToken cancellationToken = default);
 }

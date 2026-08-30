@@ -3,6 +3,7 @@ using System;
 using AccessControlService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AccessControlService.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AccessControlDbContext))]
-    partial class AccessControlDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260830190557_AddProjectAssignments")]
+    partial class AddProjectAssignments
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -210,13 +213,6 @@ namespace AccessControlService.Infrastructure.Persistence.Migrations
                             PersonId = new Guid("22222222-0000-0000-0000-000000000004"),
                             ProjectId = new Guid("33333333-0000-0000-0000-000000000002"),
                             Role = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("44444444-0000-0000-0000-000000000007"),
-                            PersonId = new Guid("22222222-0000-0000-0000-000000000003"),
-                            ProjectId = new Guid("33333333-0000-0000-0000-000000000003"),
-                            Role = 2
                         });
                 });
 
