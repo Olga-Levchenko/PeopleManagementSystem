@@ -27,6 +27,11 @@ Thumbs.db
 !.vscode/extensions.json
 .idea/
 
+# .NET / Visual Studio
+.vs/
+*.user
+*.suo
+
 # Test/coverage
 coverage/
 playwright-report/

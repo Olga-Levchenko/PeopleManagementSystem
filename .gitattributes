@@ -1,0 +1,6 @@
+# Shell scripts must always check out with LF line endings, even on Windows with
+# core.autocrlf=true. A CRLF shebang line (`#!/bin/sh\r`) breaks POSIX shell execution inside
+# Linux containers — discovered via infra/postgres-init/01-create-databases.sh, which is bind-
+# mounted into the Postgres container by infra/docker-compose.yml and silently failed to run
+# ("/bin/sh^M: bad interpreter") on a Windows checkout before this file existed.
+*.sh text eol=lf
