@@ -1,0 +1,143 @@
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created, ready for development
+#   - in-progress: Developer actively working on implementation
+#   - review: Implementation complete, ready for review
+#   - done: Story completed
+
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when its first story starts (via build's sprint sync)
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates the next story after the previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; the status view surfaces open ones
+generated: 08-30-2026 12:52
+last_updated: 08-30-2026 12:52
+project: PeopleManagementSystem
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+development_status:
+  epic-1: backlog
+  1-1-two-dimensional-access-role-resolution: backlog
+  1-2-access-role-un-derives-when-a-relationship-ends: backlog
+  1-3-organisational-relationship-changes-as-a-dedicated-journaled: backlog
+  1-4-functional-roles-and-permissions-as-runtime-editable-data: backlog
+  1-5-full-profile-access-as-a-separate-journaled-grant: backlog
+  1-6-server-assembled-section-gated-profile-response: backlog
+  1-7-s7-management-notes-flag-gating: backlog
+  1-8-colleague-view-field-whitelist: backlog
+  1-9-project-line-narrowing-vs-reporting-line: backlog
+  1-10-custom-field-visibility-enforcement: backlog
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-universal-filter-column-engine-over-profile-fields: backlog
+  2-2-inline-editing-writes-through-to-the-profile-subject-to-acce: backlog
+  2-3-saved-views: backlog
+  2-4-export-respects-the-exporter-s-access: backlog
+  2-5-colleague-mode-on-all-employees: backlog
+  2-6-self-managed-personal-data: backlog
+  2-7-self-read-of-managed-data-and-never-own-risk-level: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  3-1-manual-action-item-creation-scoped-to-creator-s-access: backlog
+  3-2-campaign-generated-action-items: backlog
+  3-3-action-item-lifecycle-and-overdue-display: backlog
+  3-4-self-complete-action-item: backlog
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  4-1-risk-record-with-retained-history: backlog
+  4-2-risk-dashboard: backlog
+  epic-4-retrospective: optional
+
+  epic-5: backlog
+  5-1-shared-dashboard-engine-per-audience-configuration: backlog
+  5-2-um-dashboard-early-blocks: backlog
+  5-3-dm-pm-dashboard-early-blocks: backlog
+  5-4-pp-dashboard: backlog
+  epic-5-retrospective: optional
+
+  epic-6: backlog
+  6-1-standing-manager-pp-only-share-creation-section-selectable-a: backlog
+  6-2-expiry-revocation-and-access-logging: backlog
+  epic-6-retrospective: optional
+
+  epic-7: backlog
+  7-1-request-creation-dm-pm: backlog
+  7-2-request-fulfilment-um: backlog
+  7-3-request-review-and-decision-dm: backlog
+  7-4-request-history-s15: backlog
+  7-5-request-closure-requires-explicit-permissioned-dm-action: backlog
+  epic-7-retrospective: optional
+
+  epic-8: backlog
+  8-1-automatic-event-generation: backlog
+  8-2-manual-override-by-pp-um: backlog
+  epic-8-retrospective: optional
+
+  epic-9: backlog
+  9-1-matrix-link-resolution-by-department-position: backlog
+  9-2-assessment-log-and-idp-creation-by-manager-pp: backlog
+  9-3-cds-based-filtering-on-all-employees: backlog
+  9-4-self-complete-idp: backlog
+  epic-9-retrospective: optional
+
+  epic-10: backlog
+  10-1-self-service-mentorship-status: backlog
+  10-2-manager-pp-pairing-flow: backlog
+  10-3-ending-a-pair: backlog
+  10-4-self-managed-mentorship-open-to-flag: backlog
+  10-5-fr-15-closing-verification-cross-epic: backlog
+  epic-10-retrospective: optional
+
+  epic-11: backlog
+  11-1-campaign-creation-and-audience-resolution: backlog
+  11-2-campaign-author-colleague-exception: backlog
+  11-3-completion-tracking: backlog
+  epic-11-retrospective: optional
+
+  epic-12: backlog
+  12-1-feedback-record-creation-and-visibility: backlog
+  12-2-requesting-feedback-from-named-colleagues: backlog
+  epic-12-retrospective: optional
+
+  epic-13: backlog
+  13-1-um-dashboard-resourcing-campaign-counters-backfill: backlog
+  13-2-dm-pm-unassigned-bucket-pm-request-visibility-backfill: backlog
+  13-3-fr-16-19-closing-verification-cross-epic: backlog
+  epic-13-retrospective: optional
+
+  epic-14: backlog
+  14-1-leave-data-sync-into-s10: backlog
+  14-2-real-timetracker-adapter-fulfilling-the-project-assignment-e: backlog
+  14-3-fr-44-closing-verification-cross-epic: backlog
+  epic-14-retrospective: optional
+
+  epic-15: backlog
+  15-1-candidate-prefill-by-id-for-resourcing: backlog
+  epic-15-retrospective: optional
+
+  epic-16: backlog
+  16-1-employment-status-as-a-time-bounded-fact: backlog
+  16-2-departure-recording-and-effects: backlog
+  epic-16-retrospective: optional

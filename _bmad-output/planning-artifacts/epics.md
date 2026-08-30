@@ -275,8 +275,9 @@ at all, removing an entire class of sensitive-data handling by design.
 ### Additional Requirements
 
 - No starter/greenfield template is specified — services are built from scratch following the
-  Architecture's Structural Seed: `services/frontend`, `services/bff`, `services/auth-service`,
-  `services/authorization-service`, `services/people-service`, `services/work-management-service`,
+  Architecture's Structural Seed: `services/frontend`, `services/bff`,
+  `services/authentication-service`, `services/access-control-service`, `services/people-service`,
+  `services/work-management-service`,
   `services/resourcing-service`, `services/integration-timetracker`,
   `services/integration-peopleforce`, plus `libs/contracts`, `libs/config`, `infra/docker-compose.yml`.
   This affects Epic 1 Story 1 (repository/service skeleton setup).
@@ -336,11 +337,35 @@ at all, removing an entire class of sensitive-data handling by design.
 
 ### UX Design Requirements
 
-N/A for this pass — no UX design contract exists yet (prototyping is in progress in `prototypes/`).
-By explicit agreement with the product owner, epics/stories proceed now from PRD + Architecture
-only, on the grounds that Section 8 [NORMATIVE] treats "one workstream waiting on another" as a
-process defect; UI-heavy stories will get a follow-up refinement pass once `bmad-ux` produces a
-design contract, rather than blocking this breakdown on it.
+A UX design contract now exists —
+`_bmad-output/planning-artifacts/ux-designs/ux-PeopleManagementSystem-2026-08-29/DESIGN.md` +
+`EXPERIENCE.md` (both `status: final`, merged 2026-08-30) — produced deliberately *after* this
+epic/story breakdown, per the same product-owner agreement noted above (Section 8 treats one
+workstream blocking on another as a process defect; UX filled the gap after the fact rather than
+before). The stories below were not rewritten line-by-line to cite it — that's a larger pass than
+a readiness fix warrants — but the spine directly governs implementation for every UI-heavy epic,
+most load-bearingly:
+
+- **Epic 1, Story 1.6** (server-assembled, section-gated profile response) implements exactly
+  EXPERIENCE.md's "Section omission" pattern (Component Patterns) — a section with no access is
+  absent from the DOM, never disabled/blurred/lock-iconed.
+- **Epic 4** (Risks & Risk Dashboard) implements DESIGN.md's `severity-*` color ramp and the
+  `SeverityBadge` component (color+label+conditional trend arrow) — Story 4.1's "no trend arrow
+  when unchanged" acceptance criterion is this component's own behavioral spec, not a separate
+  decision.
+- **Epic 5** (Dashboard Framework) implements EXPERIENCE.md's shared dashboard-engine description
+  directly; `mockups/key-dm-dashboard.html` is a real reference for Story 5.3's per-project-table
+  layout.
+- **Epic 2** (All Employees) has a direct visual reference at `mockups/key-all-employees.html`
+  (manager mode vs. colleague mode, same page).
+- Any story surfacing a status/lifecycle value (action items, resourcing requests, campaign
+  recipients) should use the `StatusPill` component; any story surfacing S7's two flags should use
+  `FlagIndicator`, whose accessible name must state the flag itself (accessibility finding, already
+  fixed in the spine) — this is an access-control-adjacent requirement, not just visual polish.
+
+Two items the spine itself leaves open, not resolved here either: state coverage is pattern-level,
+not walked per-surface (a later Update pass once implementation surfaces real edge cases), and
+contrast on two severity ramp colors is unconfirmed until they render in real code.
 
 ### FR Coverage Map
 
