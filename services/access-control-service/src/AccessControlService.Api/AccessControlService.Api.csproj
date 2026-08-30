@@ -10,6 +10,23 @@
     <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
     <PackageReference Include="DotNetEnv" Version="3.2.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
+    <!--
+      Needed here (in addition to AccessControlService.Infrastructure's own reference) because
+      "dotnet ef" resolves the design-time tooling package from whichever project is passed as the
+      startup project (this project, via "-startup-project") as well as the migrations target
+      (Infrastructure, via "-project"). Removing it from either project breaks
+      "dotnet ef migrations add" / "database update" even though neither project uses it at
+      runtime. Don't "clean up" one as an apparent duplicate.
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AccessControlService.Domain\AccessControlService.Domain.csproj" />
+    <ProjectReference Include="..\AccessControlService.Infrastructure\AccessControlService.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

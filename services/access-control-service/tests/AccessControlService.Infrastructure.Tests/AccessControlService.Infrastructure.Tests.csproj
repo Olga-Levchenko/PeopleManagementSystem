@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+    <!--
+      Testcontainers.PostgreSql starts a real, ephemeral Postgres in a Docker container for the
+      lifetime of this test class: the Infrastructure-layer analogue of
+      AccessControlService.Api.Tests' RealServerBindingTests spinning up a real subprocess. A
+      genuine instance is started and torn down, not a fake/in-memory substitute. Requires Docker
+      to be available wherever this test runs (local dev and GitHub Actions ubuntu-latest runners
+      both have it).
+    -->
+    <PackageReference Include="Testcontainers.PostgreSql" Version="3.10.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AccessControlService.Infrastructure\AccessControlService.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

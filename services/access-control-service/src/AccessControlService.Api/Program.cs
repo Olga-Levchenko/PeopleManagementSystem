@@ -1,7 +1,10 @@
 using AccessControlService.Api.Configuration;
 using AccessControlService.Api.Health;
 using AccessControlService.Api.Middleware;
+using AccessControlService.Domain;
+using AccessControlService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.EntityFrameworkCore;
 
 // Load '.env' for local-dev parity with the Node services (committed '.env' is gitignored,
 // '.env.example' is the template). Never clobbers a variable already set in the process
@@ -32,6 +35,17 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddHealthChecks()
     .AddNpgSql(appConfig.PostgresConnectionString, name: "postgres");
+
+// Composition root wiring for the hexagonal split (AD-1): Infrastructure's EF Core repository is
+// bound to the Domain-defined IRelationshipRepository port here, never the other way round.
+// Deliberately no Database.Migrate()/EnsureCreated() call here -- migrations are applied
+// explicitly (see AccessControlService.Infrastructure's Persistence/Migrations), so the app keeps
+// booting fine (health check reporting Unhealthy, not crashing) when Postgres is down or
+// unmigrated.
+builder.Services.AddDbContext<AccessControlDbContext>(options =>
+    options.UseNpgsql(appConfig.PostgresConnectionString));
+builder.Services.AddScoped<IRelationshipRepository, EfRelationshipRepository>();
+builder.Services.AddScoped<AccessRoleResolver>();
 
 builder.WebHost.UseUrls($"http://0.0.0.0:{appConfig.Port}");
 

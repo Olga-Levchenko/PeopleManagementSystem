@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Zero external package references, deliberately: this project is the pure-logic core of the
+    hexagonal split (AD-1 / architecture spine "hexagonal service internals"). AccessRoleResolver
+    must be testable and reasoned about without EF Core, ASP.NET Core, or any other dependency in
+    scope. Infrastructure implements IRelationshipRepository against EF Core; Api composes the two
+    at startup.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>

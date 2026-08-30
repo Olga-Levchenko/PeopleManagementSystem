@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.10" />
+    <!--
+      Needed here (in addition to AccessControlService.Api's own reference) because "dotnet ef"
+      resolves the design-time tooling package from whichever project is passed as the migrations
+      target (this project, via "-project") as well as the startup project (Api, via
+      "-startup-project"). Removing it from either project breaks "dotnet ef migrations add" /
+      "database update" even though neither project uses it at runtime. Don't "clean up" one as an
+      apparent duplicate.
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AccessControlService.Domain\AccessControlService.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
