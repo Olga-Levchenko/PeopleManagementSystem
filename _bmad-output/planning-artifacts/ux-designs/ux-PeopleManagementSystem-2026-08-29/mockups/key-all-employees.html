@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Key screen — All Employees (Manager mode vs Colleague mode)</title>
+<style>
+  /*
+    Spine sections this mock illustrates:
+    - EXPERIENCE.md > Information Architecture > "All Employees" (one surface, two modes)
+    - EXPERIENCE.md > Interaction Primitives > filter builder, saved views, inline editing
+    - EXPERIENCE.md > Key Flows > Flow 7 (Vagif, colleague mode)
+    - DESIGN.md > Colors, Typography
+    Two sections in one file: Manager mode (top, full filters/columns/saved-view tabs/export)
+    vs Colleague mode (bottom, whitelist columns only, no filter builder for closed sections).
+  */
+  :root {
+    --background: oklch(1 0 0); --foreground: oklch(0.145 0.004 286);
+    --card: oklch(1 0 0); --secondary: oklch(0.961 0.003 286);
+    --secondary-foreground: oklch(0.205 0.008 286); --muted: oklch(0.961 0.003 286);
+    --muted-foreground: oklch(0.556 0.012 286); --border: oklch(0.898 0.003 286);
+    --primary: oklch(0.488 0.243 264.376); --primary-foreground: oklch(0.985 0 0);
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background: var(--muted); font-family: system-ui, sans-serif; color: var(--foreground); padding: 24px; }
+  .browser { max-width: 1180px; margin: 0 auto 24px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+  .chrome { display:flex; align-items:center; gap:6px; padding:10px 14px; background: var(--secondary); border-bottom: 1px solid var(--border); }
+  .dot { width:10px; height:10px; border-radius:999px; background: var(--border); }
+  .url { margin-left:12px; font-size:12px; color: var(--muted-foreground); background: var(--card); border:1px solid var(--border); border-radius:6px; padding:3px 10px; flex:1; }
+  .content { padding: 20px 24px; }
+  .mode-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--primary); margin-bottom: 10px; }
+  .tabs { display:flex; gap: 6px; margin-bottom: 12px; }
+  .tab { font-size: 12px; padding: 6px 12px; border-radius: 8px 8px 0 0; border: 1px solid var(--border); border-bottom: none; color: var(--muted-foreground); }
+  .tab.active { background: var(--secondary); color: var(--foreground); font-weight: 600; }
+  .toolbar { display:flex; align-items:center; justify-content: space-between; margin-bottom: 12px; }
+  .filters { display:flex; gap:8px; }
+  .chip { font-size: 12px; border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; color: var(--muted-foreground); }
+  .btn { font-size: 12px; font-weight: 600; border: 1px solid var(--border); border-radius: 8px; padding: 6px 14px; background: var(--card); }
+  .btn-primary { background: var(--primary); color: var(--primary-foreground); border: none; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 12px; color: var(--muted-foreground); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; border-bottom: 1px solid var(--border); }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  .editable { border: 1px dashed var(--border); border-radius: 4px; padding: 2px 6px; }
+  .note { font-size: 12px; color: var(--muted-foreground); margin-top: 10px; }
+</style>
+</head>
+<body>
+
+  <div class="browser">
+    <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span class="url">app.pms.internal/all-employees</span></div>
+    <div class="content">
+      <div class="mode-label">Manager mode — Olena (Unit Manager)</div>
+      <div class="tabs">
+        <div class="tab active">All</div>
+        <div class="tab">Bench</div>
+        <div class="tab">Open to mentoring</div>
+        <div class="tab">+ New view</div>
+      </div>
+      <div class="toolbar">
+        <div class="filters">
+          <span class="chip">Department: Engineering management</span>
+          <span class="chip">+ Add filter</span>
+        </div>
+        <button class="btn">Export .xlsx</button>
+      </div>
+      <table>
+        <tr><th>Name</th><th>Position</th><th>Grade</th><th>Risk</th><th>Mentorship</th><th>Project</th></tr>
+        <tr><td>Andrii Fedorchuk</td><td>Unit Manager</td><td class="editable">Senior</td><td>—</td><td>—</td><td>—</td></tr>
+        <tr><td>Chidi Igwe</td><td>Developer</td><td class="editable">Mid</td><td>Low</td><td>Open to mentoring</td><td>Atlas Platform</td></tr>
+      </table>
+      <div class="note">Grade cell is inline-editable (dashed outline) — writes straight to the profile. Manager/PP/department columns are never inline-editable, by design.</div>
+    </div>
+  </div>
+
+  <div class="browser">
+    <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span class="url">app.pms.internal/all-employees</span></div>
+    <div class="content">
+      <div class="mode-label">Colleague mode — Vagif</div>
+      <div class="toolbar">
+        <div class="filters">
+          <span class="chip">Department: Python</span>
+        </div>
+        <button class="btn">Export .xlsx</button>
+      </div>
+      <table>
+        <tr><th>Name</th><th>Position</th><th>Country/City</th><th>Away</th><th>Project</th></tr>
+        <tr><td>Chidi Igwe</td><td>Developer</td><td>Georgia</td><td>Aug 12–19</td><td>Atlas Platform</td></tr>
+        <tr><td>Vasyl Kravchenko</td><td>Developer</td><td>Malaysia</td><td>—</td><td>—</td></tr>
+      </table>
+      <div class="note">No grade, no risk, no mentorship-status column or filter — S13/S6/S4 are closed to colleagues, so those columns are never offered, not just unchecked. No saved-view tabs either — colleague mode has no filter engine to save a view from beyond the whitelist.</div>
+    </div>
+  </div>
+
+</body>
+</html>
