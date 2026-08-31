@@ -97,6 +97,62 @@ already exist in the service's own schema, however it gets there.
 - Given the fixture-seeded project-assignment data, when a real integration test queries it through the new repository method, then it returns the seeded values correctly (not merely a manual check)
 - Given a viewer who qualifies via both Reporting-line and Project-line for the same subject, when resolved, then both flags are `true` in one `ResolveAsync` call
 
+### Review Findings
+
+_Code review (chunk 3/5 of PR #14 review), 2026-08-31 — scope: Project-line resolution files
+against `main`, plus the acceptance-auditor lens against this spec and its referenced context
+docs._
+
+- [x] [Review][Defer] Project-line resolution doesn't include "everyone above them in that
+  chain" — `docs/access-control/section-matrix.md` defines Project line's audience as "the PM/DM
+  of the person's project(s), **and everyone above them in that chain**," and
+  `.claude/rules/access-control-invariants.md` states Manager access is the transitive closure of
+  reports-to, department-management, *and* "is assigned to a project managed by" — implying the
+  PM/DM's own reports-to chain should inherit Project-line qualification too.
+  `QualifiesViaProjectAssignmentAsync` (`AccessRoleResolver.cs`) only checks direct DM/PM
+  membership, not anyone above the DM/PM. This narrowing is present in spec-1-1c's own frozen
+  Intent text ("viewer is DM or PM on a project the subject is assigned to") — deferred, reason:
+  scoped out for spec-1-1c's token budget, same as every other spec-1-1c narrowing; the transitive
+  walk is real follow-up work, not a bug in what shipped.
+- [ ] [Review][Patch] Add unknown-id warning logging to `GetProjectIdsManagedAsDmOrPmAsync`/
+  `GetAssignedProjectIdsAsync` [`EfRelationshipRepository.cs`] — the four Reporting-line lookup
+  methods log via `LogUnknownId` when a queried id matches no row at all; the two Project-line
+  lookups added in this spec don't, an inconsistency in the same file.
+- [ ] [Review][Patch] `AccessRoleResolverTests.cs:214`'s comment references "the concurrency-safety
+  test below," but no such test exists anywhere in the diff — the resolver's documented
+  "not safe, will throw" concurrent-call contract is asserted only in prose.
+- [ ] [Review][Patch] `ResolveAsync_ViewerQualifiesViaBothReportsToAndDepartmentManagement_ReportingLineQualifies`
+  [`AccessRoleResolverTests.cs:163`]'s comment claims to prove the two Reporting-line checks are
+  independent, but `IsTransitiveManagerAsync(...) || ManagesSubjectsDepartmentOrAncestorAsync(...)`
+  short-circuits once the first is true, so the test never actually exercises the second check in
+  this scenario.
+- [ ] [Review][Patch] No test exercises the `MaxHops` truncation branch (a genuinely long, acyclic
+  chain) in either `IsTransitiveManagerAsync` or `ManagesSubjectsDepartmentOrAncestorAsync`
+  [`AccessRoleResolver.cs`] — every existing "long chain" test uses a short cycle instead, and the
+  cycle-guard's own `LogWarning` calls (added in chunk 2) have zero test coverage.
+- [ ] [Review][Patch] No negative Project-line test for a viewer who is a plain `Member` (not
+  DM/PM) on the same project as the subject [`AccessRoleResolverTests.cs`] — the most direct way
+  the DM/PM-only intersection could regress.
+- [x] [Review][Defer] No database-level constraint against a self-referential `Person.ManagerId` or
+  `Department.ParentDepartmentId` [`AccessControlDbContext.cs`] — deferred, pre-existing (same
+  category as other already-deferred DB-constraint gaps in this schema; zero blast radius against
+  fixture-only data).
+
+**Dismissed as noise/handled elsewhere (11):** already tracked in `deferred-work.md` — the
+O(n·m) project-id intersection and per-hop round-trip walk cost (recursive-CTE entry), and the
+per-test Testcontainers Postgres startup cost (shared-fixture entry); diff-construction artifacts
+of this review's file-list scoping — a "missing migration file" false positive, and
+`ProjectAssignmentEventWatermark` appearing in the diff (it belongs to spec-1-1d/1-1e, not this
+spec); design opinions already deliberate and covered by an existing test — the `OrderBy` tie-break
+in `GetDepartmentManagerIdAsync`; premature-abstraction suggestions with no current consumer need —
+an `IAccessRoleResolver` interface; a mis-scoped concern already covered by CLAUDE.md/Epic-1 story
+tracking rather than `deferred-work.md` — confirming the S2/S3/S5 narrowing follow-up is tracked;
+a defensible-by-design non-finding — `MaxHops` not applying to the intentionally non-transitive
+Project-line check; a rare-case, low-severity cost — `GetDepartmentManagerIdAsync`'s extra
+existence check only for genuinely-unmanaged departments; and a suggestion that contradicts the
+resolver's intentional scoped/sequential-only design — adding a semaphore to make concurrent
+`ResolveAsync` calls silently safe instead of the documented fail-fast contract.
+
 ## Spec Change Log
 
 ## Verification

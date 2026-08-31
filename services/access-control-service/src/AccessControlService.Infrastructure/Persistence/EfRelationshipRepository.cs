@@ -16,11 +16,13 @@ namespace AccessControlService.Infrastructure.Persistence;
 /// service's CLAUDE.md Gotchas and deferred-work.md), not an oversight: it has zero blast radius
 /// today since nothing calls this repository with an unsynced id yet, but needs a real decision
 /// (throw, log, or another signal) before any real HTTP consumer is wired up. As an interim
-/// safeguard (not the real fix), the four Reporting-line lookup methods below now log a warning via
-/// <see cref="ILogger{TCategoryName}"/> the first time, per call, that they find no row at all for
+/// safeguard (not the real fix), every lookup method below now logs a warning via
+/// <see cref="ILogger{TCategoryName}"/> the first time, per call, that it finds no row at all for
 /// the given id -- distinguished internally from a known row whose FK column is legitimately
-/// <c>null</c> -- so a real data-sync bug is at least visible in logs instead of silently
-/// indistinguishable from "correctly no access". The return behavior itself is unchanged.
+/// <c>null</c>, or (for the two Project-line lookups, which return an empty collection rather than
+/// a nullable FK) from a known person with genuinely no project assignments -- so a real data-sync
+/// bug is at least visible in logs instead of silently indistinguishable from "correctly no
+/// access". The return behavior itself is unchanged.
 /// </remarks>
 public sealed class EfRelationshipRepository : IRelationshipRepository
 {
@@ -120,20 +122,57 @@ public sealed class EfRelationshipRepository : IRelationshipRepository
         return row.ParentDepartmentId;
     }
 
-    public async Task<IReadOnlyCollection<Guid>> GetProjectIdsManagedAsDmOrPmAsync(Guid personId, CancellationToken cancellationToken = default) =>
-        await _dbContext.ProjectAssignments
+    public async Task<IReadOnlyCollection<Guid>> GetProjectIdsManagedAsDmOrPmAsync(Guid personId, CancellationToken cancellationToken = default)
+    {
+        var projectIds = await _dbContext.ProjectAssignments
             .AsNoTracking()
             .Where(pa => pa.PersonId == personId
                 && (pa.Role == ProjectAssignmentRole.ProjectManager || pa.Role == ProjectAssignmentRole.DeliveryManager))
             .Select(pa => pa.ProjectId)
             .ToListAsync(cancellationToken);
 
-    public async Task<IReadOnlyCollection<Guid>> GetAssignedProjectIdsAsync(Guid personId, CancellationToken cancellationToken = default) =>
-        await _dbContext.ProjectAssignments
+        if (projectIds.Count == 0)
+        {
+            await LogIfUnknownPersonAsync(nameof(GetProjectIdsManagedAsDmOrPmAsync), personId, cancellationToken);
+        }
+
+        return projectIds;
+    }
+
+    public async Task<IReadOnlyCollection<Guid>> GetAssignedProjectIdsAsync(Guid personId, CancellationToken cancellationToken = default)
+    {
+        var projectIds = await _dbContext.ProjectAssignments
             .AsNoTracking()
             .Where(pa => pa.PersonId == personId)
             .Select(pa => pa.ProjectId)
             .ToListAsync(cancellationToken);
+
+        if (projectIds.Count == 0)
+        {
+            await LogIfUnknownPersonAsync(nameof(GetAssignedProjectIdsAsync), personId, cancellationToken);
+        }
+
+        return projectIds;
+    }
+
+    /// <summary>
+    /// An empty result from either Project-line lookup above is naturally indistinguishable
+    /// between "known person, genuinely no project assignments" and "personId itself is unknown" --
+    /// same ambiguity the four Reporting-line lookups resolve via <see cref="LogUnknownId"/>. Checks
+    /// the person's own existence separately, purely to decide whether to log, so a genuinely
+    /// unassigned known person doesn't warn.
+    /// </summary>
+    private async Task LogIfUnknownPersonAsync(string methodName, Guid personId, CancellationToken cancellationToken)
+    {
+        var personExists = await _dbContext.People
+            .AsNoTracking()
+            .AnyAsync(p => p.Id == personId, cancellationToken);
+
+        if (!personExists)
+        {
+            LogUnknownId(methodName, "person", personId);
+        }
+    }
 
     /// <summary>
     /// Logs, at Warning level, that <paramref name="methodName"/> found no <paramref name="idKind"/>

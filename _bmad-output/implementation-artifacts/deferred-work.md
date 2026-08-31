@@ -144,6 +144,14 @@
   summary: Add a graceful skip (not a hard failure) for `AccessControlService.Infrastructure.Tests` when Docker is unavailable locally, so a contributor without Docker (e.g. on Cursor, per `tooling-parity.md`'s equal-functionality goal) doesn't hit an unexplained hard failure running `dotnet test`.
   evidence: Fresh-context code review of PR #14 found `dotnet test` hard-fails on this project when Docker isn't running, with no opt-out or explanation in `CLAUDE.md`'s Commands section or the csproj; affects every Testcontainers-based test project in this service, not just this chunk's tests.
 
+- source_spec: `services/access-control-service/src/AccessControlService.Infrastructure/Persistence/AccessControlDbContext.cs`
+  summary: Add a database-level guard (e.g. a CHECK constraint) against a self-referential `Person.ManagerId` or `Department.ParentDepartmentId` (a row pointing at its own id) — currently the only protection against a one-node cycle is `AccessRoleResolver`'s in-memory cycle guard, so a bad write made outside the resolver (a future admin tool, a data-sync bug) could silently create an undetected cycle at the data layer.
+  evidence: Fresh-context code review of PR #14 (chunk 3, Project-line resolution) found no such constraint on either self-referencing FK; zero blast radius today since this schema is fixture-only, same category as the already-deferred DM+PM-same-project and single-department-manager schema questions.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-1c-project-line-resolution.md`
+  summary: Extend Project-line resolution to include everyone above the qualifying DM/PM in their own reports-to chain, not just the direct DM/PM — `docs/access-control/section-matrix.md`'s Project-line audience definition and `.claude/rules/access-control-invariants.md`'s three-relation transitive-closure statement both describe this, but `AccessRoleResolver.QualifiesViaProjectAssignmentAsync` only performs a direct, non-transitive DM/PM check, matching spec-1-1c's own frozen (narrower) Intent text.
+  evidence: Fresh-context code review of PR #14 (chunk 3, Project-line resolution) found this gap via the acceptance-auditor lens against spec-1-1c's referenced context docs; user confirmed (2026-08-31) deferring rather than implementing now or renegotiating the frozen spec text, reason: scoped out for spec-1-1c's token budget, same as every other spec-1-1c narrowing — the transitive walk is real follow-up work, not a bug in what shipped.
+
 ## Corrections
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1-two-dimensional-access-role-resolution.md`

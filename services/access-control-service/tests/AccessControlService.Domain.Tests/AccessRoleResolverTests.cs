@@ -1,4 +1,5 @@
 using AccessControlService.Domain;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AccessControlService.Domain.Tests;
@@ -163,9 +164,12 @@ public class AccessRoleResolverTests
     public async Task ResolveAsync_ViewerQualifiesViaBothReportsToAndDepartmentManagement_ReportingLineQualifies()
     {
         // The viewer is simultaneously the subject's direct reports-to manager AND separately
-        // manages the subject's department -- an artificial but valid combination proving the two
-        // checks inside ResolveAsync are independent (neither masks a bug in the other), not that
-        // either one alone happens to work.
+        // manages the subject's department -- an artificial but valid combination proving the
+        // ReportingLine flag is still true when both underlying checks would independently qualify
+        // the viewer. Note: ResolveAsync's `||` short-circuits on the first true check (reports-to,
+        // evaluated first), so this scenario alone doesn't exercise the department-management
+        // branch -- that branch has its own dedicated coverage above
+        // (ResolveAsync_DepartmentManagementOfSubjectsDirectDepartment...).
         var viewer = Guid.NewGuid();
         var subject = Guid.NewGuid();
         var subjectDepartment = Guid.NewGuid();
@@ -210,8 +214,12 @@ public class AccessRoleResolverTests
 
         var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
 
-        // Sequential resolution against the same resolver instance, as its own doc requires --
-        // not Task.WhenAll (see the concurrency-safety test below).
+        // Sequential resolution against the same resolver instance, as its own doc requires -- not
+        // Task.WhenAll. This fake completes synchronously (Task.FromResult), so it can't actually
+        // demonstrate the documented "concurrent calls are not safe and will throw" contract --
+        // that only manifests against a real, non-thread-safe EF Core DbContext. See
+        // AccessRoleResolverCompositionTests.RealDiComposedResolver_ConcurrentResolveAsyncCalls_ThrowsInvalidOperationException
+        // for that proof.
         var qualifyingResult = await resolver.ResolveAsync(viewer, qualifyingSubject);
         var nonQualifyingResult = await resolver.ResolveAsync(viewer, nonQualifyingSubject);
 
@@ -532,5 +540,95 @@ public class AccessRoleResolverTests
         var result = await resolver.ResolveAsync(viewer, subject);
 
         Assert.False(result.ReportingLine);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ViewerIsPlainMemberNotDmOrPmOnSharedProject_ProjectLineDoesNotQualify()
+    {
+        // Viewer and subject are both assigned to the same project, but the viewer holds no DM/PM
+        // role on it -- plain project membership only (SetProjectsManagedAsDmOrPm is never called
+        // for the viewer). Proves the DM/PM-only intersection doesn't degrade into "any shared
+        // project membership," the most direct way this check could regress.
+        var viewer = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+        var sharedProject = Guid.NewGuid();
+
+        var repository = new FakeRelationshipRepository()
+            .SetAssignedProjects(viewer, sharedProject)
+            .SetAssignedProjects(subject, sharedProject);
+
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+
+        var result = await resolver.ResolveAsync(viewer, subject);
+
+        Assert.False(result.ProjectLine);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ReportsToChainLongerThanMaxHopsWithNoCycle_TruncatesAndLogsWarning()
+    {
+        // Builds a genuinely long, acyclic reports-to chain (101 distinct people, 100 manager
+        // links) that never reaches the viewer and never runs out of managers within MaxHops (100,
+        // AccessRoleResolver's own private constant -- this test is coupled to that value and needs
+        // updating if it changes). Every existing "long chain" test in this file uses a short cycle
+        // instead, which is caught by the earlier visited.Add guard -- this is the only test
+        // exercising the separate "ran out of hops without a cycle" branch and its own LogWarning
+        // call, which every other test leaves uncovered by using NullLogger.
+        var subject = Guid.NewGuid();
+        var viewer = Guid.NewGuid();
+        var chain = new Guid[101];
+        chain[0] = subject;
+        for (var i = 1; i < chain.Length; i++)
+        {
+            chain[i] = Guid.NewGuid();
+        }
+
+        var repository = new FakeRelationshipRepository();
+        for (var i = 0; i < chain.Length - 1; i++)
+        {
+            repository.SetManager(chain[i], chain[i + 1]);
+        }
+
+        var logger = new RecordingLogger<AccessRoleResolver>();
+        var resolver = new AccessRoleResolver(repository, logger);
+
+        var result = await resolver.ResolveAsync(viewer, subject);
+
+        Assert.False(result.ReportingLine);
+        Assert.Contains(
+            logger.Entries,
+            entry => entry.Level == LogLevel.Warning && entry.Message.Contains("Reports-to walk"));
+    }
+
+    [Fact]
+    public async Task ResolveAsync_DepartmentAncestorChainLongerThanMaxHopsWithNoCycle_TruncatesAndLogsWarning()
+    {
+        // Department-ancestor analogue of the reports-to test above: 101 distinct departments (100
+        // parent links), none managed by the viewer, exceeding MaxHops without ever reaching a root
+        // department (ParentDepartmentId null) or a cycle.
+        var subject = Guid.NewGuid();
+        var viewer = Guid.NewGuid();
+        var departments = new Guid[101];
+        for (var i = 0; i < departments.Length; i++)
+        {
+            departments[i] = Guid.NewGuid();
+        }
+
+        var repository = new FakeRelationshipRepository()
+            .SetDepartment(subject, departments[0]);
+        for (var i = 0; i < departments.Length - 1; i++)
+        {
+            repository.SetParentDepartment(departments[i], departments[i + 1]);
+        }
+
+        var logger = new RecordingLogger<AccessRoleResolver>();
+        var resolver = new AccessRoleResolver(repository, logger);
+
+        var result = await resolver.ResolveAsync(viewer, subject);
+
+        Assert.False(result.ReportingLine);
+        Assert.Contains(
+            logger.Entries,
+            entry => entry.Level == LogLevel.Warning && entry.Message.Contains("Department-ancestor walk"));
     }
 }

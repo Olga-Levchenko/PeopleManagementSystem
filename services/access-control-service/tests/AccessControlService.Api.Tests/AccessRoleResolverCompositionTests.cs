@@ -134,4 +134,26 @@ public sealed class AccessRoleResolverCompositionTests : IAsyncLifetime
         var nonQualifyingResult = await resolver.ResolveAsync(FixtureSeedData.EngineerId, FixtureSeedData.PlatformLeadId);
         Assert.False(nonQualifyingResult.ReportingLine);
     }
+
+    [Fact]
+    public async Task RealDiComposedResolver_ConcurrentResolveAsyncCalls_ThrowsInvalidOperationException()
+    {
+        // AccessRoleResolver's own doc comment states concurrent calls against the same instance
+        // "are not safe and will throw" -- backed by a scoped, non-thread-safe EF Core DbContext.
+        // Proves that claim concretely: two ResolveAsync calls launched concurrently via
+        // Task.WhenAll against the same DI-composed resolver instance throw, rather than silently
+        // racing or corrupting results. AccessRoleResolverTests (the fake-repository unit tests)
+        // can't demonstrate this -- FakeRelationshipRepository completes synchronously and has no
+        // real shared, non-thread-safe state, so nothing there would actually interleave.
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        using var scope = _factory.Services.CreateScope();
+        var resolver = scope.ServiceProvider.GetRequiredService<AccessRoleResolver>();
+
+        var firstCall = resolver.ResolveAsync(FixtureSeedData.PlatformLeadId, FixtureSeedData.EngineerId);
+        var secondCall = resolver.ResolveAsync(FixtureSeedData.EngineerId, FixtureSeedData.PlatformLeadId);
+
+        await Assert.ThrowsAnyAsync<InvalidOperationException>(() => Task.WhenAll(firstCall, secondCall));
+    }
 }
