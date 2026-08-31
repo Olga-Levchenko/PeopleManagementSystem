@@ -95,6 +95,76 @@ decision logic to be correct given an event, however it arrives.
 - Given a `(ProjectId, PersonId)` pair already owned by aggregate A, when an event for the same pair arrives claiming a different `AggregateId` B, then the conflict is rejected and logged, never silently overwriting or deleting A's row
 - Given an event with an unrecognized `SchemaVersion`, an undefined `Role`, or an empty `EventId`/`AggregateId`/`ProjectId`/`PersonId`, when processed, then it is rejected and logged, never applied as if valid
 
+### Review Findings
+
+_Code review (chunk 4/5 of PR #14 review), 2026-08-31 — scope: project-assignment event processing
+files against `main`, plus the acceptance-auditor lens against this spec and its referenced context
+docs._
+
+- [x] [Review][Defer] Should the person-existence check gate revoke events the same way it
+  gates grants, and should it run before or after the exact-duplicate watermark check?
+  `ProcessAsync` (`ProjectAssignmentEventProcessor.cs:104-113`) unconditionally rejects any event
+  — grant or revoke — whose `PersonId` doesn't exist in `People`, before ever checking the
+  watermark. Two consequences: (a) a revoke for a person later removed from `People` can never
+  clean up that person's existing `ProjectAssignment` row through this processor again, permanently
+  orphaning it; (b) a duplicate redelivery of an event whose person was since removed returns
+  `RejectedInvalid` instead of `DuplicateIgnored`, and reordering the checks to fix that would
+  silently change today's outcome for that case. No existing test covers either scenario. Deferred,
+  reason: `Person` is a fixture-only stub with no hard-delete flow today, so both consequences are
+  currently unreachable in practice — revisit once a real people-service sync/delete flow lands.
+- [x] [Review][Dismiss] ~~Remove the unused `Testcontainers.RabbitMq` package reference~~ —
+  false positive, corrected after applying findings: `Testcontainers.RabbitMq` is used by
+  `ProjectAssignmentEventConsumerTests.cs` in this same test project (that file belongs to
+  spec-1-1e/chunk 5, outside chunk 4's file-list diff scope, so both the blind-hunter and
+  acceptance-auditor lenses reasoned correctly from what they were shown but missed the sibling
+  file). Removing it would have broken the build. Same diff-scoping-artifact category as chunk 3's
+  "missing migration file" false positive.
+- [ ] [Review][Patch] Add a test that drives a real `DbUpdateException` through `ProcessAsync`
+  itself (not via a raw `SaveChangesAsync` call bypassing the processor), then reuses the same
+  `DbContext`/processor instance for a follow-up call and asserts it succeeds
+  [`ProjectAssignmentEventProcessorTests.cs`] — the only existing `DbUpdateException` test never
+  goes through `ProcessAsync`, so the `catch` block's `ChangeTracker.Clear()` recovery (whose own
+  comment states its purpose is keeping a *reused* context usable) is entirely unverified.
+- [ ] [Review][Patch] Reorder `TryValidate` [`ProjectAssignmentEventProcessor.cs:260-306`] so
+  `SchemaVersion` is checked first, before any other field is interpreted — free of behavior change
+  today (only one schema version exists), but the other five checks currently run first despite the
+  processor's own doc comment implying schema validity should gate everything else.
+- [ ] [Review][Patch] Add `OccurredAtUtc` validation to `TryValidate` (reject `default(DateTime)`
+  and non-`Utc` `DateTimeKind`) — every other field on the event gets an explicit validation rule;
+  this one is currently used only in log messages with no check at all.
+- [ ] [Review][Patch] Guard `@event` against `null` at the top of `ProcessAsync`
+  (`ArgumentNullException.ThrowIfNull`) — a caller-contract violation (this is an already-deserialized
+  event, not raw producer data), matching standard .NET public-API convention.
+- [ ] [Review][Patch] Add a positive multi-project test: one person legitimately holding
+  assignments on two different, non-conflicting projects via two different aggregates
+  [`ProjectAssignmentEventProcessorTests.cs`] — every existing cross-aggregate test exercises a
+  *conflicting* claim to the same pair; none prove the ordinary multi-assignment case works cleanly.
+- [ ] [Review][Patch] Add `AggregateVersion`, `IsGrant`, and `Role` to the `RejectedPersistenceFailure`
+  log statement [`ProjectAssignmentEventProcessor.cs:236-243`], matching the fields the `Applied`
+  log includes — reduces diagnosability precisely for the outcome that most needs it.
+- [x] [Review][Defer] No FK constraint from `ProjectAssignmentEventWatermark.OwnedProjectId`/
+  `OwnedPersonId` to `Person` [`AccessControlDbContext.cs`], unlike `ProjectAssignment.PersonId`
+  which has one — an inconsistency in defensive-constraint style between two entities that otherwise
+  mirror each other; deferred, same category as other already-deferred schema decisions in this
+  area.
+- [x] [Review][Defer] A duplicate `EventId` with a mismatched `AggregateVersion` versus what the
+  watermark recorded is silently treated as a harmless duplicate with no consistency check
+  [`ProjectAssignmentEventProcessor.cs:120-129`] — needs a design decision on the correct
+  outcome/signal for a corrupted redelivery; deferred, low urgency since no real producer exists yet
+  (spec-1-1e).
+
+**Dismissed as noise/handled elsewhere (6):** already tracked in `deferred-work.md` — an
+aggregate silently "jumping" to a different `(ProjectId, PersonId)` pair without revoking the old
+one first (existing entry); `RejectedPersistenceFailure` collapsing every `DbUpdateException` cause
+into one outcome (existing entry); no transaction/row-lock around the check-then-act watermark
+sequence (existing entry); the per-`[Fact]` Testcontainers Postgres startup cost (existing entry);
+a speculative concern about the filtered unique index's hardcoded PascalCase column names matching
+some hypothetical future snake_case convention — no such convention exists anywhere in this
+`DbContext` today; and a non-`DbUpdateException` from `SaveChangesAsync` leaving the change tracker
+dirty on rethrow — unreachable in the current design since `ProjectAssignmentEventConsumer` creates
+a fresh DI scope (and thus a fresh `DbContext`) per message, same "not needed given current design"
+reasoning as chunk 3's semaphore dismissal.
+
 ## Spec Change Log
 
 ### 2026-08-31 — Review loopback (iteration 1)

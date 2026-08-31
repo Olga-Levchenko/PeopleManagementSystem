@@ -24,7 +24,7 @@ public enum ProjectAssignmentEventOutcome
     /// <summary>The event's <c>AggregateVersion</c> is less than or equal to the aggregate's last applied version -- rejected, watermark unchanged.</summary>
     RejectedStale,
 
-    /// <summary>The event failed basic validation (empty id, unrecognized schema version, undefined role, non-positive aggregate version, or unknown person) -- rejected before touching the watermark or the assignment table.</summary>
+    /// <summary>The event failed basic validation (empty id, unrecognized schema version, undefined role, non-positive aggregate version, invalid OccurredAtUtc, or unknown person) -- rejected before touching the watermark or the assignment table.</summary>
     RejectedInvalid,
 
     /// <summary>
@@ -90,6 +90,8 @@ public sealed class ProjectAssignmentEventProcessor
         ProjectAssignmentChangedEvent @event,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(@event);
+
         if (!TryValidate(@event, out var validationError))
         {
             _logger.LogWarning(
@@ -235,12 +237,15 @@ public sealed class ProjectAssignmentEventProcessor
 
             _logger.LogError(
                 ex,
-                "Rejected project-assignment event {EventId} for aggregate {AggregateId} (occurred at {OccurredAtUtc}): SaveChangesAsync failed for project {ProjectId}, person {PersonId}.",
+                "Rejected project-assignment event {EventId} for aggregate {AggregateId} (occurred at {OccurredAtUtc}): SaveChangesAsync failed for project {ProjectId}, person {PersonId}, version {AggregateVersion}, grant {IsGrant}, role {Role}.",
                 @event.EventId,
                 @event.AggregateId,
                 @event.OccurredAtUtc,
                 @event.ProjectId,
-                @event.PersonId);
+                @event.PersonId,
+                @event.AggregateVersion,
+                @event.IsGrant,
+                @event.Role);
             return ProjectAssignmentEventOutcome.RejectedPersistenceFailure;
         }
 
@@ -259,6 +264,15 @@ public sealed class ProjectAssignmentEventProcessor
 
     private static bool TryValidate(ProjectAssignmentChangedEvent @event, out string? error)
     {
+        // SchemaVersion is checked first, before any other field is interpreted -- an unrecognized
+        // schema version means this code has no basis for trusting what the other fields mean, so
+        // nothing else should be evaluated ahead of it.
+        if (@event.SchemaVersion != SupportedSchemaVersion)
+        {
+            error = $"Unrecognized SchemaVersion {@event.SchemaVersion} (supported: {SupportedSchemaVersion}).";
+            return false;
+        }
+
         if (@event.EventId == Guid.Empty)
         {
             error = "EventId is empty.";
@@ -289,9 +303,9 @@ public sealed class ProjectAssignmentEventProcessor
             return false;
         }
 
-        if (@event.SchemaVersion != SupportedSchemaVersion)
+        if (@event.OccurredAtUtc == default || @event.OccurredAtUtc.Kind != DateTimeKind.Utc)
         {
-            error = $"Unrecognized SchemaVersion {@event.SchemaVersion} (supported: {SupportedSchemaVersion}).";
+            error = $"OccurredAtUtc must be a real UTC instant (was {@event.OccurredAtUtc:O}, kind {@event.OccurredAtUtc.Kind}).";
             return false;
         }
 

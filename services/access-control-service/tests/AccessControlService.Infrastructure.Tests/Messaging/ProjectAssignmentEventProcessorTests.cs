@@ -522,6 +522,91 @@ public sealed class ProjectAssignmentEventProcessorTests : IAsyncLifetime
 
         await Assert.ThrowsAsync<DbUpdateException>(() => _dbContext.SaveChangesAsync());
     }
+
+    // -- Review (chunk 4/5, PR #14): drive a real DbUpdateException through ProcessAsync itself,
+    //    not via a raw SaveChangesAsync call bypassing the processor -- proves the
+    //    RejectedPersistenceFailure catch block's ChangeTracker.Clear() recovery actually leaves
+    //    the DbContext instance reusable for a subsequent call, which
+    //    UniqueOwnedPairIndex_TwoWatermarksClaimingSamePair_... above never exercises (it calls
+    //    SaveChangesAsync directly).
+
+    [Fact]
+    public async Task ProcessAsync_DbUpdateExceptionFromUnderlyingConstraint_ReturnsRejectedPersistenceFailureAndContextRemainsUsable()
+    {
+        var projectId = Guid.NewGuid();
+        var personId = FixtureSeedData.ExecutiveId;
+
+        // Seed a watermark for aggregate A that already claims (projectId, personId) -- but
+        // deliberately with NO corresponding ProjectAssignment row (an orphaned-ownership state).
+        // This matters because ProcessAsync's own cross-aggregate-conflict check is keyed off an
+        // *existing ProjectAssignment row* (`existingAssignment is not null`) -- with no row
+        // present, that check is skipped entirely, so aggregate B's grant below sails past the
+        // application-level guard and only the database's own unique filtered index on
+        // (OwnedProjectId, OwnedPersonId) catches the conflict, inside ProcessAsync's own
+        // SaveChangesAsync call.
+        var aggregateA = Guid.NewGuid();
+        _dbContext.ProjectAssignmentEventWatermarks.Add(new ProjectAssignmentEventWatermark
+        {
+            AggregateId = aggregateA,
+            LastAppliedVersion = 1,
+            LastAppliedEventId = Guid.NewGuid(),
+            OwnedProjectId = projectId,
+            OwnedPersonId = personId,
+        });
+        await _dbContext.SaveChangesAsync();
+
+        var aggregateB = Guid.NewGuid();
+        var outcome = await _processor.ProcessAsync(
+            MakeEvent(aggregateB, aggregateVersion: 1, isGrant: true, projectId, personId));
+
+        Assert.Equal(ProjectAssignmentEventOutcome.RejectedPersistenceFailure, outcome);
+
+        // Aggregate B's own watermark write must not have persisted -- SaveChangesAsync failed
+        // atomically, and ChangeTracker.Clear() discarded the failed in-memory changes rather than
+        // leaving them half-applied.
+        Assert.False(await _dbContext.ProjectAssignmentEventWatermarks.AnyAsync(w => w.AggregateId == aggregateB));
+
+        // The DbContext instance (and the same processor built on top of it) must remain usable for
+        // a subsequent, unrelated event -- proving ChangeTracker.Clear() actually left the tracker
+        // clean, not just that the failing call itself returned the right outcome.
+        var followUpOutcome = await _processor.ProcessAsync(
+            MakeEvent(Guid.NewGuid(), aggregateVersion: 1, isGrant: true, Guid.NewGuid(), FixtureSeedData.DirectorId));
+
+        Assert.Equal(ProjectAssignmentEventOutcome.Applied, followUpOutcome);
+    }
+
+    // -- Review (chunk 4/5, PR #14): every existing cross-aggregate test exercises a *conflicting*
+    //    claim to the same pair; none prove the ordinary multi-assignment case works cleanly.
+
+    [Fact]
+    public async Task ProcessAsync_OnePersonTwoNonConflictingProjectsViaTwoAggregates_BothApplyCleanly()
+    {
+        var personId = FixtureSeedData.ExecutiveId;
+        var firstProjectId = Guid.NewGuid();
+        var secondProjectId = Guid.NewGuid();
+        var firstAggregateId = Guid.NewGuid();
+        var secondAggregateId = Guid.NewGuid();
+
+        var firstOutcome = await _processor.ProcessAsync(
+            MakeEvent(firstAggregateId, aggregateVersion: 1, isGrant: true, firstProjectId, personId, ProjectAssignmentRole.DeliveryManager));
+        var secondOutcome = await _processor.ProcessAsync(
+            MakeEvent(secondAggregateId, aggregateVersion: 1, isGrant: true, secondProjectId, personId, ProjectAssignmentRole.ProjectManager));
+
+        Assert.Equal(ProjectAssignmentEventOutcome.Applied, firstOutcome);
+        Assert.Equal(ProjectAssignmentEventOutcome.Applied, secondOutcome);
+
+        var rows = await _dbContext.ProjectAssignments
+            .Where(pa => pa.PersonId == personId && (pa.ProjectId == firstProjectId || pa.ProjectId == secondProjectId))
+            .ToListAsync();
+        Assert.Equal(2, rows.Count);
+        Assert.Contains(rows, r => r.ProjectId == firstProjectId && r.Role == ProjectAssignmentRole.DeliveryManager);
+        Assert.Contains(rows, r => r.ProjectId == secondProjectId && r.Role == ProjectAssignmentRole.ProjectManager);
+
+        var firstWatermark = await _dbContext.ProjectAssignmentEventWatermarks.SingleAsync(w => w.AggregateId == firstAggregateId);
+        var secondWatermark = await _dbContext.ProjectAssignmentEventWatermarks.SingleAsync(w => w.AggregateId == secondAggregateId);
+        Assert.Equal(firstProjectId, firstWatermark.OwnedProjectId);
+        Assert.Equal(secondProjectId, secondWatermark.OwnedProjectId);
+    }
 }
 
 /// <summary>
