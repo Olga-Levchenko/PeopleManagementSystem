@@ -18,13 +18,23 @@ added Project-line access role resolution alongside it: `AccessRole.ProjectLine`
 flag from `ReportingLine` — a viewer qualifies for Project-line when they're DM or PM (direct,
 non-transitive check) on a project the subject is assigned to, resolved from a fixture-seeded
 `ProjectAssignment` EF Core entity in this service's own schema, same pattern as `Person`/
-`Department`. The real population mechanism (a RabbitMQ consumer) is still a separate, deferred
-spec (`spec-1-1d`); see `_bmad-output/implementation-artifacts/deferred-work.md` for that, plus
-this build session's other ad-hoc carve-offs from these two specs (whether one person can hold
-both DM and PM on the same project, and the missing `Project`-table/id validation). Precedence
-between qualifying lines, revocation, and the section-gated HTTP response are not deferred-work
-carve-offs — they're already-planned Epic 1 stories (1.9, 1.2, and 1.6 respectively), tracked in
-`_bmad-output/planning-artifacts/epics.md` and `_bmad-output/implementation-artifacts/sprint-status.yaml`.
+`Department`. Story 1.1 part 2d (`spec-1-1d-project-assignment-event-consumer.md`) added the
+decision logic that actually populates that table from an event: a provider-neutral
+`ProjectAssignmentChangedEvent` contract (event id, aggregate id + version, occurred-at, schema
+version, grant/revoke flag, project id, person id, role — ADR-001/AD-11) and a pure
+`ProjectAssignmentEventProcessor` that checks a per-aggregate watermark (idempotent/replay-safe,
+`<=` version comparison), rejects a cross-aggregate conflict on the same `(ProjectId, PersonId)`
+pair before ever mutating a row, validates schema version/role/id shape, and upserts/removes the
+`ProjectAssignment` row accordingly. It has zero messaging-transport dependency — no
+`RabbitMQ.Client` reference anywhere in this service yet; the real broker wiring that calls
+`ProcessAsync` is a separate, deferred spec (`spec-1-1e`). See
+`_bmad-output/implementation-artifacts/deferred-work.md` for what's still carved off (concurrency
+protection around the watermark read-then-write, a DB-failure-specific outcome for `spec-1-1e` to
+key ack/nack off, whether one person can hold both DM and PM on the same project, and the missing
+`Project`-table/id validation). Precedence between qualifying lines, revocation, and the
+section-gated HTTP response are not deferred-work carve-offs — they're already-planned Epic 1
+stories (1.9, 1.2, and 1.6 respectively), tracked in `_bmad-output/planning-artifacts/epics.md` and
+`_bmad-output/implementation-artifacts/sprint-status.yaml`.
 
 ## Tech Stack
 
@@ -48,7 +58,11 @@ carve-offs — they're already-planned Epic 1 stories (1.9, 1.2, and 1.6 respect
   - `tests/AccessControlService.Infrastructure.Tests/` — `EfRelationshipRepository` integration
     tests against a real, ephemeral Postgres started via `Testcontainers.PostgreSql` (requires
     Docker), with the actual EF Core migration applied — the only tests that exercise real EF Core
-    query translation and prove the fixture seed data is actually queryable
+    query translation and prove the fixture seed data is actually queryable. Also
+    `ProjectAssignmentEventProcessorTests` (same Testcontainers pattern) covering every I/O-matrix
+    scenario plus the cross-aggregate-conflict/validation cases, and a container-free
+    `ProjectAssignmentEventProcessorSignatureTests` asserting the processor's constructor only takes
+    `AccessControlDbContext`/`ILogger<T>`
 
 ## Commands
 
@@ -77,9 +91,16 @@ carve-offs — they're already-planned Epic 1 stories (1.9, 1.2, and 1.6 respect
   Npgsql provider), `Person.cs`/`Department.cs`/`ProjectAssignment.cs`/`ProjectAssignmentRole.cs`
   (fixture-only entities, stubbed pending a real synced relationship/project-assignment projection
   from `people-service`/the timetracker integration — see deferred-work.md),
+  `ProjectAssignmentEventWatermark.cs` (per-aggregate last-applied-version/event-id, plus the
+  `(ProjectId, PersonId)` pair that aggregate currently owns — see Messaging below),
   `EfRelationshipRepository.cs` (the `IRelationshipRepository` implementation),
   `FixtureSeedData.cs` (the seed data shared between the migration's `HasData` and the
   Infrastructure integration tests), `Migrations/` (EF Core migrations)
+- `src/AccessControlService.Infrastructure/Messaging/` — `ProjectAssignmentChangedEvent.cs` (the
+  provider-neutral event contract) and `ProjectAssignmentEventProcessor.cs` (the pure decision
+  logic: watermark check, cross-aggregate-conflict check, validation, upsert/remove) plus its
+  `ProjectAssignmentEventOutcome` result enum. No RabbitMQ/messaging-transport package reference
+  anywhere in this project — see `spec-1-1d-project-assignment-event-consumer.md`
 - `src/AccessControlService.Api/Program.cs` — bootstrap: config validation, CORS, correlation-id
   middleware, health checks, controllers, and the composition-root wiring of
   `AccessControlDbContext`/`EfRelationshipRepository`/`AccessRoleResolver` into DI (no HTTP

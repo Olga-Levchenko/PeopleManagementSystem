@@ -2,6 +2,7 @@ using AccessControlService.Api.Configuration;
 using AccessControlService.Api.Health;
 using AccessControlService.Api.Middleware;
 using AccessControlService.Domain;
+using AccessControlService.Infrastructure.Messaging;
 using AccessControlService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
@@ -46,6 +47,11 @@ builder.Services.AddDbContext<AccessControlDbContext>(options =>
     options.UseNpgsql(appConfig.PostgresConnectionString));
 builder.Services.AddScoped<IRelationshipRepository, EfRelationshipRepository>();
 builder.Services.AddScoped<AccessRoleResolver>();
+
+// spec-1-1d: the pure, transport-agnostic project-assignment event processor. No RabbitMQ.Client
+// dependency here or anywhere else in this service -- spec-1-1e's real consumer will call
+// ProcessAsync directly once it exists, wiring this same registration to a real message pump.
+builder.Services.AddScoped<ProjectAssignmentEventProcessor>();
 
 builder.WebHost.UseUrls($"http://0.0.0.0:{appConfig.Port}");
 

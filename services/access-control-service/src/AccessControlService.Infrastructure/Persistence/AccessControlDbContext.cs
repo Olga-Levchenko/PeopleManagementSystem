@@ -22,6 +22,8 @@ public sealed class AccessControlDbContext : DbContext
 
     public DbSet<ProjectAssignment> ProjectAssignments => Set<ProjectAssignment>();
 
+    public DbSet<ProjectAssignmentEventWatermark> ProjectAssignmentEventWatermarks => Set<ProjectAssignmentEventWatermark>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Department>(department =>
@@ -110,6 +112,31 @@ public sealed class AccessControlDbContext : DbContext
                 PersonId = pa.PersonId,
                 Role = pa.Role,
             }));
+        });
+
+        modelBuilder.Entity<ProjectAssignmentEventWatermark>(watermark =>
+        {
+            watermark.ToTable("project_assignment_event_watermarks");
+            watermark.HasKey(w => w.AggregateId);
+
+            // AggregateId is always caller-supplied (copied from the event's own AggregateId),
+            // never database-generated -- make that explicit rather than relying on EF Core's
+            // implicit non-default-Guid-key convention.
+            watermark.Property(w => w.AggregateId).ValueGeneratedNever();
+
+            watermark.Property(w => w.LastAppliedVersion).IsRequired();
+            watermark.Property(w => w.LastAppliedEventId).IsRequired();
+
+            // Enforced as a database constraint, not just processor-side logic: at most one
+            // aggregate may claim a given (ProjectId, PersonId) pair at a time. The processor's own
+            // cross-aggregate-conflict check is meant to prevent this from ever being attempted, but
+            // this index turns any bug in that check (or a future concurrent-write race -- see
+            // deferred-work.md) into a write-time error instead of a silent, undetected ownership
+            // clash -- same defensive-constraint style as ProjectAssignment's own unique index.
+            // Filtered so releasing ownership (both columns null after a revoke) never collides.
+            watermark.HasIndex(w => new { w.OwnedProjectId, w.OwnedPersonId })
+                .IsUnique()
+                .HasFilter("\"OwnedProjectId\" IS NOT NULL AND \"OwnedPersonId\" IS NOT NULL");
         });
     }
 }
