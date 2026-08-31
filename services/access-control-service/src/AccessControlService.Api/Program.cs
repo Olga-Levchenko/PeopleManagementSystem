@@ -48,10 +48,23 @@ builder.Services.AddDbContext<AccessControlDbContext>(options =>
 builder.Services.AddScoped<IRelationshipRepository, EfRelationshipRepository>();
 builder.Services.AddScoped<AccessRoleResolver>();
 
-// spec-1-1d: the pure, transport-agnostic project-assignment event processor. No RabbitMQ.Client
-// dependency here or anywhere else in this service -- spec-1-1e's real consumer will call
-// ProcessAsync directly once it exists, wiring this same registration to a real message pump.
+// spec-1-1d: the pure, transport-agnostic project-assignment event processor. Scoped because its
+// DbContext dependency is scoped -- spec-1-1e's consumer below creates one DI scope per message
+// rather than resolving this once at startup.
 builder.Services.AddScoped<ProjectAssignmentEventProcessor>();
+
+// spec-1-1e: the real RabbitMQ.Client wiring that calls ProcessAsync. RabbitMqConnectionOptions is
+// a plain data holder in Infrastructure with no dependency on this project's own AppConfig (AD-1
+// composition only flows this direction) -- mapped here from the same fail-fast-validated config
+// values as everything else in appConfig.
+builder.Services.AddSingleton(new RabbitMqConnectionOptions
+{
+    HostName = appConfig.RabbitMqHost,
+    Port = appConfig.RabbitMqPort,
+    UserName = appConfig.RabbitMqUser,
+    Password = appConfig.RabbitMqPassword,
+});
+builder.Services.AddHostedService<ProjectAssignmentEventConsumer>();
 
 builder.WebHost.UseUrls($"http://0.0.0.0:{appConfig.Port}");
 

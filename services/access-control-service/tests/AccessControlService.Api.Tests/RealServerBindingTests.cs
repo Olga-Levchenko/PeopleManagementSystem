@@ -43,6 +43,14 @@ public class RealServerBindingTests
         startInfo.EnvironmentVariables["CORS_ORIGIN"] = "http://localhost:4200";
         startInfo.EnvironmentVariables["ConnectionStrings__Postgres"] =
             "Host=localhost;Port=5499;Database=access_control_service_test;Username=postgres;Password=postgres;Timeout=1";
+        // Required, fail-fast AppConfig values for ProjectAssignmentEventConsumer -- an
+        // unreachable broker (deliberately a non-standard port here) does not stop the app from
+        // booting or answering /health: the hosted consumer just logs and retries in the
+        // background, same contract as the Postgres connection string above.
+        startInfo.EnvironmentVariables["RABBITMQ_HOST"] = "localhost";
+        startInfo.EnvironmentVariables["RABBITMQ_PORT"] = "5699";
+        startInfo.EnvironmentVariables["RABBITMQ_USER"] = "guest";
+        startInfo.EnvironmentVariables["RABBITMQ_PASSWORD"] = "guest";
         // Avoid this subprocess picking up a real developer '.env' file and overriding the above.
         startInfo.EnvironmentVariables["DOTNET_ENVIRONMENT"] = "Production";
 

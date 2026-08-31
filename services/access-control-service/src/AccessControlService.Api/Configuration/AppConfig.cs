@@ -1,3 +1,5 @@
+using AccessControlService.Infrastructure.Messaging;
+
 namespace AccessControlService.Api.Configuration;
 
 /// <summary>
@@ -10,40 +12,79 @@ public sealed class AppConfig
     public int Port { get; }
     public string CorsOrigin { get; }
     public string PostgresConnectionString { get; }
+    public string RabbitMqHost { get; }
+    public int RabbitMqPort { get; }
+    public string RabbitMqUser { get; }
+    public string RabbitMqPassword { get; }
 
-    private AppConfig(int port, string corsOrigin, string postgresConnectionString)
+    private AppConfig(
+        int port,
+        string corsOrigin,
+        string postgresConnectionString,
+        string rabbitMqHost,
+        int rabbitMqPort,
+        string rabbitMqUser,
+        string rabbitMqPassword)
     {
         Port = port;
         CorsOrigin = corsOrigin;
         PostgresConnectionString = postgresConnectionString;
+        RabbitMqHost = rabbitMqHost;
+        RabbitMqPort = rabbitMqPort;
+        RabbitMqUser = rabbitMqUser;
+        RabbitMqPassword = rabbitMqPassword;
     }
 
     /// <summary>
-    /// Reads and validates PORT, CORS_ORIGIN, and ConnectionStrings:Postgres from
+    /// Reads and validates PORT, CORS_ORIGIN, ConnectionStrings:Postgres, and the
+    /// RABBITMQ_HOST/RABBITMQ_PORT/RABBITMQ_USER/RABBITMQ_PASSWORD values
+    /// <see cref="ProjectAssignmentEventConsumer"/> needs to reach a real broker, from
     /// <paramref name="configuration"/>. Throws <see cref="InvalidOperationException"/> naming the
-    /// offending key on any missing/blank value or a non-numeric PORT -- never a raw framework
-    /// exception (NullReferenceException/FormatException) and never a silent pass-through of an
-    /// empty string.
+    /// offending key on any missing/blank value or a non-numeric PORT/RABBITMQ_PORT -- never a raw
+    /// framework exception (NullReferenceException/FormatException) and never a silent
+    /// pass-through of an empty string. Note: these are required, fail-fast startup VALUES only --
+    /// actually reaching the broker is not attempted here, so the app still boots fine (health
+    /// check reporting accordingly) when RabbitMQ itself is unreachable, mirroring the existing
+    /// Postgres contract.
     /// </summary>
     public static AppConfig Load(IConfiguration configuration)
     {
         var portRaw = RequireNonBlank(configuration, "PORT");
         var corsOrigin = RequireNonBlank(configuration, "CORS_ORIGIN");
         var postgresConnectionString = RequireNonBlank(configuration, "ConnectionStrings:Postgres");
+        var rabbitMqHost = RequireNonBlank(configuration, "RABBITMQ_HOST");
+        var rabbitMqPortRaw = RequireNonBlank(configuration, "RABBITMQ_PORT");
+        var rabbitMqUser = RequireNonBlank(configuration, "RABBITMQ_USER");
+        var rabbitMqPassword = RequireNonBlank(configuration, "RABBITMQ_PASSWORD");
 
-        if (!int.TryParse(portRaw, out var port))
+        var port = ParsePort(portRaw, "PORT");
+        var rabbitMqPort = ParsePort(rabbitMqPortRaw, "RABBITMQ_PORT");
+
+        return new AppConfig(
+            port,
+            corsOrigin,
+            postgresConnectionString,
+            rabbitMqHost,
+            rabbitMqPort,
+            rabbitMqUser,
+            rabbitMqPassword);
+    }
+
+    private static int ParsePort(string raw, string key)
+    {
+        if (!int.TryParse(raw, out var port))
         {
             throw new InvalidOperationException(
-                $"Configuration value 'PORT' must be a valid integer, but was '{portRaw}'.");
+                $"Configuration value '{key}' must be a valid integer, but was '{raw}'.");
         }
 
         if (port is < 1 or > 65535)
         {
             throw new InvalidOperationException(
-                $"Configuration value 'PORT' must be a valid TCP port in the range 1-65535, but was '{port}'.");
+                $"Configuration value '{key}' must be a valid TCP port in the range 1-65535, but was '{port}'.");
         }
 
-        return new AppConfig(port, corsOrigin, postgresConnectionString);
+        return port;
     }
 
     private static string RequireNonBlank(IConfiguration configuration, string key)

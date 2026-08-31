@@ -10,6 +10,10 @@ public class AppConfigTests
         ["PORT"] = "3007",
         ["CORS_ORIGIN"] = "http://localhost:4200",
         ["ConnectionStrings:Postgres"] = "Host=localhost;Database=access_control_service",
+        ["RABBITMQ_HOST"] = "localhost",
+        ["RABBITMQ_PORT"] = "5672",
+        ["RABBITMQ_USER"] = "guest",
+        ["RABBITMQ_PASSWORD"] = "guest",
     };
 
     [Fact]
@@ -20,6 +24,10 @@ public class AppConfigTests
         Assert.Equal(3007, config.Port);
         Assert.Equal("http://localhost:4200", config.CorsOrigin);
         Assert.Equal("Host=localhost;Database=access_control_service", config.PostgresConnectionString);
+        Assert.Equal("localhost", config.RabbitMqHost);
+        Assert.Equal(5672, config.RabbitMqPort);
+        Assert.Equal("guest", config.RabbitMqUser);
+        Assert.Equal("guest", config.RabbitMqPassword);
     }
 
     [Theory]
@@ -32,6 +40,18 @@ public class AppConfigTests
     [InlineData("ConnectionStrings:Postgres", null)]
     [InlineData("ConnectionStrings:Postgres", "")]
     [InlineData("ConnectionStrings:Postgres", "   ")]
+    [InlineData("RABBITMQ_HOST", null)]
+    [InlineData("RABBITMQ_HOST", "")]
+    [InlineData("RABBITMQ_HOST", "   ")]
+    [InlineData("RABBITMQ_PORT", null)]
+    [InlineData("RABBITMQ_PORT", "")]
+    [InlineData("RABBITMQ_PORT", "   ")]
+    [InlineData("RABBITMQ_USER", null)]
+    [InlineData("RABBITMQ_USER", "")]
+    [InlineData("RABBITMQ_USER", "   ")]
+    [InlineData("RABBITMQ_PASSWORD", null)]
+    [InlineData("RABBITMQ_PASSWORD", "")]
+    [InlineData("RABBITMQ_PASSWORD", "   ")]
     public void Load_WithMissingOrBlankRequiredValue_ThrowsNamingTheKey(string key, string? blankValue)
     {
         var values = ValidValues();
@@ -66,6 +86,32 @@ public class AppConfigTests
         var ex = Assert.Throws<InvalidOperationException>(() => AppConfig.Load(new FakeConfiguration(values)));
 
         Assert.Contains("PORT", ex.Message);
+        Assert.Contains(outOfRangePort, ex.Message);
+    }
+
+    [Fact]
+    public void Load_WithNonNumericRabbitMqPort_ThrowsClearException_NotFormatException()
+    {
+        var values = ValidValues();
+        values["RABBITMQ_PORT"] = "not-a-number";
+
+        var ex = Assert.Throws<InvalidOperationException>(() => AppConfig.Load(new FakeConfiguration(values)));
+
+        Assert.Contains("RABBITMQ_PORT", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("65536")]
+    public void Load_WithOutOfRangeRabbitMqPort_ThrowsClearException(string outOfRangePort)
+    {
+        var values = ValidValues();
+        values["RABBITMQ_PORT"] = outOfRangePort;
+
+        var ex = Assert.Throws<InvalidOperationException>(() => AppConfig.Load(new FakeConfiguration(values)));
+
+        Assert.Contains("RABBITMQ_PORT", ex.Message);
         Assert.Contains(outOfRangePort, ex.Message);
     }
 }

@@ -25,15 +25,20 @@ version, grant/revoke flag, project id, person id, role — ADR-001/AD-11) and a
 `ProjectAssignmentEventProcessor` that checks a per-aggregate watermark (idempotent/replay-safe,
 `<=` version comparison), rejects a cross-aggregate conflict on the same `(ProjectId, PersonId)`
 pair before ever mutating a row, validates schema version/role/id shape, and upserts/removes the
-`ProjectAssignment` row accordingly. It has zero messaging-transport dependency — no
-`RabbitMQ.Client` reference anywhere in this service yet; the real broker wiring that calls
-`ProcessAsync` is a separate, deferred spec (`spec-1-1e`). See
+`ProjectAssignment` row accordingly — including a `RejectedPersistenceFailure` outcome for a
+`DbUpdateException` from the final `SaveChangesAsync`. Story 1.1 part 2e
+(`spec-1-1e-project-assignment-rabbitmq-wiring.md`) added the real `RabbitMQ.Client` wiring that
+calls `ProcessAsync`: `ProjectAssignmentEventConsumer` (a `BackgroundService` that connects,
+declares its own quorum queue plus a dead-letter queue/exchange, creates one DI scope per message,
+and maps every `ProjectAssignmentEventOutcome` — plus a malformed body and any other exception
+escaping `ProcessAsync` itself — to ack/reject accordingly) and `FakeProjectAssignmentEventProducer`
+(test-only, publishes to the same queue/contract a real producer would). See
 `_bmad-output/implementation-artifacts/deferred-work.md` for what's still carved off (concurrency
-protection around the watermark read-then-write, a DB-failure-specific outcome for `spec-1-1e` to
-key ack/nack off, whether one person can hold both DM and PM on the same project, and the missing
-`Project`-table/id validation). Precedence between qualifying lines, revocation, and the
-section-gated HTTP response are not deferred-work carve-offs — they're already-planned Epic 1
-stories (1.9, 1.2, and 1.6 respectively), tracked in `_bmad-output/planning-artifacts/epics.md` and
+protection around the watermark read-then-write, whether one person can hold both DM and PM on the
+same project, and the missing `Project`-table/id validation). Precedence between qualifying lines,
+revocation, and the section-gated HTTP response are not deferred-work carve-offs — they're
+already-planned Epic 1 stories (1.9, 1.2, and 1.6 respectively), tracked in
+`_bmad-output/planning-artifacts/epics.md` and
 `_bmad-output/implementation-artifacts/sprint-status.yaml`.
 
 ## Tech Stack
@@ -60,9 +65,14 @@ stories (1.9, 1.2, and 1.6 respectively), tracked in `_bmad-output/planning-arti
     Docker), with the actual EF Core migration applied — the only tests that exercise real EF Core
     query translation and prove the fixture seed data is actually queryable. Also
     `ProjectAssignmentEventProcessorTests` (same Testcontainers pattern) covering every I/O-matrix
-    scenario plus the cross-aggregate-conflict/validation cases, and a container-free
+    scenario plus the cross-aggregate-conflict/validation cases, a container-free
     `ProjectAssignmentEventProcessorSignatureTests` asserting the processor's constructor only takes
-    `AccessControlDbContext`/`ILogger<T>`
+    `AccessControlDbContext`/`ILogger<T>`, and `ProjectAssignmentEventConsumerTests` (adds
+    `Testcontainers.RabbitMq` alongside `Testcontainers.PostgreSql`) proving the real consumer
+    end-to-end: a valid grant applied, a malformed body dead-lettered, a persistence failure
+    retried past the bounded limit and dead-lettered, and — the review-loopback amendment's
+    scenario — an exception escaping `ProcessAsync` itself rejected without permanently stalling a
+    subsequent, unrelated message under `prefetchCount: 1`
 
 ## Commands
 
@@ -99,14 +109,25 @@ stories (1.9, 1.2, and 1.6 respectively), tracked in `_bmad-output/planning-arti
 - `src/AccessControlService.Infrastructure/Messaging/` — `ProjectAssignmentChangedEvent.cs` (the
   provider-neutral event contract) and `ProjectAssignmentEventProcessor.cs` (the pure decision
   logic: watermark check, cross-aggregate-conflict check, validation, upsert/remove) plus its
-  `ProjectAssignmentEventOutcome` result enum. No RabbitMQ/messaging-transport package reference
-  anywhere in this project — see `spec-1-1d-project-assignment-event-consumer.md`
+  `ProjectAssignmentEventOutcome` result enum (see `spec-1-1d-project-assignment-event-consumer.md`).
+  `ProjectAssignmentEventConsumer.cs` (the real `RabbitMQ.Client` `BackgroundService`: connects with
+  `AutomaticRecoveryEnabled = false` since it owns its own manual reconnect loop, declares a quorum
+  queue with `x-delivery-limit` plus a dead-letter queue/exchange, creates one DI scope per message,
+  and maps outcomes to `basic.ack`/`basic.reject` — including a catch-all for any exception escaping
+  `ProcessAsync` itself, tagging dead-lettered messages with an `x-dead-letter-reason` header),
+  `FakeProjectAssignmentEventProducer.cs` (test-only producer publishing to the same queue/contract),
+  and `RabbitMqConnectionOptions.cs` (plain connection-settings holder, mapped from `AppConfig` in
+  `Program.cs` — Infrastructure has no dependency on the Api project's own config type) — see
+  `spec-1-1e-project-assignment-rabbitmq-wiring.md`
 - `src/AccessControlService.Api/Program.cs` — bootstrap: config validation, CORS, correlation-id
-  middleware, health checks, controllers, and the composition-root wiring of
+  middleware, health checks, controllers, the composition-root wiring of
   `AccessControlDbContext`/`EfRelationshipRepository`/`AccessRoleResolver` into DI (no HTTP
-  endpoint calls the resolver yet — deferred until a real consumer exists)
+  endpoint calls the resolver yet — deferred until a real consumer exists), and registration of
+  `ProjectAssignmentEventConsumer` as a hosted service
 - `src/AccessControlService.Api/Configuration/AppConfig.cs` — fail-fast startup config validation
-  (`PORT`, `CORS_ORIGIN`, `ConnectionStrings:Postgres`)
+  (`PORT`, `CORS_ORIGIN`, `ConnectionStrings:Postgres`, `RABBITMQ_HOST`/`RABBITMQ_PORT`/
+  `RABBITMQ_USER`/`RABBITMQ_PASSWORD` — values only, not actual broker reachability, so the app
+  still boots fine with RabbitMQ down, same contract as Postgres)
 - `src/AccessControlService.Api/Middleware/CorrelationIdMiddleware.cs` — `x-correlation-id`
   propagation
 - `src/AccessControlService.Api/Health/HealthCheckResponseWriter.cs` — health-check JSON shape
@@ -132,10 +153,13 @@ stories (1.9, 1.2, and 1.6 respectively), tracked in `_bmad-output/planning-arti
 - `.env` is gitignored; `.env.example` is the committed template — loaded via `DotNetEnv` at
   startup, but never overrides a variable already set in the process environment (CI/test-injected
   env vars always win, and a missing `.env` file is a no-op, not a startup failure)
-- Local Postgres comes from the shared `infra/docker-compose.yml`, not a per-service compose file
+- Local Postgres and RabbitMQ both come from the shared `infra/docker-compose.yml`, not a
+  per-service compose file
 - Required at startup, fail-fast if missing/blank: `PORT`, `CORS_ORIGIN`,
   `ConnectionStrings:Postgres` (set via the `ConnectionStrings__Postgres` env var — ASP.NET Core's
-  double-underscore convention for nested config keys)
+  double-underscore convention for nested config keys), and `RABBITMQ_HOST`/`RABBITMQ_PORT`/
+  `RABBITMQ_USER`/`RABBITMQ_PASSWORD` (same guest/guest defaults `infra/docker-compose.yml`'s own
+  RabbitMQ container falls back to)
 
 ## Gotchas
 
@@ -151,6 +175,12 @@ stories (1.9, 1.2, and 1.6 respectively), tracked in `_bmad-output/planning-arti
   8.0.x`.
 - Manual health check path is `/api/v1/health`, not `/health` — the route is explicitly mapped in
   `Program.cs`, there is no NestJS-style automatic version prefix in ASP.NET Core.
+- **`ProjectAssignmentEventConsumer` reconnects itself; RabbitMQ.Client's own automatic recovery is
+  explicitly off** — `AutomaticRecoveryEnabled = false` on the `ConnectionFactory`, since the
+  consumer already retries connect/declare/consume with a fixed 5s backoff on any failure
+  (including RabbitMQ being unreachable at startup, mirroring the Postgres "boots fine when down"
+  contract). Leaving the client default on would risk it silently recovering the same
+  connection/topology underneath this hand-rolled loop.
 - **No Dockerfile yet** — no container image is built for this service yet. Consequently, the
   reusable CI workflow's Docker build/save/upload-artifact steps in
   `.github/workflows/_reusable-dotnet-ci.yml` silently no-op for this service (gated on

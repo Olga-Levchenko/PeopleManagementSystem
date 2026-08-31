@@ -17,6 +17,16 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <PackageReference Include="xunit" Version="2.5.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+    <!--
+      ProjectAssignmentEventConsumerCompositionTests needs a real, reachable RabbitMQ and Postgres,
+      unlike HealthEndpointTests/RealServerBindingTests, which deliberately point RabbitMQ at an
+      unreachable target, to prove Program.cs's actual AppConfig to RabbitMqConnectionOptions
+      field mapping works end-to-end. Same versions as AccessControlService.Infrastructure.Tests'
+      own references, for the same forced-compatibility reason documented in
+      spec-1-1e-project-assignment-rabbitmq-wiring.md's Spec Change Log.
+    -->
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.14.0" />
+    <PackageReference Include="Testcontainers.RabbitMq" Version="4.14.0" />
   </ItemGroup>
 
   <ItemGroup>

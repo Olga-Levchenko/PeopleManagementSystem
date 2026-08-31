@@ -16,8 +16,7 @@ namespace AccessControlService.Infrastructure.Tests.Messaging;
 /// </summary>
 public sealed class ProjectAssignmentEventProcessorTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgresContainer = new PostgreSqlBuilder()
-        .WithImage("postgres:16-alpine")
+    private readonly PostgreSqlContainer _postgresContainer = new PostgreSqlBuilder("postgres:16-alpine")
         .WithDatabase("access_control_service_test")
         .WithUsername("postgres")
         .WithPassword("postgres")

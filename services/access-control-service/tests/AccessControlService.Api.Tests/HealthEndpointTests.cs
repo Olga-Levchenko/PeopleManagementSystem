@@ -37,6 +37,15 @@ public class HealthEndpointTests : IClassFixture<WebApplicationFactory<Program>>
         Environment.SetEnvironmentVariable(
             "ConnectionStrings__Postgres",
             "Host=localhost;Port=5499;Database=access_control_service_test;Username=postgres;Password=postgres;Timeout=1");
+        // ProjectAssignmentEventConsumer's connection settings are required, fail-fast AppConfig
+        // values, but actually reaching RabbitMQ is never attempted synchronously at startup -- an
+        // unreachable broker here just means the hosted consumer logs and retries in the
+        // background, the same "boots fine with Postgres down" contract as the Postgres connection
+        // string above.
+        Environment.SetEnvironmentVariable("RABBITMQ_HOST", "localhost");
+        Environment.SetEnvironmentVariable("RABBITMQ_PORT", "5699");
+        Environment.SetEnvironmentVariable("RABBITMQ_USER", "guest");
+        Environment.SetEnvironmentVariable("RABBITMQ_PASSWORD", "guest");
 
         _client = factory.CreateClient();
     }
@@ -50,6 +59,10 @@ public class HealthEndpointTests : IClassFixture<WebApplicationFactory<Program>>
         Environment.SetEnvironmentVariable("PORT", null);
         Environment.SetEnvironmentVariable("CORS_ORIGIN", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
+        Environment.SetEnvironmentVariable("RABBITMQ_HOST", null);
+        Environment.SetEnvironmentVariable("RABBITMQ_PORT", null);
+        Environment.SetEnvironmentVariable("RABBITMQ_USER", null);
+        Environment.SetEnvironmentVariable("RABBITMQ_PASSWORD", null);
     }
 
     [Fact]
