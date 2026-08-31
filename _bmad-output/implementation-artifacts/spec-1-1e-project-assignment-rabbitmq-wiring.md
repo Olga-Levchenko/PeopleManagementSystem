@@ -87,6 +87,107 @@ not delivery failures. A fake test producer publishes to the same queue for test
 - Given a persistence failure is simulated, when retried past the bounded limit, then the message ends up in the dead-letter queue, not lost and not retried forever
 - Given an exception escapes `ProcessAsync` that isn't already a defined outcome, when it happens, then the message is rejected (not left unacked) and a subsequent, unrelated message is still processed -- the consumer never permanently stalls under `prefetch=1`
 
+### Review Findings
+
+_Code review (chunk 5/5 of PR #14 review), 2026-08-31 — scope: RabbitMQ consumer wiring files
+against `main`, plus the acceptance-auditor lens against this spec and its referenced context
+docs. Final chunk of the PR #14 review._
+
+- [ ] [Review][Patch] The outcome `switch`'s `default` case in `HandleMessageAsync`
+  [`ProjectAssignmentEventConsumer.cs:365-371`] throws `NotSupportedException` *outside* the
+  surrounding `try`/`catch`, so it would escape the RabbitMQ.Client event handler unhandled —
+  reproducing, for any future unmapped `ProjectAssignmentEventOutcome` value, exactly the
+  "delivery never acked/rejected, consumer permanently stalls under `prefetch=1`" failure mode
+  this file's own review-loopback catch-all exists to close. Currently unreachable (all 5 known
+  outcomes are handled) but a live regression trap for the next outcome value added. Confirmed
+  independently by three review lenses (blind-hunter, edge-case-hunter, acceptance-auditor).
+- [ ] [Review][Patch] Four of the six outcome-to-ack/reject mappings — `DuplicateIgnored`,
+  `RejectedStale`, `RejectedInvalid`, `RejectedCrossAggregateConflict` — are never exercised
+  through the real consumer's `HandleMessageAsync`; `ProjectAssignmentEventProcessorTests.cs`
+  asserts these outcomes only against `ProcessAsync` directly. A regression that turned any of
+  these into a reject-for-retry instead of an ack (e.g. a copy-paste slip in the switch) would
+  ship undetected — no existing test would fail.
+- [ ] [Review][Patch] `RabbitMqConnectionOptions`' compiler-generated `ToString()` prints
+  `Password` in cleartext — nothing suppresses it, so a future `LogDebug("{Options}", ...)` or
+  similar would leak the broker credential to logs.
+- [ ] [Review][Patch] No test publishes a message body that deserializes successfully to `null`
+  (e.g. the literal `"null"`) — `HandleMessageAsync`'s `@event is null` branch
+  [`ProjectAssignmentEventConsumer.cs:284-291`], distinct from the malformed-JSON `catch` branch
+  above it, is currently unverified.
+- [ ] [Review][Patch] `SafeAckAsync`/`RejectForRetryAsync`/`DeadLetterImmediatelyAsync`'s blanket
+  `catch (Exception ex)` doesn't distinguish an `OperationCanceledException` from ordinary host
+  shutdown (the `stoppingToken` being cancelled mid-ack) from a genuine channel failure — an
+  ordinary shutdown during an in-flight ack/reject gets logged as `LogError("...channel may be
+  dead...")`, a false alarm. `HandleMessageAsync`'s own `ProcessAsync` try/catch already has the
+  correct pattern (`catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)`)
+  a few lines above.
+- [x] [Review][Defer] Neither `RejectForRetryAsync`'s nor `DeadLetterImmediatelyAsync`'s republish
+  `BasicPublishAsync` uses publisher confirms, and both pass `mandatory: false` with no
+  `BasicReturnAsync` handler — the republish-then-ack sequence isn't atomic (a crash between
+  publish-succeeding and the original's ack could produce a duplicate delivery), and a
+  misconfigured DLX/queue binding would silently drop a message instead of surfacing an error.
+  Low urgency: `ProjectAssignmentEventProcessor.ProcessAsync` is already idempotent by `EventId`,
+  so a duplicate redelivery from this race degrades to a harmless no-op, not data corruption.
+- [x] [Review][Defer] The `x-dead-letter-reason` header is only set on a delivery's *first*
+  rejection (`RejectForRetryAsync`'s `alreadyTagged` short-circuit) — if a message fails for a
+  different reason on a later attempt, the header on the eventually-dead-lettered message still
+  reflects the first failure, not the one that actually exhausted the retry limit. A deliberate
+  trade-off (re-tagging every attempt would cost another publish+ack round trip each time), but
+  not yet explicitly called out as a known limitation the way the class's other trade-offs are.
+- [x] [Review][Defer] No RabbitMQ/consumer-liveness health check — `/api/v1/health` can report
+  healthy while `ProjectAssignmentEventConsumer` is stuck in its 5s reconnect loop indefinitely.
+  Same category as the already-deferred Postgres health-check-timeout item.
+- [x] [Review][Defer] Connection/retry configuration is minimal and hardcoded: `ReconnectDelay`
+  (5s) and `DeliveryLimit` (5) are compile-time constants rather than `AppConfig`-sourced, and
+  `RabbitMqConnectionOptions` has no `VirtualHost` or TLS/`Ssl` support — cannot currently target
+  a non-default vhost or an AMQPS-only broker. Same category as the already-deferred HTTPS-posture
+  item (local-dev-only today, TLS terminated upstream in real deployments).
+- [x] [Review][Defer] Neither the main quorum queue nor the dead-letter queue declares a
+  max-length or TTL argument — a stalled consumer or a burst of malformed messages can grow the
+  DLQ (or the main queue pre-consumption) without bound, with no operational backstop.
+- [x] [Review][Defer] `FakeProjectAssignmentEventProducer.cs` ships inside the production
+  `AccessControlService.Infrastructure` assembly, not a test-only project, despite its own doc
+  comment calling it test-only — verified this is because it calls `internal static
+  ProjectAssignmentEventConsumer.DeclareTopologyAsync`, which cross-assembly access would need
+  `InternalsVisibleTo` or making the method public. A real architectural trade-off (test-only code
+  shipping in the production assembly vs. adding `InternalsVisibleTo`/a shared test-support
+  project), not a mechanical fix.
+- [x] [Review][Defer] No test forces a connection/channel loss mid-run and asserts the consumer
+  reconnects and resumes processing — the structurally most complex part of this consumer
+  (`ChannelShutdownAsync`/`ConnectionShutdownAsync` → `loopEnded` → `RunOnceAsync` throws →
+  `ExecuteAsync`'s 5s-backoff retry) is entirely unverified. Deferred as a dedicated
+  resilience-testing follow-up given the complexity/flakiness risk of reliably forcing this
+  scenario against a real Testcontainers broker within a test.
+- [x] [Review][Defer] A `QueueDeclareAsync` hitting `PRECONDITION_FAILED` (a pre-existing queue
+  declared with different arguments) would retry forever on the same 5s backoff as an ordinary
+  transient connectivity failure, indistinguishable from it in logs — an operator would see
+  "retrying" forever with no signal that the actual cause is a permanent topology mismatch, not a
+  network blip.
+- [x] [Review][Defer] `CORS_ORIGIN` has no support for multiple comma-separated origins — only a
+  single literal origin string is passed to `WithOrigins`. Distinct from the already-deferred
+  "well-formed-absolute-URI validation" item (which is about validating the one origin, not
+  supporting more than one).
+- [x] [Review][Defer] No test forces an actual Kestrel port-bind conflict (two instances on the
+  same `PORT`) to verify `Program.cs`'s `catch (IOException)` → descriptive `InvalidOperationException`
+  wrapping actually fires as intended, rather than a raw framework exception reaching whatever
+  observes process startup failure.
+
+**Dismissed as noise/handled elsewhere (5):** a claimed gap in `AppConfig`'s RabbitMQ validation
+test coverage — false positive, `AppConfigTests.cs` (outside this chunk's file-list diff scope)
+already covers every `RABBITMQ_HOST`/`PORT`/`USER`/`PASSWORD` branch including non-numeric and
+out-of-range port, same diff-scoping-artifact pattern as chunk 3's "missing migration" and chunk
+4's "unused RabbitMQ package" false positives; `ConnectionFactory` construction duplicated between
+the consumer and the test-only fake producer — acceptable, arguably preferable independence
+between production and test-only code; the shutdown/reconnect path disposing the channel without
+explicitly waiting for an in-flight handler — already mitigated by the existing
+`HandleAckOrRejectFailure` catch-all, which is deliberately designed for exactly this "channel
+died mid-ack" scenario per the class's own doc comment; a suggestion to add a structural guard
+(e.g. a single negative-ack call site) preventing a future `basic.nack` reintroduction — a
+reasonable nice-to-have already covered by a clear doc comment, not a current bug; and a note that
+this review's own file-list diff construction presented four pre-existing files
+(`AppConfig.cs`/`Program.cs`/both test csprojs) as brand-new — a diff-scoping artifact of how this
+chunk was constructed, not a code issue (contents match `HEAD` exactly).
+
 ## Spec Change Log
 
 ### 2026-08-31 — Review loopback (iteration 1)

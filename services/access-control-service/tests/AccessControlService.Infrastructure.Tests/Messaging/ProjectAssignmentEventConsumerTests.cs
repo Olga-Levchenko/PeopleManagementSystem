@@ -241,6 +241,150 @@ public sealed class ProjectAssignmentEventConsumerTests : IAsyncLifetime
         }
     }
 
+    // -- Review (chunk 5/5, PR #14): DuplicateIgnored/RejectedStale/RejectedInvalid/
+    //    RejectedCrossAggregateConflict were previously only ever asserted against
+    //    ProjectAssignmentEventProcessor.ProcessAsync directly (ProjectAssignmentEventProcessorTests)
+    //    -- never through this consumer's own outcome-to-ack/reject switch. A regression turning any
+    //    of these into a reject-for-retry instead of an ack would not fail any existing test. Chained
+    //    into one sequence (rather than four separate Testcontainers instances) so the final "a fresh
+    //    event still gets processed promptly" step proves none of the four preceding outcomes left
+    //    the queue stuck behind an incorrectly-requeued message under prefetchCount: 1 -- if any were
+    //    wrongly rejected-for-retry, that message would occupy the queue ahead of the final event and
+    //    the closing WaitUntilAsync would time out and fail.
+
+    [Fact]
+    public async Task DuplicateStaleInvalidAndCrossAggregateConflictOutcomes_AllAckedWithoutStallingOrDeadLettering()
+    {
+        await using var producer = await FakeProjectAssignmentEventProducer.CreateAsync(_connectionOptions);
+        var (provider, scopeFactory) = BuildRealScopeFactory(_postgresConnectionString);
+        await using var _ = provider;
+        using var consumer = new ProjectAssignmentEventConsumer(
+            scopeFactory, _connectionOptions, NullLogger<ProjectAssignmentEventConsumer>.Instance);
+        await consumer.StartAsync(CancellationToken.None);
+        try
+        {
+            var aggregateA = Guid.NewGuid();
+            var projectId = Guid.NewGuid();
+            var personId = FixtureSeedData.ExecutiveId;
+
+            // Step 1 (baseline, Applied): grant v1 -- establishes aggregateA's ownership of
+            // (projectId, personId), which the later cross-aggregate-conflict step needs.
+            var firstEvent = MakeEvent(aggregateA, aggregateVersion: 1, isGrant: true, projectId, personId, ProjectAssignmentRole.DeliveryManager);
+            await producer.PublishAsync(firstEvent);
+            await WaitUntilAsync(
+                async () =>
+                {
+                    await using var dbContext = NewDbContext();
+                    return await dbContext.ProjectAssignments.AnyAsync(pa => pa.ProjectId == projectId && pa.PersonId == personId);
+                },
+                TimeSpan.FromSeconds(20));
+
+            // Step 2 (DuplicateIgnored): re-publish the exact same event (same EventId).
+            await producer.PublishAsync(firstEvent);
+
+            // Step 3 (RejectedStale): same aggregate, version <= last applied (1), different EventId
+            // -- not an exact duplicate, but out-of-order/stale.
+            var staleEvent = MakeEvent(aggregateA, aggregateVersion: 1, isGrant: true, projectId, personId, ProjectAssignmentRole.DeliveryManager);
+            await producer.PublishAsync(staleEvent);
+
+            // Step 4 (RejectedInvalid): a fresh aggregate, but an empty ProjectId fails basic
+            // validation before the watermark/assignment table is ever touched.
+            var invalidEvent = MakeEvent(Guid.NewGuid(), aggregateVersion: 1, isGrant: true, Guid.Empty, personId, ProjectAssignmentRole.Member);
+            await producer.PublishAsync(invalidEvent);
+
+            // Step 5 (RejectedCrossAggregateConflict): a different aggregate (B) claims the SAME
+            // (projectId, personId) pair aggregateA already owns from step 1 -- B has no watermark
+            // of its own, so it cannot prove ownership of the pair's existing row.
+            var aggregateB = Guid.NewGuid();
+            var conflictingEvent = MakeEvent(aggregateB, aggregateVersion: 1, isGrant: true, projectId, personId, ProjectAssignmentRole.ProjectManager);
+            await producer.PublishAsync(conflictingEvent);
+
+            // Step 6 (proof of no stall): an entirely fresh, unrelated, ordinary valid event must
+            // still be processed promptly -- if any of steps 2-5 were wrongly requeued instead of
+            // acked, this event would sit behind them in the queue under prefetchCount: 1 and this
+            // wait would time out.
+            var followUpProjectId = Guid.NewGuid();
+            var followUpEvent = MakeEvent(Guid.NewGuid(), aggregateVersion: 1, isGrant: true, followUpProjectId, personId, ProjectAssignmentRole.Member);
+            await producer.PublishAsync(followUpEvent);
+            await WaitUntilAsync(
+                async () =>
+                {
+                    await using var dbContext = NewDbContext();
+                    return await dbContext.ProjectAssignments.AnyAsync(pa => pa.ProjectId == followUpProjectId && pa.PersonId == personId);
+                },
+                TimeSpan.FromSeconds(30));
+
+            // The original row from step 1 must still be exactly as step 1 left it -- none of
+            // steps 2-5 mutated it (a duplicate/stale/invalid/conflicting event must never overwrite
+            // an existing row).
+            await using var finalDbContext = NewDbContext();
+            var row = await finalDbContext.ProjectAssignments.SingleAsync(pa => pa.ProjectId == projectId && pa.PersonId == personId);
+            Assert.Equal(ProjectAssignmentRole.DeliveryManager, row.Role);
+
+            // None of the four terminal-but-non-Applied outcomes should ever reach the dead-letter
+            // queue -- they are correct, final judgments, not retryable failures.
+            await AssertNoDeadLetterMessageWithinAsync(TimeSpan.FromSeconds(3));
+        }
+        finally
+        {
+            await consumer.StopAsync(CancellationToken.None);
+        }
+    }
+
+    // -- Review (chunk 5/5, PR #14): a message body that is valid JSON but deserializes to null
+    //    (e.g. the literal "null") takes a different code path than a JSON parse failure -- the
+    //    existing malformed-body test only exercises the parse-failure catch block above it.
+
+    [Fact]
+    public async Task NullDeserializedMessageBody_DeadLetteredImmediatelyWithReasonHeader()
+    {
+        await using var producer = await FakeProjectAssignmentEventProducer.CreateAsync(_connectionOptions);
+        var (provider, scopeFactory) = BuildRealScopeFactory(_postgresConnectionString);
+        await using var _ = provider;
+        using var consumer = new ProjectAssignmentEventConsumer(
+            scopeFactory, _connectionOptions, NullLogger<ProjectAssignmentEventConsumer>.Instance);
+        await consumer.StartAsync(CancellationToken.None);
+        try
+        {
+            await producer.PublishRawAsync("null");
+
+            var reason = await WaitForDeadLetterReasonAsync(TimeSpan.FromSeconds(20));
+
+            Assert.Equal(ProjectAssignmentEventConsumer.MalformedBodyReason, reason);
+        }
+        finally
+        {
+            await consumer.StopAsync(CancellationToken.None);
+        }
+    }
+
+    private async Task AssertNoDeadLetterMessageWithinAsync(TimeSpan window)
+    {
+        var factory = new ConnectionFactory
+        {
+            HostName = _connectionOptions.HostName,
+            Port = _connectionOptions.Port,
+            UserName = _connectionOptions.UserName,
+            Password = _connectionOptions.Password,
+            AutomaticRecoveryEnabled = false,
+        };
+
+        await using var connection = await factory.CreateConnectionAsync();
+        await using var channel = await connection.CreateChannelAsync();
+
+        var deadline = DateTime.UtcNow + window;
+        while (DateTime.UtcNow < deadline)
+        {
+            var result = await channel.BasicGetAsync(ProjectAssignmentEventConsumer.DeadLetterQueueName, autoAck: true);
+            if (result is not null)
+            {
+                Assert.Fail($"Unexpected message on '{ProjectAssignmentEventConsumer.DeadLetterQueueName}': reason {ReadReasonHeader(result.BasicProperties.Headers)}.");
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(300));
+        }
+    }
+
     private AccessControlDbContext NewDbContext()
     {
         var options = new DbContextOptionsBuilder<AccessControlDbContext>()

@@ -94,6 +94,7 @@ public sealed class ProjectAssignmentEventConsumer : BackgroundService
     public const string MalformedBodyReason = "malformed-body";
     public const string PersistenceFailureExhaustedReason = "persistence-failure-exhausted";
     public const string UnhandledExceptionReason = "unhandled-exception";
+    public const string UnrecognizedOutcomeReason = "unrecognized-outcome";
 
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
 
@@ -364,11 +365,20 @@ public sealed class ProjectAssignmentEventConsumer : BackgroundService
 
             default:
                 // Defensive: a future ProjectAssignmentEventOutcome value added without updating
-                // this mapping must fail loudly in tests/logs rather than silently falling through
-                // to an ack, which would be a silent behavior change for an outcome nobody has
-                // actually judged safe to acknowledge.
-                throw new NotSupportedException(
-                    $"Unrecognized {nameof(ProjectAssignmentEventOutcome)} value: {outcome}.");
+                // this mapping must not silently fall through to an ack (a behavior change for an
+                // outcome nobody has actually judged safe to acknowledge) -- nor throw unguarded,
+                // which would escape this RabbitMQ.Client event handler entirely and reproduce the
+                // exact "delivery never acked/rejected, consumer permanently stalls under
+                // prefetchCount: 1" failure mode the catch-all around ProcessAsync above exists to
+                // close. Treat it the same as an unhandled exception: reject-with-requeue, bounded
+                // by the quorum queue's own x-delivery-limit.
+                _logger.LogError(
+                    "Unrecognized {OutcomeType} value {Outcome} (delivery tag {DeliveryTag}); rejecting for retry.",
+                    nameof(ProjectAssignmentEventOutcome),
+                    outcome,
+                    ea.DeliveryTag);
+                await RejectForRetryAsync(channel, ea, UnrecognizedOutcomeReason, loopEnded, stoppingToken);
+                return;
         }
     }
 
@@ -392,6 +402,13 @@ public sealed class ProjectAssignmentEventConsumer : BackgroundService
                 cancellationToken: stoppingToken);
 
             await channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Ordinary host shutdown, not a channel failure -- let it propagate rather than
+            // logging it via HandleAckOrRejectFailure's "channel may be dead" error, which would
+            // be a false alarm on every shutdown.
+            throw;
         }
         catch (Exception ex)
         {
@@ -437,6 +454,12 @@ public sealed class ProjectAssignmentEventConsumer : BackgroundService
 
             await channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: stoppingToken);
         }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Ordinary host shutdown, not a channel failure -- see DeadLetterImmediatelyAsync's
+            // identical catch above for why this is split out from the generic catch below.
+            throw;
+        }
         catch (Exception ex)
         {
             HandleAckOrRejectFailure(ex, ea.DeliveryTag, loopEnded);
@@ -452,6 +475,12 @@ public sealed class ProjectAssignmentEventConsumer : BackgroundService
         try
         {
             await channel.BasicAckAsync(deliveryTag, multiple: false, cancellationToken: stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Ordinary host shutdown, not a channel failure -- see DeadLetterImmediatelyAsync's
+            // identical catch above for why this is split out from the generic catch below.
+            throw;
         }
         catch (Exception ex)
         {

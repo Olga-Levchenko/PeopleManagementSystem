@@ -18,4 +18,12 @@ public sealed record RabbitMqConnectionOptions
     public required string UserName { get; init; }
 
     public required string Password { get; init; }
+
+    /// <summary>
+    /// Overrides the compiler-generated record <c>ToString()</c>, which would otherwise print
+    /// <see cref="Password"/> in cleartext -- e.g. a future <c>LogDebug("{Options}", ...)</c> call
+    /// logging this instance would leak the broker credential.
+    /// </summary>
+    public override string ToString() =>
+        $"{nameof(RabbitMqConnectionOptions)} {{ {nameof(HostName)} = {HostName}, {nameof(Port)} = {Port}, {nameof(UserName)} = {UserName}, {nameof(Password)} = [redacted] }}";
 }

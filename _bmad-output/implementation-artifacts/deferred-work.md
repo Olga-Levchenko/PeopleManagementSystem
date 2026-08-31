@@ -164,6 +164,46 @@
   summary: Decide whether the person-existence check in `ProcessAsync` should gate revoke events the same way it gates grants, and whether it should run before or after the exact-duplicate watermark check — currently any event (grant or revoke) for a `PersonId` no longer in `People` is unconditionally rejected as `RejectedInvalid`, so a revoke can never clean up that person's existing `ProjectAssignment` row once the person is gone, and a duplicate redelivery for a since-removed person returns `RejectedInvalid` instead of `DuplicateIgnored`.
   evidence: Fresh-context code review of PR #14 (chunk 4, project-assignment event processing) found this gap; user confirmed (2026-08-31) deferring rather than changing the check now, reason: `Person` is a fixture-only stub with no hard-delete flow today, so both consequences are currently unreachable in practice — revisit once a real people-service sync/delete flow lands.
 
+- source_spec: `services/access-control-service/src/AccessControlService.Infrastructure/Messaging/ProjectAssignmentEventConsumer.cs`
+  summary: Neither `RejectForRetryAsync`'s nor `DeadLetterImmediatelyAsync`'s republish `BasicPublishAsync` uses publisher confirms, and both pass `mandatory: false` with no `BasicReturnAsync` handler — the republish-then-ack sequence isn't atomic, and a misconfigured DLX/queue binding would silently drop a message instead of surfacing an error.
+  evidence: Fresh-context code review of PR #14 (chunk 5, RabbitMQ consumer wiring) found this gap; low urgency since `ProjectAssignmentEventProcessor.ProcessAsync` is already idempotent by `EventId`, so a duplicate redelivery from this race degrades to a harmless no-op rather than data corruption.
+
+- source_spec: `services/access-control-service/src/AccessControlService.Infrastructure/Messaging/ProjectAssignmentEventConsumer.cs`
+  summary: The `x-dead-letter-reason` header is only set on a delivery's first rejection — if a message fails for a different reason on a later attempt, the eventually-dead-lettered message's header still reflects the first failure, not the one that actually exhausted the retry limit. A deliberate trade-off (re-tagging every attempt costs another publish+ack round trip), but not yet explicitly documented as a known limitation.
+  evidence: Fresh-context code review of PR #14 (chunk 5, RabbitMQ consumer wiring) found this nuance undocumented; low urgency, purely a debugging-clarity concern.
+
+- source_spec: `services/access-control-service/src/AccessControlService.Infrastructure/Messaging/ProjectAssignmentEventConsumer.cs`
+  summary: No RabbitMQ/consumer-liveness health check — `/api/v1/health` can report healthy while `ProjectAssignmentEventConsumer` is stuck in its 5s reconnect loop indefinitely.
+  evidence: Fresh-context code review of PR #14 (chunk 5, RabbitMQ consumer wiring) found this gap; same category as the already-deferred Postgres health-check-timeout item.
+
+- source_spec: `services/access-control-service/src/AccessControlService.Infrastructure/Messaging/RabbitMqConnectionOptions.cs`
+  summary: Connection/retry configuration is minimal and hardcoded — `ReconnectDelay` (5s) and `DeliveryLimit` (5) are compile-time constants rather than `AppConfig`-sourced, and `RabbitMqConnectionOptions` has no `VirtualHost` or TLS/`Ssl` support, so this consumer cannot currently target a non-default vhost or an AMQPS-only broker.
+  evidence: Fresh-context code review of PR #14 (chunk 5, RabbitMQ consumer wiring) found this gap; same category as the already-deferred HTTPS-posture item (local-dev-only today, TLS terminated upstream in real deployments).
+
+- source_spec: `services/access-control-service/src/AccessControlService.Infrastructure/Messaging/ProjectAssignmentEventConsumer.cs`
+  summary: Neither the main quorum queue nor the dead-letter queue declares a max-length or TTL argument — a stalled consumer or a burst of malformed messages can grow the DLQ (or the main queue pre-consumption) without bound, with no operational backstop.
+  evidence: Fresh-context code review of PR #14 (chunk 5, RabbitMQ consumer wiring) found this gap; zero blast radius today against fixture-scale/no-real-traffic, worth a real decision before production load.
+
+- source_spec: `services/access-control-service/src/AccessControlService.Infrastructure/Messaging/FakeProjectAssignmentEventProducer.cs`
+  summary: This file ships inside the production `AccessControlService.Infrastructure` assembly, not a test-only project, despite its own doc comment calling it test-only — it calls `internal static ProjectAssignmentEventConsumer.DeclareTopologyAsync`, so cross-assembly access would need `InternalsVisibleTo` or making that method public. Decide whether to accept as-is or restructure into a shared test-support project.
+  evidence: Fresh-context code review of PR #14 (chunk 5, RabbitMQ consumer wiring) found and verified this dependency; real architectural trade-off, not a mechanical fix.
+
+- source_spec: `services/access-control-service/tests/AccessControlService.Infrastructure.Tests/Messaging/ProjectAssignmentEventConsumerTests.cs`
+  summary: No test forces a connection/channel loss mid-run and asserts the consumer reconnects and resumes processing — the structurally most complex part of this consumer (`ChannelShutdownAsync`/`ConnectionShutdownAsync` → `loopEnded` → `RunOnceAsync` throws → `ExecuteAsync`'s 5s-backoff retry) is entirely unverified.
+  evidence: Fresh-context code review of PR #14 (chunk 5, RabbitMQ consumer wiring) found this gap; deferred as a dedicated resilience-testing follow-up given the complexity/flakiness risk of reliably forcing this scenario against a real Testcontainers broker within a test.
+
+- source_spec: `services/access-control-service/src/AccessControlService.Infrastructure/Messaging/ProjectAssignmentEventConsumer.cs`
+  summary: A `QueueDeclareAsync` hitting `PRECONDITION_FAILED` (a pre-existing queue declared with different arguments) would retry forever on the same 5s backoff as an ordinary transient connectivity failure, indistinguishable from it in logs.
+  evidence: Fresh-context code review of PR #14 (chunk 5, RabbitMQ consumer wiring) found this gap; an operator would see "retrying" forever with no signal the actual cause is a permanent topology mismatch, not a network blip.
+
+- source_spec: `services/access-control-service/src/AccessControlService.Api/Program.cs`
+  summary: `CORS_ORIGIN` has no support for multiple comma-separated origins — only a single literal origin string is passed to `WithOrigins`. Distinct from the already-deferred "well-formed-absolute-URI validation" item, which is about validating the one origin, not supporting more than one.
+  evidence: Fresh-context code review of PR #14 (chunk 5, RabbitMQ consumer wiring) found this gap while reviewing `Program.cs`'s CORS wiring.
+
+- source_spec: `services/access-control-service/src/AccessControlService.Api/Program.cs`
+  summary: No test forces an actual Kestrel port-bind conflict (two instances on the same `PORT`) to verify the `catch (IOException)` → descriptive `InvalidOperationException` wrapping actually fires as intended.
+  evidence: Fresh-context code review of PR #14 (chunk 5, RabbitMQ consumer wiring) found this gap; low urgency, existing behavior not introduced by this chunk.
+
 ## Corrections
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1-two-dimensional-access-role-resolution.md`
