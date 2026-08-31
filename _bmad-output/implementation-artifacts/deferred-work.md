@@ -226,6 +226,24 @@
   summary: Decide `libs/contracts`' schema-artifact format/tooling for a cross-language (.NET ↔ Node) shared contract (JSON Schema, OpenAPI/AsyncAPI, generated types, or another approach), then populate it for both the existing project-assignment event contract and the organisational-relationship one ADR-002 proposes — per AD-9, shared contracts should be versioned and owned in a shared location, but `libs/contracts` is currently empty and both contracts today live only as documentation/private types on the consumer side.
   evidence: Explicitly out of ADR-002's scope (its own "Explicitly out of this ADR's scope" note) since choosing cross-language contract tooling is a larger, separate decision than the boundary questions that ADR resolves.
 
+## Deferred from: ADR-003 (2026-08-31)
+
+- source_spec: `docs/decisions/ADR-003-epic-1-remaining-story-dependencies.md`
+  summary: Build the HTTP endpoint exposing `AccessRoleResolver` (e.g. `GET /api/v1/access-roles/resolve?viewerPersonId=...&subjectPersonId=...`) — this supersedes/fulfills the existing "Add an HTTP endpoint exposing access-role resolution" entry from Story 1.1 with a concrete proposed shape, now that Story 1.6 (its named trigger) is an identified real consumer.
+  evidence: ADR-003 found this is the single blocker underneath four of the six still-blocked Epic 1 stories (1.6, 1.7, 1.8, 1.9, 1.10); the existing deferred entry named the trigger condition but not a shape.
+
+- source_spec: `docs/decisions/ADR-003-epic-1-remaining-story-dependencies.md`
+  summary: Decide whether the access-role-resolution endpoint above should also expose which project-assignment role(s) (DM vs. PM) the viewer holds toward the subject, needed by Story 1.7's S7 flag-gating (which distinguishes "PM specifically" from "Project-line generally," a distinction `AccessRole.ProjectLine`'s boolean doesn't carry) — recommended as an additive `projectRoles` field on the same endpoint rather than a second service reading project-assignment data directly (per AD-2).
+  evidence: ADR-003 found this gap while tracing Story 1.7's dependencies; not resolved by that ADR, flagged as a real design decision for whoever picks up 1.7.
+
+- source_spec: `docs/decisions/ADR-003-epic-1-remaining-story-dependencies.md`
+  summary: Add tests proving Story 1.2's Project-line access-role-un-derivation acceptance criterion, which is already satisfied by existing behavior (`ProjectAssignmentEventProcessor`'s revoke handling plus `AccessRoleResolver`'s no-caching design) — no new production code is needed for the Project-line half of Story 1.2, only test coverage claiming the AC formally once Story 1.2 is picked up.
+  evidence: ADR-003 traced this through PR #14's already-shipped `ProcessAsync_RevokeEventExistingAssignment_RemovesRowAndReleasesOwnership` test and `AccessRoleResolver`'s documented no-cache contract; flagged to prevent someone re-implementing already-working behavior.
+
+- source_spec: `docs/decisions/ADR-003-epic-1-remaining-story-dependencies.md`
+  summary: Decide whether Story 1.10's custom-field-visibility authorization decision point lives in People/Organization (which owns the field and its visibility setting) or is proxied through Access Control (for consistency with AD-2's "Access Control owns policy decisions" rule, like every other authorization decision in this epic).
+  evidence: ADR-003 found this genuinely undecided while tracing Story 1.10's dependencies; the visibility policy itself (S16, management/employee/colleague) is already fully specified, only the decision-point's owning service is open.
+
 ## Corrections
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1-two-dimensional-access-role-resolution.md`
