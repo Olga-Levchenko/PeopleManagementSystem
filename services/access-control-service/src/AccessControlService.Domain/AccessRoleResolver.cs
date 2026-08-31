@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace AccessControlService.Domain;
 
 /// <summary>
@@ -18,10 +20,12 @@ public sealed class AccessRoleResolver
     private const int MaxHops = 100;
 
     private readonly IRelationshipRepository _repository;
+    private readonly ILogger<AccessRoleResolver> _logger;
 
-    public AccessRoleResolver(IRelationshipRepository repository)
+    public AccessRoleResolver(IRelationshipRepository repository, ILogger<AccessRoleResolver> logger)
     {
         _repository = repository;
+        _logger = logger;
     }
 
     /// <summary>
@@ -102,6 +106,22 @@ public sealed class AccessRoleResolver
             currentId = managerId.Value;
         }
 
+        // Reaching here means the loop ran all MaxHops iterations without returning -- i.e. the walk
+        // was truncated by the cycle guard, not because it found a match or ran off the top of the
+        // chain (both of which return from inside the loop above). This is deliberately
+        // distinguished from the "cycle detected" case above, which is an expected, self-diagnosing
+        // outcome -- this one silently denies access with no other signal, so it's worth a warning:
+        // it could be a genuinely deep reporting chain exceeding MaxHops, or malformed data forming a
+        // cycle longer than MaxHops distinct nodes.
+        _logger.LogWarning(
+            "Reports-to walk from subject {SubjectId} toward viewer {ViewerId} was truncated after " +
+            "{MaxHops} hops without finding a match or reaching the top of the chain. This may be a " +
+            "genuinely deep reporting chain exceeding the cycle guard, or malformed data -- either way, " +
+            "Reporting-line access was not granted via this path and the result may be a false negative.",
+            subjectId,
+            viewerId,
+            MaxHops);
+
         return false;
     }
 
@@ -134,6 +154,25 @@ public sealed class AccessRoleResolver
             }
 
             currentDepartmentId = await _repository.GetParentDepartmentIdAsync(currentDepartmentId.Value, cancellationToken);
+        }
+
+        // currentDepartmentId is still non-null here only if the loop exited because hop reached
+        // MaxHops -- reaching a genuine root department sets currentDepartmentId to null instead
+        // (the loop's own condition), and a cycle returns early from inside the loop above. So a
+        // non-null value at this point means the walk was truncated by the cycle guard without
+        // finding a match, which silently denies access with no other signal -- worth a warning for
+        // the same reason as IsTransitiveManagerAsync's analogous case above.
+        if (currentDepartmentId is not null)
+        {
+            _logger.LogWarning(
+                "Department-ancestor walk for subject {SubjectId} toward viewer {ViewerId} was " +
+                "truncated after {MaxHops} hops without finding a match or reaching a root department. " +
+                "This may be a genuinely deep department hierarchy exceeding the cycle guard, or " +
+                "malformed data -- either way, Reporting-line access was not granted via this path and " +
+                "the result may be a false negative.",
+                subjectId,
+                viewerId,
+                MaxHops);
         }
 
         return false;

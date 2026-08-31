@@ -132,6 +132,18 @@
   summary: Consider whether CI path filters should also cover `infra/postgres-init/**`, `.gitattributes`, and root `.gitignore` — a regression in the DB-init script wouldn't retrigger any service's CI today.
   evidence: Fresh-context code review of PR #14 found these files (touched by this PR) aren't in any service's CI path filter; low-churn files, acceptable tradeoff for now.
 
+- source_spec: `services/access-control-service/src/AccessControlService.Infrastructure/Persistence/Department.cs`
+  summary: Decide whether one person can legitimately manage more than one department — the current schema (`Person.ManagesDepartmentId`, a single nullable field) can't represent it, and this assumption isn't recorded anywhere in spec-1-1b's Boundaries/Design Notes.
+  evidence: Fresh-context code review of PR #14 (chunk 2, Reporting-line resolution) found this undocumented assumption; zero blast radius today since department data is fixture-only, similar in category to the already-deferred DM+PM-same-project schema question.
+
+- source_spec: `_bmad-output/implementation-artifacts/deferred-work.md` (the existing "recursive CTE" entry from spec-1-1b's second review pass)
+  summary: When implementing the recursive-CTE optimization for `AccessRoleResolver`'s walk, also account for the sequential-per-instance constraint documented in `AccessRoleResolver.ResolveAsync`'s own XML doc (calls must be sequential per resolver/DbContext instance) — resolving Reporting-line for the All Employees list (500+ rows, AD-7's p95≤2s gate) needs either N separate scoped DbContext instances or serialized awaits, a scaling dimension the existing entry's evidence doesn't mention.
+  evidence: Fresh-context code review of PR #14 found the existing deferred entry frames the performance risk purely as round-trip count, not as compounding with the sequential-call constraint; appending as a new entry since the existing one is not to be modified.
+
+- source_spec: `services/access-control-service/tests/AccessControlService.Infrastructure.Tests/AccessControlService.Infrastructure.Tests.csproj`
+  summary: Add a graceful skip (not a hard failure) for `AccessControlService.Infrastructure.Tests` when Docker is unavailable locally, so a contributor without Docker (e.g. on Cursor, per `tooling-parity.md`'s equal-functionality goal) doesn't hit an unexplained hard failure running `dotnet test`.
+  evidence: Fresh-context code review of PR #14 found `dotnet test` hard-fails on this project when Docker isn't running, with no opt-out or explanation in `CLAUDE.md`'s Commands section or the csproj; affects every Testcontainers-based test project in this service, not just this chunk's tests.
+
 ## Corrections
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1-two-dimensional-access-role-resolution.md`

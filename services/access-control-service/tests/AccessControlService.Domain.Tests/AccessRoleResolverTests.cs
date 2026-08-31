@@ -1,4 +1,5 @@
 using AccessControlService.Domain;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AccessControlService.Domain.Tests;
 
@@ -23,7 +24,7 @@ public class AccessRoleResolverTests
             .SetManager(directManager, managerOfManager)
             .SetManager(managerOfManager, viewer);
 
-        var resolver = new AccessRoleResolver(repository);
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -41,7 +42,7 @@ public class AccessRoleResolverTests
             .SetDepartment(subject, department)
             .SetDepartmentManager(department, viewer);
 
-        var resolver = new AccessRoleResolver(repository);
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -61,7 +62,7 @@ public class AccessRoleResolverTests
             .SetParentDepartment(subjectDepartment, parentDepartment)
             .SetDepartmentManager(parentDepartment, viewer);
 
-        var resolver = new AccessRoleResolver(repository);
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -86,7 +87,7 @@ public class AccessRoleResolverTests
             .SetParentDepartment(parentDepartment, grandparentDepartment)
             .SetDepartmentManager(grandparentDepartment, viewer);
 
-        var resolver = new AccessRoleResolver(repository);
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -106,7 +107,7 @@ public class AccessRoleResolverTests
             .SetDepartment(subject, subjectDepartment)
             .SetDepartmentManager(unrelatedDepartment, viewer);
 
-        var resolver = new AccessRoleResolver(repository);
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -128,7 +129,7 @@ public class AccessRoleResolverTests
             .SetManager(viewer, sharedManager)
             .SetManager(subject, sharedManager);
 
-        var resolver = new AccessRoleResolver(repository);
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -151,7 +152,7 @@ public class AccessRoleResolverTests
             .SetParentDepartment(childDepartment, subjectDepartment)
             .SetDepartmentManager(childDepartment, viewer);
 
-        var resolver = new AccessRoleResolver(repository);
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -174,7 +175,7 @@ public class AccessRoleResolverTests
             .SetDepartment(subject, subjectDepartment)
             .SetDepartmentManager(subjectDepartment, viewer);
 
-        var resolver = new AccessRoleResolver(repository);
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -189,7 +190,7 @@ public class AccessRoleResolverTests
 
         // Repository knows about neither person -- every lookup returns null.
         var repository = new FakeRelationshipRepository();
-        var resolver = new AccessRoleResolver(repository);
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -207,7 +208,7 @@ public class AccessRoleResolverTests
             .SetManager(qualifyingSubject, viewer);
             // nonQualifyingSubject has no relationship data at all.
 
-        var resolver = new AccessRoleResolver(repository);
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
 
         // Sequential resolution against the same resolver instance, as its own doc requires --
         // not Task.WhenAll (see the concurrency-safety test below).
@@ -230,7 +231,7 @@ public class AccessRoleResolverTests
             .SetManager(personId, personId)
             .SetDepartmentManager(Guid.NewGuid(), personId);
 
-        var resolver = new AccessRoleResolver(repository);
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(personId, personId);
 
@@ -253,7 +254,7 @@ public class AccessRoleResolverTests
             .SetProjectsManagedAsDmOrPm(personId, project)
             .SetAssignedProjects(personId, project);
 
-        var resolver = new AccessRoleResolver(repository);
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(personId, personId);
 
@@ -278,7 +279,7 @@ public class AccessRoleResolverTests
             .SetManager(personB, personC)
             .SetManager(personC, personA);
 
-        var resolver = new AccessRoleResolver(repository);
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, personA);
 
@@ -310,7 +311,7 @@ public class AccessRoleResolverTests
             .SetParentDepartment(deptB, deptC)
             .SetParentDepartment(deptC, deptA);
 
-        var resolver = new AccessRoleResolver(repository);
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -333,7 +334,7 @@ public class AccessRoleResolverTests
             .SetProjectsManagedAsDmOrPm(dm, project)
             .SetAssignedProjects(subject, project);
 
-        var resolver = new AccessRoleResolver(repository);
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(dm, subject);
 
@@ -352,7 +353,7 @@ public class AccessRoleResolverTests
             .SetProjectsManagedAsDmOrPm(pm, project)
             .SetAssignedProjects(subject, project);
 
-        var resolver = new AccessRoleResolver(repository);
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(pm, subject);
 
@@ -373,7 +374,7 @@ public class AccessRoleResolverTests
             .SetProjectsManagedAsDmOrPm(dm, project)
             .SetAssignedProjects(subject, project);
 
-        var resolver = new AccessRoleResolver(repository);
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
 
         var pmResult = await resolver.ResolveAsync(pm, subject);
         var dmResult = await resolver.ResolveAsync(dm, subject);
@@ -394,7 +395,7 @@ public class AccessRoleResolverTests
             .SetProjectsManagedAsDmOrPm(dm, viewersProject)
             .SetAssignedProjects(subject, subjectsProject);
 
-        var resolver = new AccessRoleResolver(repository);
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(dm, subject);
 
@@ -413,7 +414,7 @@ public class AccessRoleResolverTests
             .SetProjectsManagedAsDmOrPm(viewer, project)
             .SetAssignedProjects(subject, project);
 
-        var resolver = new AccessRoleResolver(repository);
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -429,11 +430,107 @@ public class AccessRoleResolverTests
 
         // Repository knows about neither person on any relation, including project assignment.
         var repository = new FakeRelationshipRepository();
-        var resolver = new AccessRoleResolver(repository);
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
         Assert.False(result.ReportingLine);
         Assert.False(result.ProjectLine);
+    }
+
+    // -- Review-loopback additions: a cycle elsewhere in the graph must not mask a real match, and
+    //    the ancestor walk must discriminate by department, not just "someone manages something". --
+
+    [Fact]
+    public async Task ResolveAsync_GenuineTransitiveMatchPlusUnrelatedCycleElsewhereInGraph_ReportingLineStillQualifies()
+    {
+        // The viewer is a genuine 2-hops-up manager of the subject (a real transitive match) --
+        // AND, entirely disconnected from that path, a separate 3-node cycle exists elsewhere in
+        // the same fake repository's data (personX -> personY -> personZ -> personX, none of whom
+        // are the viewer, the subject, or reachable from either). This proves the visited-set cycle
+        // guard is scoped to the walk it's protecting and doesn't interact badly with unrelated data
+        // that merely happens to also be present in the repository.
+        var viewer = Guid.NewGuid();
+        var directManager = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+
+        var personX = Guid.NewGuid();
+        var personY = Guid.NewGuid();
+        var personZ = Guid.NewGuid();
+
+        var repository = new FakeRelationshipRepository()
+            .SetManager(subject, directManager)
+            .SetManager(directManager, viewer)
+            .SetManager(personX, personY)
+            .SetManager(personY, personZ)
+            .SetManager(personZ, personX);
+
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+
+        var result = await resolver.ResolveAsync(viewer, subject);
+
+        Assert.True(result.ReportingLine);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_DepartmentManagementOfGrandparentWithDecoyManagerOnIntermediateDepartment_ReportingLineQualifiesViaCorrectViewer()
+    {
+        // Same shape as the grandparent-ancestor test above, but with a decoy: a different person
+        // manages the intermediate (parent) department, not the viewer, and a third, wholly
+        // unrelated person is on file but manages nothing in this chain at all. Proves the walk
+        // credits the viewer specifically for managing the grandparent department -- a bug that
+        // matched on "someone manages some department in the ancestor chain" regardless of who would
+        // pass with just the viewer's own true-positive assertion, but would also incorrectly
+        // qualify the unrelated bystander, which this test's second assertion catches.
+        var viewer = Guid.NewGuid();
+        var decoyManager = Guid.NewGuid();
+        var unrelatedBystander = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+        var subjectDepartment = Guid.NewGuid();
+        var parentDepartment = Guid.NewGuid();
+        var grandparentDepartment = Guid.NewGuid();
+
+        var repository = new FakeRelationshipRepository()
+            .SetDepartment(subject, subjectDepartment)
+            .SetParentDepartment(subjectDepartment, parentDepartment)
+            .SetParentDepartment(parentDepartment, grandparentDepartment)
+            .SetDepartmentManager(parentDepartment, decoyManager)
+            .SetDepartmentManager(grandparentDepartment, viewer);
+
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+
+        var result = await resolver.ResolveAsync(viewer, subject);
+        Assert.True(result.ReportingLine);
+
+        // Negative control: someone on file who manages nothing in this chain must not qualify just
+        // because other people (the decoy, the viewer) manage departments somewhere in it.
+        var bystanderResult = await resolver.ResolveAsync(unrelatedBystander, subject);
+        Assert.False(bystanderResult.ReportingLine);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ManagesSiblingDepartmentSharingSameParentAsSubjects_ReportingLineDoesNotQualify()
+    {
+        // Stronger negative than the "fully unrelated department" test above: the viewer manages a
+        // sibling department -- a different child of the SAME parent department the subject's own
+        // department belongs to -- not an ancestor of the subject's department. Sharing a parent must
+        // not itself confer Reporting-line access; the walk only goes up the subject's own chain.
+        var viewer = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+        var sharedParentDepartment = Guid.NewGuid();
+        var subjectDepartment = Guid.NewGuid();
+        var siblingDepartment = Guid.NewGuid();
+
+        var repository = new FakeRelationshipRepository()
+            .SetDepartment(subject, subjectDepartment)
+            .SetParentDepartment(subjectDepartment, sharedParentDepartment)
+            .SetParentDepartment(siblingDepartment, sharedParentDepartment)
+            .SetDepartmentManager(siblingDepartment, viewer);
+
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+
+        var result = await resolver.ResolveAsync(viewer, subject);
+
+        Assert.False(result.ReportingLine);
     }
 }

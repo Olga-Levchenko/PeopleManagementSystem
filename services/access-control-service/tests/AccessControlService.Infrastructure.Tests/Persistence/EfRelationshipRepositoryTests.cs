@@ -1,5 +1,6 @@
 using AccessControlService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Testcontainers.PostgreSql;
 
 namespace AccessControlService.Infrastructure.Tests.Persistence;
@@ -40,7 +41,7 @@ public sealed class EfRelationshipRepositoryTests : IAsyncLifetime
         // hand-rolled schema-creation shortcut like EnsureCreated().
         await _dbContext.Database.MigrateAsync();
 
-        _repository = new EfRelationshipRepository(_dbContext);
+        _repository = new EfRelationshipRepository(_dbContext, NullLogger<EfRelationshipRepository>.Instance);
     }
 
     public async Task DisposeAsync()
@@ -230,6 +231,118 @@ public sealed class EfRelationshipRepositoryTests : IAsyncLifetime
             ProjectId = projectId,
             PersonId = FixtureSeedData.ExecutiveId,
             Role = ProjectAssignmentRole.DeliveryManager,
+        });
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => _dbContext.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task GetDepartmentIdAsync_KnownPersonWithGenuinelyNullDepartment_ReturnsNull()
+    {
+        // DeliveryManagerOnlyId is a real, seeded, known person row -- but its DepartmentId column
+        // is genuinely null on file (it's a project-line-only fixture person, isolated from the
+        // reports-to/department fixture data by design -- see FixtureSeedData's remarks). Proves the
+        // real EF Core translation of a genuinely-null FK for a known row, as opposed to
+        // GetManagerIdAsync_UnknownPersonId_ReturnsNull above, which only proves the unknown-id case
+        // -- until now, the "known row, genuinely null FK" case for department was only ever
+        // exercised via the hand-written fake in AccessRoleResolverTests, never against real Postgres.
+        var departmentId = await _repository.GetDepartmentIdAsync(FixtureSeedData.DeliveryManagerOnlyId);
+
+        Assert.Null(departmentId);
+    }
+
+    [Fact]
+    public async Task GetDepartmentManagerIdAsync_KnownDepartmentWithGenuinelyNoManager_ReturnsNull()
+    {
+        // Every seeded department (Headquarters/Engineering/Platform) already has a manager on file,
+        // so this scenario -- a real, known department row that genuinely has no Person managing it
+        // -- can't be exercised via existing fixture data alone. Insert one directly (no migration
+        // change, just a normal row in this test's own ephemeral container) rather than extending
+        // the committed FixtureSeedData/migration, keeping this test self-contained.
+        var unmanagedDepartmentId = Guid.NewGuid();
+        _dbContext.Departments.Add(new Department
+        {
+            Id = unmanagedDepartmentId,
+            Label = "Fixture Dept: genuinely unmanaged (test-local)",
+            ParentDepartmentId = null,
+        });
+        await _dbContext.SaveChangesAsync();
+
+        var managerId = await _repository.GetDepartmentManagerIdAsync(unmanagedDepartmentId);
+
+        Assert.Null(managerId);
+    }
+
+    [Fact]
+    public async Task GetDepartmentManagerIdAsync_TwoPeopleSharingSameManagesDepartmentId_ReturnsLowerIdDeterministically()
+    {
+        // GetDepartmentManagerIdAsync's .OrderBy(p => p.Id) tie-break exists purely as a defensive
+        // fallback for the hypothetical case where the unique index on Person.ManagesDepartmentId
+        // (AccessControlDbContext.cs) is ever bypassed -- nothing previously proved it actually
+        // behaves as documented. That index is a real, migrated Postgres constraint (see
+        // AddProjectAssignment_DuplicateProjectAndPersonPair_... above for the analogous "the
+        // constraint IS enforced" proof on a different table), so a normal EF Core
+        // Add/SaveChangesAsync can't violate it here either -- the constraint itself has to be
+        // dropped first. This test's own Postgres container is freshly started and torn down for
+        // this test method alone (a new instance per test method -- see this class's own
+        // InitializeAsync/DisposeAsync, which xUnit invokes per test since this class isn't used via
+        // IClassFixture), so dropping the index here cannot affect any other test.
+        await _dbContext.Database.ExecuteSqlRawAsync(
+            "DROP INDEX \"IX_people_ManagesDepartmentId\"");
+
+        var departmentId = Guid.NewGuid();
+        var lowerId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var higherId = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff");
+
+        // ManagesDepartmentId has its own FK to Departments (independent of the unique index just
+        // dropped above) -- a department row has to exist here or the insert below fails on that FK
+        // instead of exercising the tie-break this test is actually about.
+        _dbContext.Departments.Add(new Department
+        {
+            Id = departmentId,
+            Label = "Fixture Dept: tie-break target (test-local)",
+            ParentDepartmentId = null,
+        });
+
+        _dbContext.People.AddRange(
+            new Person
+            {
+                Id = higherId,
+                Label = "Fixture Person: tie-break higher id (test-local)",
+                ManagerId = null,
+                DepartmentId = null,
+                ManagesDepartmentId = departmentId,
+            },
+            new Person
+            {
+                Id = lowerId,
+                Label = "Fixture Person: tie-break lower id (test-local)",
+                ManagerId = null,
+                DepartmentId = null,
+                ManagesDepartmentId = departmentId,
+            });
+        await _dbContext.SaveChangesAsync();
+
+        var managerId = await _repository.GetDepartmentManagerIdAsync(departmentId);
+
+        Assert.Equal(lowerId, managerId);
+    }
+
+    [Fact]
+    public async Task AddPerson_DuplicateManagesDepartmentId_SaveChangesThrowsOnUniqueConstraintViolation()
+    {
+        // Proves the "one manager per department" unique index (AccessControlDbContext.cs,
+        // person.HasIndex(p => p.ManagesDepartmentId).IsUnique()) actually rejects a duplicate write
+        // through the normal EF Core Add/SaveChangesAsync path -- nothing previously attempted this
+        // write; only the read path against pre-seeded, already-valid fixture data was tested.
+        // PlatformDepartmentId already has a seeded manager (PlatformLead) -- attempt a second one.
+        _dbContext.People.Add(new Person
+        {
+            Id = Guid.NewGuid(),
+            Label = "Fixture Person: second Platform manager, should be rejected (test-local)",
+            ManagerId = null,
+            DepartmentId = null,
+            ManagesDepartmentId = FixtureSeedData.PlatformDepartmentId,
         });
 
         await Assert.ThrowsAsync<DbUpdateException>(() => _dbContext.SaveChangesAsync());
