@@ -90,6 +90,17 @@ public class AppConfigTests
     }
 
     [Fact]
+    public void Load_WithWhitespacePaddedCorsOrigin_ReturnsTrimmedValue()
+    {
+        var values = ValidValues();
+        values["CORS_ORIGIN"] = "  http://localhost:4200  ";
+
+        var config = AppConfig.Load(new FakeConfiguration(values));
+
+        Assert.Equal("http://localhost:4200", config.CorsOrigin);
+    }
+
+    [Fact]
     public void Load_WithNonNumericRabbitMqPort_ThrowsClearException_NotFormatException()
     {
         var values = ValidValues();

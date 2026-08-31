@@ -133,4 +133,27 @@ public class HealthEndpointTests : IClassFixture<WebApplicationFactory<Program>>
             "response must include 'Access-Control-Allow-Origin' for a request from the configured CORS origin");
         Assert.Equal(configuredOrigin, Assert.Single(allowedOrigins));
     }
+
+    [Fact]
+    public async Task Health_WithCrossOriginRequestFromNonConfiguredOrigin_DoesNotReflectOriginHeader()
+    {
+        // Guards against a future regression to AllowAnyOrigin() (or an equivalent widening) --
+        // ASP.NET Core's CORS middleware, given a policy with a fixed WithOrigins(...) allow-list,
+        // simply omits 'Access-Control-Allow-Origin' from the response for a request from a
+        // non-matching origin (it does not reject/short-circuit the request itself for a
+        // non-preflight GET, and it never echoes back an origin that isn't on the configured
+        // allow-list). This test would fail if the policy were ever widened to AllowAnyOrigin(),
+        // which reflects any origin back unconditionally.
+        const string nonConfiguredOrigin = "http://evil.example.com";
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/health");
+        request.Headers.Add("Origin", nonConfiguredOrigin);
+
+        using var response = await _client.SendAsync(request);
+
+        if (response.Headers.TryGetValues("Access-Control-Allow-Origin", out var allowedOrigins))
+        {
+            Assert.NotEqual(nonConfiguredOrigin, Assert.Single(allowedOrigins));
+        }
+    }
 }

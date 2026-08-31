@@ -77,8 +77,10 @@ already-planned Epic 1 stories (1.9, 1.2, and 1.6 respectively), tracked in
 ## Commands
 
 - `dotnet build --configuration Release` — build (matches CI)
-- `dotnet test` — unit + integration tests (the Infrastructure test project needs Docker running
-  locally to start its ephemeral Postgres container)
+- `dotnet test --configuration Release` — unit + integration tests, Release configuration (matches
+  CI, which runs `dotnet build --configuration Release` then `dotnet test --no-build --configuration
+  Release`; the Infrastructure test project needs Docker running locally to start its ephemeral
+  Postgres container)
 - `dotnet run --project src/AccessControlService.Api` — run locally (needs Postgres up via
   `infra/docker-compose.yml` and a local `.env`, see Environment)
 - `dotnet tool restore` — one-time, restores the `dotnet-ef` CLI pinned in

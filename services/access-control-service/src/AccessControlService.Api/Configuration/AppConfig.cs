@@ -97,6 +97,10 @@ public sealed class AppConfig
                 "'.env', or appsettings -- it must not be null, empty, or whitespace-only.");
         }
 
-        return value;
+        // Trim before storing/using: a value copy-pasted from a '.env' line with stray leading/
+        // trailing whitespace would otherwise pass this non-blank check yet fail to match anything
+        // downstream (e.g. CORS_ORIGIN silently never matching a real Origin header, which differs
+        // from the trimmed value only by whitespace).
+        return value.Trim();
     }
 }

@@ -48,4 +48,32 @@ public class CorrelationIdMiddlewareTests
 
         Assert.True(Guid.TryParse(id, out _));
     }
+
+    [Fact]
+    public void ResolveCorrelationId_ValueContainingControlCharacter_GeneratesNewId_NotEchoedVerbatim()
+    {
+        var id = CorrelationIdMiddleware.ResolveCorrelationId(new StringValues("abc\r\ninjected: value"));
+
+        Assert.True(Guid.TryParse(id, out _));
+    }
+
+    [Fact]
+    public void ResolveCorrelationId_ValueOverMaxLength_GeneratesNewId_NotEchoedVerbatim()
+    {
+        var overLong = new string('a', CorrelationIdMiddleware.MaxLength + 1);
+
+        var id = CorrelationIdMiddleware.ResolveCorrelationId(new StringValues(overLong));
+
+        Assert.True(Guid.TryParse(id, out _));
+    }
+
+    [Fact]
+    public void ResolveCorrelationId_ValueAtMaxLength_IsEchoedUnchanged()
+    {
+        var exactLength = new string('a', CorrelationIdMiddleware.MaxLength);
+
+        var id = CorrelationIdMiddleware.ResolveCorrelationId(new StringValues(exactLength));
+
+        Assert.Equal(exactLength, id);
+    }
 }

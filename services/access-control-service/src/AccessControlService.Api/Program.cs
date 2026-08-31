@@ -87,7 +87,21 @@ app.MapHealthChecks("/api/v1/health", new HealthCheckOptions
     ResponseWriter = HealthCheckResponseWriter.WriteResponse,
 });
 
-app.Run();
+// Wrap startup so a port-bind failure (PORT already in use) surfaces as a clear, descriptive
+// exception naming the offending port -- consistent with AppConfig's fail-fast style elsewhere in
+// this file -- rather than a raw framework IOException/SocketException with no indication of which
+// configured value caused it.
+try
+{
+    app.Run();
+}
+catch (IOException ex)
+{
+    throw new InvalidOperationException(
+        $"Failed to start listening on configured PORT '{appConfig.Port}'. It may already be in use " +
+        "by another process. See the inner exception for details.",
+        ex);
+}
 
 // Exposes the implicit Program class to WebApplicationFactory<Program> in the test project.
 public partial class Program

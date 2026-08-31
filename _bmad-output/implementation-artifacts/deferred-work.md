@@ -117,3 +117,23 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1e-project-assignment-rabbitmq-wiring.md`
   summary: Revisit `ProjectAssignmentEventConsumer`'s retry-tagging mechanism (republishing a tagged copy, then acking the original) for an atomicity gap — if the channel dies between the republish and the ack, the original gets redelivered on reconnect while the tagged copy already sits in the queue, a duplicate-processing window. Currently safe only because `ProjectAssignmentEventProcessor`'s own idempotency (duplicate event id = no-op) absorbs the duplicate; revisit if a stronger exactly-once guarantee is ever needed.
   evidence: Review found no publisher confirms tie the two operations together; low risk today since the processor's idempotency already provides a safety net, but worth a real decision if publisher-confirms or an alternative retry-tagging approach (e.g. a header set via `IBasicProperties` before the first publish, avoiding republish entirely) becomes worth the added complexity.
+
+## Deferred from: code review of PR #14 (2026-08-31)
+
+- source_spec: `services/access-control-service/src/AccessControlService.Api/CLAUDE.md`
+  summary: Add a test proving Swagger/`/swagger` is unreachable outside the Development environment — `CLAUDE.md` states this as fact but nothing verifies it.
+  evidence: Fresh-context code review of PR #14 (chunk 1, scaffold) found no test asserting Swagger's environment gating; low risk for a scaffold-only service with no domain endpoints yet.
+
+- source_spec: `services/access-control-service/src/AccessControlService.Api/Program.cs`
+  summary: Document (or add) the service's HTTPS posture — no `UseHttpsRedirection()` call and no written decision that this is HTTP-only for local dev, TLS terminated upstream in real deployments.
+  evidence: Fresh-context code review of PR #14 found this gap; consistent with the rest of the repo's current local-dev-only posture (no TLS anywhere else yet either), not unique to this service, so not blocking.
+
+- source_spec: `.github/workflows/access-control-service-ci.yml`
+  summary: Consider whether CI path filters should also cover `infra/postgres-init/**`, `.gitattributes`, and root `.gitignore` — a regression in the DB-init script wouldn't retrigger any service's CI today.
+  evidence: Fresh-context code review of PR #14 found these files (touched by this PR) aren't in any service's CI path filter; low-churn files, acceptable tradeoff for now.
+
+## Corrections
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-1-two-dimensional-access-role-resolution.md`
+  summary: The earlier entry above titled "Wire real authentication/authorization ... and exception-handling middleware" (evidence citing `app.UseAuthorization()` called with no corresponding `AddAuthorization()`/`UseAuthentication()`) no longer reflects the current code and should be treated as resolved/moot, not actionable.
+  evidence: A fresh-context code review of the merged scaffold (2026-08-31) found `Program.cs` has no `UseAuthorization()`/`UseAuthentication()` call at all (verified via grep, zero matches) — the auth wiring this entry's evidence described has since been removed or was never present in the version that shipped. The broader goal (wiring real authentication/authorization once domain endpoints exist) may still be valid future work, but the specific evidence backing that entry is stale; do not action it on the strength of that evidence alone without re-checking `Program.cs` first.
