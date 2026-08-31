@@ -9,7 +9,8 @@ for db in \
   resourcing_service \
   work_management_service \
   integration_timetracker \
-  integration_peopleforce
+  integration_peopleforce \
+  access_control_service
 do
   psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
     SELECT 'CREATE DATABASE $db'

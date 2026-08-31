@@ -1,0 +1,18 @@
+﻿{
+  "$schema": "http://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "http": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "launchUrl": "swagger",
+      "applicationUrl": "http://localhost:3007",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "PORT": "3007",
+        "CORS_ORIGIN": "http://localhost:4200",
+        "ConnectionStrings__Postgres": "Host=localhost;Port=5432;Database=access_control_service;Username=postgres;Password=postgres"
+      }
+    }
+  }
+}
