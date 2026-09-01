@@ -863,6 +863,43 @@ is the single source of truth for that decision, not a profile-page-only rule
 **Then** it is not offered as a filter option at all — it must not be possible to infer a hidden
 value by filtering on it
 
+### Story 1.11: Platform authentication via Keycloak
+
+As a platform user,
+I want to log in through the organization's identity provider and have my identity verified on
+every request,
+So that every access-role and permission decision elsewhere in the platform can trust who is
+actually asking, rather than a value any caller could supply.
+
+**Acceptance Criteria:**
+
+**Given** an employee visiting the platform
+**When** they authenticate through Keycloak
+**Then** they receive a valid identity token and are recognized by the BFF on subsequent requests
+
+**Given** a request arriving at the BFF
+**When** its bearer token is missing, expired, malformed, or fails signature/issuer verification
+against Keycloak
+**Then** the request is rejected before reaching any domain service — never forwarded with a
+best-effort or default identity
+
+**Given** a request the BFF has verified
+**When** it composes calls to domain services (Access Control, People/Organization, Work
+Management, Resourcing)
+**Then** those services receive a platform-established verified identity — never a caller-supplied
+`actorId`/`personId` taken from a request body, query string, or client-controlled header
+
+**Given** a domain-to-domain call with no browser-originated request involved (e.g. a background
+job or one service calling another directly)
+**When** that call reaches a target service
+**Then** it carries a trusted service-to-service identity established by the platform, not an
+unauthenticated or self-asserted one
+
+**Given** a user's session or token expires or is revoked
+**When** they make a subsequent request
+**Then** it is rejected the same way a never-authenticated request would be — no stale session
+grants continued access
+
 ---
 
 ## Epic 2: All Employees List & Self-Service
