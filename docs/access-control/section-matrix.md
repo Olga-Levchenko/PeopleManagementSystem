@@ -39,22 +39,22 @@ Consumers of this doc: `.claude/rules/access-control-invariants.md`,
 
 | # | Section | Contents | Self | Reporting line | Project line | PP | Colleague | Shared link | Test coverage |
 |---|---|---|---|---|---|---|---|---|---|
-| S1 | Identity card | Full name, photo, position, department/unit, country/city, work email/phone, birthday (day+month), start date, manager, people partner, mentor, current project(s) | R (photo RW) | RW¹ | RW¹ | RW¹ | R | on by default | not started |
-| S2 | Personal contacts | Personal phone/email, messengers, residential address, current place of stay | RW | R | **—** | RW | — | cfg | not started |
-| S3 | Emergency contacts | Contact person, relationship, phone | RW | R | **—** | RW | — | — (never shareable) | not started |
-| S4 | Employment | Employee type (FTE/Subcontractor), grade, seniority, position history, English level, probation status, employment status, contract type | R | RW | RW | RW | — | cfg | not started |
-| S5 | Documents | Contract, W8, cooperation form, Diia City, CV, certificates | R (own) + upload certificates | R | **R, CV + certificates only** | RW | — | cfg | not started |
-| S6 | Risks | Current level, trend, description, details, date, full history — no closed/terminal state (4.6) | — | RW | RW | RW | — | cfg | not started |
-| S7 | Management notes | Free-form notes by managers and PP, per-record visibility flags | R — only records flagged visible for employee | RW | RW; **PM exception**: R, only records flagged visible for PM² | RW | — | — (never shareable) | not started |
-| S8 | Feedbacks | Structured feedback records (4.15), including joining-interview feedback (moved here from S5 in v1.5) | R — only records flagged shared with employee | RW | RW | RW | — | cfg | not started |
-| S9 | Career timeline | System-generated event log (4.9); includes department change; departure/dismissal is explicitly NOT a timeline event (v1.5) — see S4 employment status instead | R | RW | RW | RW | — | cfg | not started |
-| S10 | Leaves and absences | Vacation, sick, parental, extended leave — dates and types | R | R | R | R | **R, dates only — type hidden (v1.5)** | cfg | not started |
-| S11 | Projects | Project, PM, DM, period | R | R | R | R | R (project name only) | cfg | not started |
-| S12 | CDS | Skills matrix link (keyed off the department entity, v1.5), assessment log, results, final conclusion, IDP | R (+ complete own IDP) | RW | RW | RW | — | cfg | not started |
-| S13 | Mentorship | Open-to-mentor flag, assigned mentor, assigned mentees, ended pairs, closure note (v1.5: a field on the pair record, readable by reporting line/project line/PP only) | RW (own flag), R (pairs) | RW | RW | RW | — | — (never shareable) | not started |
-| S14 | Action items and tasks | Tasks assigned to the person, incl. form tasks (4.5) | R (own) + mark complete | RW | RW | RW | — | — (never shareable — added to the never-share set in v1.5) | not started |
-| S15 | Request history | Resourcing requests proposed → approved/rejected, with feedback | — | R | R | R | — | cfg (DM sees own requests natively) | not started |
-| S16 | Custom fields | Per-field visibility (4.1) | per field visibility | RW | RW | RW | per field visibility | cfg | not started |
+| S1 | Identity card | Full name, photo, position, department/unit, country/city, work email/phone, birthday (day+month), start date, manager, people partner, mentor, current project(s) | R (photo RW) | RW¹ | RW¹ | RW¹ | R | on by default | partial |
+| S2 | Personal contacts | Personal phone/email, messengers, residential address, current place of stay | RW | R | **—** | RW | — | cfg | partial |
+| S3 | Emergency contacts | Contact person, relationship, phone | RW | R | **—** | RW | — | — (never shareable) | partial |
+| S4 | Employment | Employee type (FTE/Subcontractor), grade, seniority, position history, English level, probation status, employment status, contract type | R | RW | RW | RW | — | cfg | partial |
+| S5 | Documents | Contract, W8, cooperation form, Diia City, CV, certificates | R (own) + upload certificates | R | **R, CV + certificates only** | RW | — | cfg | partial |
+| S6 | Risks | Current level, trend, description, details, date, full history — no closed/terminal state (4.6) | — | RW | RW | RW | — | cfg | partial |
+| S7 | Management notes | Free-form notes by managers and PP, per-record visibility flags | R — only records flagged visible for employee | RW | RW; **PM exception**: R, only records flagged visible for PM² | RW | — | — (never shareable) | partial |
+| S8 | Feedbacks | Structured feedback records (4.15), including joining-interview feedback (moved here from S5 in v1.5) | R — only records flagged shared with employee | RW | RW | RW | — | cfg | partial |
+| S9 | Career timeline | System-generated event log (4.9); includes department change; departure/dismissal is explicitly NOT a timeline event (v1.5) — see S4 employment status instead | R | RW | RW | RW | — | cfg | partial |
+| S10 | Leaves and absences | Vacation, sick, parental, extended leave — dates and types | R | R | R | R | **R, dates only — type hidden (v1.5)** | cfg | partial |
+| S11 | Projects | Project, PM, DM, period | R | R | R | R | R (project name only) | cfg | partial |
+| S12 | CDS | Skills matrix link (keyed off the department entity, v1.5), assessment log, results, final conclusion, IDP | R (+ complete own IDP) | RW | RW | RW | — | cfg | partial |
+| S13 | Mentorship | Open-to-mentor flag, assigned mentor, assigned mentees, ended pairs, closure note (v1.5: a field on the pair record, readable by reporting line/project line/PP only) | RW (own flag), R (pairs) | RW | RW | RW | — | — (never shareable) | partial |
+| S14 | Action items and tasks | Tasks assigned to the person, incl. form tasks (4.5) | R (own) + mark complete | RW | RW | RW | — | — (never shareable — added to the never-share set in v1.5) | partial |
+| S15 | Request history | Resourcing requests proposed → approved/rejected, with feedback | — | R | R | R | — | cfg (DM sees own requests natively) | partial |
+| S16 | Custom fields | Per-field visibility (4.1) | per field visibility | RW | RW | RW | per field visibility | cfg | partial |
 
 ¹ **Manager, people partner, and department are not writable through S1 as of v1.5.** They are
 access-switch fields behind a dedicated, journaled, non-self-assignable screen with its own
@@ -65,6 +65,16 @@ shown here covers the rest of S1's fields (photo, position, country/city, etc.),
 DM reached via project assignment still gets full RW on S7 like reporting line/PP. This is one of
 the **two** documented exceptions to "Manager sees everything" as of v1.5 (the other is the
 Project line's narrowed S2/S3/S5 above) — see Rules below.
+
+**Test coverage note (Story 1.9):** every row's `partial` status above reflects
+`ManagerSectionAccessPolicyTests` and the `/api/v1/access-roles/resolve` HTTP composition tests
+(`AccessRoleResolverCompositionTests`) — positive and negative section-access-level coverage for
+the **Reporting line and Project line columns only**, across all 16 sections, including the
+Reporting-line-only, Project-line-only, and both-lines-qualify (most-permissive-path-wins) cases.
+It does **not** cover Self/PP/Colleague/Shared-link (still `not started` in substance, tracked
+under the `partial` label until those audiences get their own rows of coverage), nor any actual
+profile field data or the S1 write-restriction/S7 PM-flag/S16 per-field nuances footnoted above —
+those remain Story 1.6/1.7/1.10's jobs respectively.
 
 ## Rules that follow from the matrix (3.3 — full text is normative, this is a recap)
 
@@ -96,16 +106,17 @@ Project line's narrowed S2/S3/S5 above) — see Rules below.
   shared-link access. `access-control-reviewer` should check that anything touching these six
   event types actually writes a journal entry, not just performs the change.
 
-## Open question this doc surfaces (not yet resolved by the changelog)
+## Resolved: multi-path precedence between Reporting line and Project line (Story 1.9)
 
-- **Multi-path precedence between Reporting line and Project line.** S7 has an explicit
-  most-permissive-path-wins rule when a viewer reaches a subject through more than one relationship
-  (footnote ²). The changelog doesn't say whether the same rule generalizes to the *other* sections
-  narrowed for Project line (S2/S3/S5) — e.g. does a person's actual UM (reporting line, full
-  access) who is *also* a PM on one of their projects (project line, narrowed) get the full
-  reporting-line view, or does the narrower path somehow apply? The S7 precedent (most permissive
-  wins) is the obvious candidate answer, but this is inference, not stated fact — flagged as a new
-  open question for whoever owns the spec relationship; tracked in the PRD (§8, new item).
+- **Most-permissive-path-wins generalizes to S2/S3/S5, same as S7.** Resolved by Story 1.9's own
+  AC and implemented in `ManagerSectionAccessPolicy`
+  (`services/access-control-service/src/AccessControlService.Domain/ManagerSectionAccessPolicy.cs`):
+  whenever a viewer qualifies for Reporting line at all, they get the full, unnarrowed
+  Reporting-line view for every section — including S2/S3/S5 — regardless of whether they *also*
+  qualify for Project line toward the same subject. The Project-line narrowing (S2/S3 → `—`, S5 →
+  R/CV+certificates-only) applies only when Project line is the viewer's *sole* qualifying line.
+  This was previously an open question (S7's footnote ² precedent was the candidate answer, not a
+  stated fact) — it is no longer open as of Story 1.9.
 
 ## Profile sharing (4.8) specifics, for the `cfg` / Shared link column
 

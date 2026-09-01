@@ -35,9 +35,16 @@ escaping `ProcessAsync` itself — to ack/reject accordingly) and `FakeProjectAs
 (test-only, publishes to the same queue/contract a real producer would). See
 `_bmad-output/implementation-artifacts/deferred-work.md` for what's still carved off (concurrency
 protection around the watermark read-then-write, whether one person can hold both DM and PM on the
-same project, and the missing `Project`-table/id validation). Precedence between qualifying lines,
-revocation, and the section-gated HTTP response are not deferred-work carve-offs — they're
-already-planned Epic 1 stories (1.9, 1.2, and 1.6 respectively), tracked in
+same project, and the missing `Project`-table/id validation). Story 1.9
+(`spec-1-9-project-line-narrowing-vs-reporting-line.md`) added the first HTTP endpoint exposing
+`AccessRoleResolver` (per ADR-003's recommended shape) — `GET /api/v1/access-roles/resolve` — plus
+a new, pure `ManagerSectionAccessPolicy` that maps a resolved `AccessRole` to the Manager
+audience's per-section (S1–S16) access, resolving the section-matrix's former "most-permissive-
+path-wins" open question: whenever `ReportingLine` qualifies, every section (including S2/S3/S5)
+gets the unnarrowed Reporting-line view regardless of `ProjectLine`; only a viewer who qualifies
+via `ProjectLine` alone gets S2/S3 dropped to `None` and S5 narrowed to Read/CV+certificates-only.
+Revocation and the full section-gated *profile* response (real field data) are not deferred-work
+carve-offs — they're already-planned Epic 1 stories (1.2 and 1.6 respectively), tracked in
 `_bmad-output/planning-artifacts/epics.md` and
 `_bmad-output/implementation-artifacts/sprint-status.yaml`.
 
@@ -57,9 +64,15 @@ already-planned Epic 1 stories (1.9, 1.2, and 1.6 respectively), tracked in
 - **Tests**: xUnit throughout —
   - `tests/AccessControlService.Api.Tests/` — unit tests (config validation, correlation-id
     resolution) plus a `WebApplicationFactory<Program>` pipeline test and a real-subprocess
-    real-socket test (`RealServerBindingTests`)
+    real-socket test (`RealServerBindingTests`); `AccessRoleResolverCompositionTests` also covers
+    Story 1.9's real, DI-composed, migrated-Postgres HTTP tests for
+    `GET /api/v1/access-roles/resolve` — Reporting-line-only, Project-line-only (narrowed),
+    both-lines-qualify (most-permissive-path-wins), neither-line-qualifies (`null`
+    `managerSectionAccess`), and the missing/invalid-`Guid`-query-param 400 cases
   - `tests/AccessControlService.Domain.Tests/` — `AccessRoleResolver` unit tests against a
-    hand-written fake `IRelationshipRepository` (no EF Core, no database)
+    hand-written fake `IRelationshipRepository` (no EF Core, no database); `ManagerSectionAccessPolicyTests`
+    covers all 16 sections for the narrowed (Project-line-only), unnarrowed (Reporting-line-only),
+    and combined-lines cases
   - `tests/AccessControlService.Infrastructure.Tests/` — `EfRelationshipRepository` integration
     tests against a real, ephemeral Postgres started via `Testcontainers.PostgreSql` (requires
     Docker), with the actual EF Core migration applied — the only tests that exercise real EF Core
@@ -98,7 +111,11 @@ already-planned Epic 1 stories (1.9, 1.2, and 1.6 respectively), tracked in
   `AccessRole.cs` (result type — `ReportingLine` and `ProjectLine`, two independent flags, never
   collapsed), `IRelationshipRepository.cs` (the port Infrastructure implements),
   `AccessRoleResolver.cs` (the transitive reports-to/department-management walk with a bounded
-  cycle guard, plus the direct, non-transitive project-assignment intersection check)
+  cycle guard, plus the direct, non-transitive project-assignment intersection check),
+  `ManagerSectionAccessPolicy.cs` (Story 1.9: `SectionAccessLevel` enum — `None`/`Read`/
+  `ReadWrite` — plus `SectionAccess`/`ManagerSectionAccess` records and
+  `ManagerSectionAccessPolicy.Resolve(AccessRole)`, the pure most-permissive-path-wins mapping from
+  a resolved `AccessRole` to the Manager audience's 16 named section properties, S1–S16)
 - `src/AccessControlService.Infrastructure/Persistence/` — `AccessControlDbContext.cs` (EF Core,
   Npgsql provider), `Person.cs`/`Department.cs`/`ProjectAssignment.cs`/`ProjectAssignmentRole.cs`
   (fixture-only entities, stubbed pending a real synced relationship/project-assignment projection
@@ -123,9 +140,18 @@ already-planned Epic 1 stories (1.9, 1.2, and 1.6 respectively), tracked in
   `spec-1-1e-project-assignment-rabbitmq-wiring.md`
 - `src/AccessControlService.Api/Program.cs` — bootstrap: config validation, CORS, correlation-id
   middleware, health checks, controllers, the composition-root wiring of
-  `AccessControlDbContext`/`EfRelationshipRepository`/`AccessRoleResolver` into DI (no HTTP
-  endpoint calls the resolver yet — deferred until a real consumer exists), and registration of
-  `ProjectAssignmentEventConsumer` as a hosted service
+  `AccessControlDbContext`/`EfRelationshipRepository`/`AccessRoleResolver` into DI, and
+  registration of `ProjectAssignmentEventConsumer` as a hosted service
+- `src/AccessControlService.Api/Controllers/AccessRolesController.cs` — Story 1.9:
+  `GET /api/v1/access-roles/resolve?viewerPersonId={guid}&subjectPersonId={guid}`, a thin wrapper
+  calling `AccessRoleResolver` then `ManagerSectionAccessPolicy` and mapping both to response DTOs
+  (`AccessRoleResolveResponse`/`ManagerSectionAccessResponse`/`SectionAccessResponse`, this file
+  only — Domain stays free of JSON attributes per AD-1). `managerSectionAccess` is `null` in the
+  response whenever neither `reportingLine` nor `projectLine` qualifies. `SectionAccessLevel` is
+  rendered as a PascalCase string (`Level.ToString()`), matching
+  `HealthCheckResponseWriter`'s existing `report.Status.ToString()` convention. A missing/invalid
+  `Guid` query parameter falls through to ASP.NET Core's own `[ApiController]` model-validation
+  400, with no custom handling needed.
 - `src/AccessControlService.Api/Configuration/AppConfig.cs` — fail-fast startup config validation
   (`PORT`, `CORS_ORIGIN`, `ConnectionStrings:Postgres`, `RABBITMQ_HOST`/`RABBITMQ_PORT`/
   `RABBITMQ_USER`/`RABBITMQ_PASSWORD` — values only, not actual broker reachability, so the app
@@ -195,7 +221,10 @@ already-planned Epic 1 stories (1.9, 1.2, and 1.6 respectively), tracked in
 - **An unknown person/department id is indistinguishable from "genuinely has no
   manager/department"** — `EfRelationshipRepository`'s four lookup methods return `null` for both
   an id that matches no seeded row and a known row whose FK column is legitimately null. This fails
-  in the safe (access-denying) direction and has zero blast radius today (no real HTTP consumer
-  passes unsynced ids yet), but it's a tracked, deliberate gap, not an oversight — a real decision
-  (throw, log, or another signal) is needed before any consumer is wired up, since a data-sync gap
-  could otherwise masquerade indefinitely as "correctly no access." See deferred-work.md.
+  in the safe (access-denying) direction. **No longer purely theoretical as of Story 1.9**: `GET
+  /api/v1/access-roles/resolve` is now a real HTTP consumer that accepts arbitrary
+  `viewerPersonId`/`subjectPersonId` values from any caller, including ids that don't correspond to
+  any seeded/synced person — it silently resolves to `AccessRole.None` rather than distinguishing
+  "not a real person" from "no relationship." The underlying decision (throw, log, or another
+  signal) is still deliberately deferred, not resolved by this story — see deferred-work.md — but
+  the gap now has a concrete, reachable caller instead of a hypothetical one.

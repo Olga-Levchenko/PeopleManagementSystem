@@ -1225,13 +1225,12 @@ still applies.
    this contradiction directly, but it retires "manager line" as a single concept (splitting it into
    Reporting line/Project line) — so whoever owns the spec now needs to say not just "S1 or §4.11,"
    but, if §4.11's narrower intent wins, *which* line(s) plus PP get to see the mentor.
-6. `[v1.5, new]` **Reporting-line vs. Project-line precedence when both apply (FR-6a).** S7 has an
-   explicit most-permissive-path-wins rule for a viewer who reaches a subject through more than one
-   relationship. The changelog doesn't say whether the same rule generalizes to the Project line's
-   *other* narrowed sections (S2/S3/S5) — e.g. does a person's actual department manager who is
-   also a PM on one of their projects get the Reporting line's full view, or does the narrower path
-   somehow apply? FR-6a currently assumes most-permissive-wins by analogy to S7; needs spec-owner
-   confirmation.
+6. `[v1.5, new]` ~~**Reporting-line vs. Project-line precedence when both apply (FR-6a).**~~
+   **RESOLVED (Story 1.9):** most-permissive-path-wins generalizes to S2/S3/S5, same as S7 —
+   whenever Reporting line qualifies at all, the viewer gets the full, unnarrowed view for every
+   section, regardless of whether Project line also qualifies toward the same subject. Implemented
+   in `services/access-control-service/src/AccessControlService.Domain/ManagerSectionAccessPolicy.cs`
+   and recorded in `docs/access-control/section-matrix.md`.
 7. `[v1.5, new]` **Timetracker Projects API update model (FR-44).** **Resolved for the supplied
    contract:** `GET /api/projects/talents` exposes project and member state retrieval, and the
    supplied OpenAPI documents no event or webhook endpoints. This does not prove that the provider
@@ -1254,9 +1253,9 @@ still applies.
   min/4h bounds are now spec fact, not an assumption; removed from this index.
 - §4.2 FR-4 — mentor visible to Colleague per the broader S1 reading, conflicting with spec
   §4.11's narrower wording; logged as Open Question 5 (`[v1.5]` sharpened, not resolved).
-- §4.2 FR-6a — most-permissive-path-wins assumed to generalize from S7 to the Project line's
-  S2/S3/S5 narrowing when Reporting line and Project line both apply to the same subject; logged
-  as Open Question 6. `[v1.5, new]`
+- ~~§4.2 FR-6a — most-permissive-path-wins assumed to generalize from S7 to the Project line's
+  S2/S3/S5 narrowing~~ **RESOLVED (Story 1.9)**: confirmed and implemented; removed from this
+  index as an open assumption. See Open Question 6.
 - §4.15 FR-44 — the supplied OpenAPI establishes only that the Projects API exposes state
   retrieval and documents no events or webhooks. It does not establish provider capabilities,
   polling cadence, rate limits, pagination, completeness, visibility delay, or removal semantics.
