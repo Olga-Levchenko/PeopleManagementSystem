@@ -7,11 +7,47 @@
   /*
     Spine sections this mock illustrates:
     - EXPERIENCE.md > Information Architecture > "All Employees" (one surface, two modes)
-    - EXPERIENCE.md > Interaction Primitives > filter builder, saved views, inline editing
+    - EXPERIENCE.md > Interaction Primitives > filter builder, saved views, inline editing,
+      row grouping, bulk selection, pagination
+    - EXPERIENCE.md > Component Patterns > Avatar, SeverityBadge, StatusPill
     - EXPERIENCE.md > Key Flows > Flow 7 (Vagif, colleague mode)
-    - DESIGN.md > Colors, Typography
-    Two sections in one file: Manager mode (top, full filters/columns/saved-view tabs/export)
-    vs Colleague mode (bottom, whitelist columns only, no filter builder for closed sections).
+    - DESIGN.md > Colors, Components (avatar, severity-badge, status-pill)
+
+    Layout pattern adapted from a user-supplied Jira "List" view screenshot (checkbox
+    multi-select, collapsible grouped rows, avatar badges, persistent search/filter/group
+    toolbar, column-manager icon docked to the table header, "X of Y" pagination, a quick-filter
+    avatar stack) - the STRUCTURE/DENSITY is adopted, explicitly NOT Jira's color theme, per the
+    user's own instruction: this stays on DESIGN.md's light Zinc+Blue tokens unchanged (dark mode
+    is explicitly out of scope per State Patterns), Risk/Employee-type/Mentorship are rendered as
+    filled pill chips using the SAME existing severity and secondary tokens (no new colors) for a
+    denser Jira-chip feel while staying non-interactive (no dropdown chevron - SeverityBadge/
+    StatusPill are display-only, per Component Patterns), and avatars stay photo-first with a
+    single muted fallback tone rather than Jira's per-person random color-hashing, which would
+    read as decorative flourish against this platform's own Do's and Don'ts. One Jira affordance
+    deliberately NOT ported: the floating bottom-left "+ Create" - this product's population is a
+    seeded list with no employee-creation UI anywhere (spec: no SSO/AD/employee creation).
+
+    Requirements traced literally, not just illustratively:
+    - project-requirements.md 4.1's own column example list (manager mode): Country, join year,
+      years with the company (derived), gender, department, grade, position, employee type,
+      English level, risk level, mentorship status, project, custom fields.
+    - section-matrix.md's Colleague row per section: S1 full read (all its fields - name, photo,
+      position, department/unit, country/city, manager, people partner, mentor, current project),
+      S10 dates-only no type, S11 project name only. Everything from S2-S9/S12-S15 and any
+      management-visibility S16 custom field is CLOSED - never offered, not just unchecked.
+    Both modes render the Columns control as a real Jira-style popover (search box, checkbox
+    list, footer) inside a native <details>/<summary> element - CLOSED by default, opens only on
+    click of the small gear icon docked above the table's top-right corner, exactly like Jira's
+    own column-manager icon. No JavaScript: <details> is the whole mechanism. Colleague mode's
+    popover lists ONLY the whitelist fields - nothing closed appears in it, not even disabled, per
+    EXPERIENCE.md's "Permission-adjacent absence" rule (a greyed-out "Grade" row would itself leak
+    that S4 exists, the same class of leak as an error message naming a closed section). The
+    closed-fields list for colleague mode instead lives in a separately-styled, clearly-labeled
+    "design-review note" block above the table - explicitly NOT part of the shipped UI, kept only
+    for reviewer traceability against section-matrix.md.
+    Checkboxes appear in manager mode only (colleague mode has no bulk action to offer). Grouping
+    and pagination appear in both modes - they reorganize/paginate rows the viewer can already
+    see, they never change which fields a row exposes.
   */
   :root {
     --background: oklch(1 0 0); --foreground: oklch(0.145 0.004 286);
@@ -19,6 +55,7 @@
     --secondary-foreground: oklch(0.205 0.008 286); --muted: oklch(0.961 0.003 286);
     --muted-foreground: oklch(0.556 0.012 286); --border: oklch(0.898 0.003 286);
     --primary: oklch(0.488 0.243 264.376); --primary-foreground: oklch(0.985 0 0);
+    --severity-low: oklch(0.65 0.15 145); --severity-medium: oklch(0.75 0.18 60);
     --radius: 10px;
   }
   * { box-sizing: border-box; }
@@ -32,17 +69,67 @@
   .tabs { display:flex; gap: 6px; margin-bottom: 12px; }
   .tab { font-size: 12px; padding: 6px 12px; border-radius: 8px 8px 0 0; border: 1px solid var(--border); border-bottom: none; color: var(--muted-foreground); }
   .tab.active { background: var(--secondary); color: var(--foreground); font-weight: 600; }
-  .toolbar { display:flex; align-items:center; justify-content: space-between; margin-bottom: 12px; }
-  .filters { display:flex; gap:8px; }
-  .chip { font-size: 12px; border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; color: var(--muted-foreground); }
+
+  .toolbar { display:flex; align-items:center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .search { font-size: 12px; border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; color: var(--muted-foreground); background: var(--card); min-width: 160px; }
+  .filters { display:flex; gap:8px; flex-wrap: wrap; align-items: center; }
+  .chip { font-size: 12px; border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; color: var(--muted-foreground); background: var(--card); }
+  .chip strong { color: var(--foreground); font-weight: 600; }
   .btn { font-size: 12px; font-weight: 600; border: 1px solid var(--border); border-radius: 8px; padding: 6px 14px; background: var(--card); }
-  .btn-primary { background: var(--primary); color: var(--primary-foreground); border: none; }
+  .btn-icon { width: 30px; height: 30px; padding: 0; display:inline-flex; align-items:center; justify-content:center; font-size: 14px; }
+  .toolbar-right { display:flex; gap:8px; align-items:center; }
+
+  .table-region { position: relative; }
+  .col-dd-anchor { position: absolute; top: -38px; right: 0; z-index: 30; }
+  .col-dd { position: relative; }
+  .col-dd summary { list-style: none; width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--muted-foreground); font-size: 13px; display:flex; align-items:center; justify-content:center; cursor: pointer; }
+  .col-dd summary::-webkit-details-marker { display:none; }
+  .col-dd[open] summary { background: var(--secondary); color: var(--foreground); border-color: var(--primary); }
+
+  .col-popover { position: absolute; top: 36px; right: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); box-shadow: 0 10px 24px rgba(0,0,0,0.14); max-width: 300px; overflow: hidden; }
+  .col-popover-search { display:flex; align-items:center; gap:8px; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+  .col-popover-search .icon { color: var(--muted-foreground); font-size: 12px; }
+  .col-popover-search input { border:none; outline:none; font-size: 13px; width:100%; background:transparent; color: var(--muted-foreground); }
+  .col-popover-list { max-height: 230px; overflow-y:auto; padding: 4px 0; }
+  .col-popover-item { display:flex; align-items:center; gap:10px; padding: 6px 12px; font-size: 13px; cursor: default; }
+  .col-popover-item input[type=checkbox] { margin:0; }
+  .col-popover-footer { display:flex; align-items:center; justify-content: space-between; padding: 8px 12px; border-top: 1px solid var(--border); font-size: 12px; }
+  .col-popover-footer a { color: var(--primary); font-weight:600; text-decoration:none; }
+  .col-popover-footer .count { color: var(--muted-foreground); }
+
+  .review-note { border: 1px dashed var(--border); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 14px; background: var(--muted); font-size: 12px; color: var(--muted-foreground); max-width: 620px; }
+  .review-note-label { font-size: 10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color: var(--muted-foreground); margin-bottom:6px; display:block; }
+  .review-note ul { margin: 6px 0 0; padding-left: 18px; }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { text-align: left; padding: 8px 12px; color: var(--muted-foreground); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; border-bottom: 1px solid var(--border); }
-  td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  th { text-align: left; padding: 8px 12px; color: var(--muted-foreground); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; vertical-align: middle; }
   tr:last-child td { border-bottom: none; }
   .editable { border: 1px dashed var(--border); border-radius: 4px; padding: 2px 6px; }
   .note { font-size: 12px; color: var(--muted-foreground); margin-top: 10px; }
+  .sev { display:inline-flex; align-items:center; gap:6px; }
+  .sev-dot { width:8px; height:8px; border-radius:999px; }
+  .pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 999px; background: var(--secondary); color: var(--secondary-foreground); }
+
+  .group-row td { background: var(--secondary); font-weight: 600; padding: 9px 12px; }
+  .group-row .chev { display:inline-block; width: 14px; color: var(--muted-foreground); }
+  .group-count { font-weight: 400; color: var(--muted-foreground); margin-left: 6px; }
+
+  .person { display:flex; align-items:center; gap:8px; }
+  .avatar { width: 22px; height: 22px; border-radius: 999px; background: var(--muted); color: var(--muted-foreground); font-size: 10px; font-weight: 700; display:flex; align-items:center; justify-content:center; flex-shrink: 0; }
+
+  .pagination { display:flex; align-items:center; justify-content: center; gap: 10px; margin-top: 12px; font-size: 12px; color: var(--muted-foreground); }
+  .pagination .refresh { border: 1px solid var(--border); border-radius: 999px; width: 22px; height: 22px; display:inline-flex; align-items:center; justify-content:center; }
+
+  .avatar-stack { display:flex; align-items:center; }
+  .avatar-stack .avatar { border: 2px solid var(--card); margin-left: -8px; cursor: default; }
+  .avatar-stack .avatar:first-child { margin-left: 0; }
+  .avatar-stack-label { font-size: 11px; color: var(--muted-foreground); margin-right: 6px; }
+
+  .collapse-toggle { font-size: 12px; color: var(--primary); margin-bottom: 8px; display:inline-block; }
+
+  .pill-tint { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 999px; }
 </style>
 </head>
 <body>
@@ -58,19 +145,93 @@
         <div class="tab">Open to mentoring</div>
         <div class="tab">+ New view</div>
       </div>
+
       <div class="toolbar">
-        <div class="filters">
-          <span class="chip">Department: Engineering management</span>
-          <span class="chip">+ Add filter</span>
+        <input class="search" placeholder="Search employees" />
+        <div class="avatar-stack" title="Quick filter: your direct reports">
+          <span class="avatar-stack-label">My team:</span>
+          <span class="avatar">AF</span><span class="avatar">CI</span><span class="avatar">ST</span><span class="avatar">BM</span>
         </div>
-        <button class="btn">Export .xlsx</button>
+        <div class="filters">
+          <span class="chip">Department: <strong>Engineering management</strong></span>
+          <span class="chip">+ Add filter</span>
+          <span class="chip">Group: <strong>Department</strong> ▾</span>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn">Columns ▾</button>
+          <button class="btn">Export .xlsx</button>
+        </div>
       </div>
+
+      <a class="collapse-toggle">Collapse all</a>
+      <div class="table-region">
+        <div class="col-dd-anchor">
+          <details class="col-dd">
+            <summary title="Manage columns">⚙</summary>
+            <div class="col-popover">
+              <div class="col-popover-search"><span class="icon">🔍</span><input placeholder="Search columns" /></div>
+              <div class="col-popover-list">
+                <label class="col-popover-item"><input type="checkbox" checked />Position</label>
+                <label class="col-popover-item"><input type="checkbox" checked />Department</label>
+                <label class="col-popover-item"><input type="checkbox" checked />Country</label>
+                <label class="col-popover-item"><input type="checkbox" checked />Gender</label>
+                <label class="col-popover-item"><input type="checkbox" checked />Grade</label>
+                <label class="col-popover-item"><input type="checkbox" checked />Employee type</label>
+                <label class="col-popover-item"><input type="checkbox" checked />English level</label>
+                <label class="col-popover-item"><input type="checkbox" checked />Risk level</label>
+                <label class="col-popover-item"><input type="checkbox" checked />Mentorship status</label>
+                <label class="col-popover-item"><input type="checkbox" checked />Project</label>
+                <label class="col-popover-item"><input type="checkbox" checked />Join year</label>
+                <label class="col-popover-item"><input type="checkbox" checked />Years with company (derived)</label>
+                <label class="col-popover-item"><input type="checkbox" checked />GitHub handle (custom)</label>
+              </div>
+              <div class="col-popover-footer"><a href="#">+ Create a field</a><span class="count">13 of 13</span></div>
+            </div>
+          </details>
+        </div>
+      <div class="table-wrap">
       <table>
-        <tr><th>Name</th><th>Position</th><th>Grade</th><th>Risk</th><th>Mentorship</th><th>Project</th></tr>
-        <tr><td>Andrii Fedorchuk</td><td>Unit Manager</td><td class="editable">Senior</td><td>—</td><td>—</td><td>—</td></tr>
-        <tr><td>Chidi Igwe</td><td>Developer</td><td class="editable">Mid</td><td>Low</td><td>Open to mentoring</td><td>Atlas Platform</td></tr>
+        <tr>
+          <th style="width:28px"><input type="checkbox" /></th>
+          <th>Name</th><th>Position</th><th>Country</th><th>Gender</th>
+          <th>Grade</th><th>Employee type</th><th>English level</th><th>Risk</th>
+          <th>Mentorship</th><th>Project</th><th>Join year</th><th>Years @ co.</th><th>GitHub handle</th>
+        </tr>
+        <tr class="group-row">
+          <td colspan="14"><span class="chev">▾</span>Engineering management<span class="group-count">9 people</span></td>
+        </tr>
+        <tr>
+          <td><input type="checkbox" /></td>
+          <td><span class="person"><span class="avatar">AF</span>Andrii Fedorchuk</span></td>
+          <td>Unit Manager</td><td>Poland</td><td>Male</td>
+          <td class="editable">Senior</td><td><span class="pill-tint" style="background:var(--secondary); color:var(--secondary-foreground)">FTE</span></td><td>C1</td><td>—</td>
+          <td>—</td><td>—</td><td>2019</td><td>7</td><td>afedorchuk</td>
+        </tr>
+        <tr>
+          <td><input type="checkbox" /></td>
+          <td><span class="person"><span class="avatar">CI</span>Chidi Igwe</span></td>
+          <td>Developer</td><td>Georgia</td><td>Male</td>
+          <td class="editable">Mid</td><td><span class="pill-tint" style="background:var(--secondary); color:var(--secondary-foreground)">FTE</span></td><td>B2</td>
+          <td><span class="pill-tint" style="background:color-mix(in oklch, var(--severity-low) 20%, white); color:var(--severity-low)">Low</span></td>
+          <td><span class="pill-tint" style="background:color-mix(in oklch, var(--primary) 12%, white); color:var(--primary)">Open to mentoring</span></td>
+          <td>Atlas Platform</td><td>2023</td><td>1</td><td>chidi-igwe</td>
+        </tr>
+        <tr>
+          <td><input type="checkbox" /></td>
+          <td><span class="person"><span class="avatar">ST</span>Sofiia Tkachenko</span></td>
+          <td>QA Engineer</td><td>Ukraine</td><td>Female</td>
+          <td class="editable">Mid</td><td><span class="pill-tint" style="background:var(--secondary); color:var(--secondary-foreground)">Subcontractor</span></td><td>B1</td>
+          <td><span class="pill-tint" style="background:color-mix(in oklch, var(--severity-medium) 20%, white); color:var(--severity-medium)">Medium</span></td>
+          <td>—</td><td>Nimbus Migration</td><td>2021</td><td>3</td><td>—</td>
+        </tr>
+        <tr class="group-row">
+          <td colspan="14"><span class="chev">▸</span>Delivery management<span class="group-count">6 people — collapsed</span></td>
+        </tr>
       </table>
-      <div class="note">Grade cell is inline-editable (dashed outline) — writes straight to the profile. Manager/PP/department columns are never inline-editable, by design.</div>
+      </div>
+      </div>
+      <div class="note">Grade cell is inline-editable (dashed outline) — writes straight to the profile. Manager/PP/department columns are never inline-editable, by design; they only change through the dedicated organisational-relationship screen. Row checkboxes enable a shared action across a selection (export-selected, add-to-saved-view) — manager mode only, since colleague mode has no bulk action to offer. Risk/Employee-type/Mentorship pills are filled for density but stay display-only — no dropdown chevron, no click action of their own — same non-interactivity rule as SeverityBadge/StatusPill everywhere else (Component Patterns).</div>
+      <div class="pagination"><span class="refresh">↻</span> Showing 1–9 of 214</div>
     </div>
   </div>
 
@@ -79,18 +240,92 @@
       <span class="url">app.pms.internal/all-employees</span></div>
     <div class="content">
       <div class="mode-label">Colleague mode — Vagif</div>
+
       <div class="toolbar">
+        <input class="search" placeholder="Search employees" />
         <div class="filters">
-          <span class="chip">Department: Python</span>
+          <span class="chip">Department: <strong>Python</strong></span>
+          <span class="chip">Group: <strong>Department</strong> ▾</span>
         </div>
-        <button class="btn">Export .xlsx</button>
+        <div class="toolbar-right">
+          <button class="btn">Columns ▾</button>
+          <button class="btn">Export .xlsx</button>
+        </div>
       </div>
+
+      <div class="review-note">
+        <span class="review-note-label">Design-review note — not part of the shipped UI, a colleague never sees this</span>
+        The fields below are deliberately absent from the column picker (opened via the ⚙ icon
+        above the table), not shown disabled inside it — per EXPERIENCE.md's "Permission-adjacent
+        absence" rule, a closed capability must render as if it doesn't exist, and even a
+        greyed-out "Grade (closed)" row would itself leak that S4 exists. Listed here only for
+        reviewer traceability against section-matrix.md:
+        <ul>
+          <li>Grade, Employee type, English level — S4 closed to colleague</li>
+          <li>Risk level — S6 closed to colleague</li>
+          <li>Mentorship status — S13 closed to colleague</li>
+          <li>Project PM/DM/period — S11 gives colleague the project name only</li>
+          <li>Leave type — S10 hides type from colleague as of v1.5 (dates only)</li>
+          <li>Any custom field set to "management" visibility (S16)</li>
+        </ul>
+      </div>
+
+      <a class="collapse-toggle">Collapse all</a>
+      <div class="table-region">
+        <div class="col-dd-anchor">
+          <details class="col-dd">
+            <summary title="Manage columns">⚙</summary>
+            <div class="col-popover">
+              <div class="col-popover-search"><span class="icon">🔍</span><input placeholder="Search columns" /></div>
+              <div class="col-popover-list">
+                <label class="col-popover-item"><input type="checkbox" checked />Position</label>
+                <label class="col-popover-item"><input type="checkbox" checked />Department</label>
+                <label class="col-popover-item"><input type="checkbox" checked />Country/City</label>
+                <label class="col-popover-item"><input type="checkbox" checked />Work email/phone</label>
+                <label class="col-popover-item"><input type="checkbox" checked />Birthday (day+month)</label>
+                <label class="col-popover-item"><input type="checkbox" checked />Start date</label>
+                <label class="col-popover-item"><input type="checkbox" checked />Manager</label>
+                <label class="col-popover-item"><input type="checkbox" checked />People partner</label>
+                <label class="col-popover-item"><input type="checkbox" checked />Mentor</label>
+                <label class="col-popover-item"><input type="checkbox" checked />Project (name only)</label>
+                <label class="col-popover-item"><input type="checkbox" checked />Leave dates (no type)</label>
+                <label class="col-popover-item"><input type="checkbox" checked />GitHub handle (custom, colleague-visible)</label>
+              </div>
+              <div class="col-popover-footer"><span style="font-size:12px; color:var(--muted-foreground);">No fields to create</span><span class="count">12 of 12</span></div>
+            </div>
+          </details>
+        </div>
+      <div class="table-wrap">
       <table>
-        <tr><th>Name</th><th>Position</th><th>Country/City</th><th>Away</th><th>Project</th></tr>
-        <tr><td>Chidi Igwe</td><td>Developer</td><td>Georgia</td><td>Aug 12–19</td><td>Atlas Platform</td></tr>
-        <tr><td>Vasyl Kravchenko</td><td>Developer</td><td>Malaysia</td><td>—</td><td>—</td></tr>
+        <tr>
+          <th>Name</th><th>Position</th><th>Country/City</th>
+          <th>Manager</th><th>People partner</th><th>Mentor</th><th>Project</th>
+          <th>Leave</th><th>GitHub handle</th>
+        </tr>
+        <tr class="group-row">
+          <td colspan="9"><span class="chev">▾</span>Python<span class="group-count">14 people</span></td>
+        </tr>
+        <tr>
+          <td><span class="person"><span class="avatar">CI</span>Chidi Igwe</span></td>
+          <td>Developer</td><td>Georgia</td>
+          <td><span class="person"><span class="avatar">AF</span>Andrii Fedorchuk</span></td>
+          <td><span class="person"><span class="avatar">OB</span>Oleh Boiko</span></td>
+          <td>—</td><td>Atlas Platform</td>
+          <td>Aug 12–19</td><td>chidi-igwe</td>
+        </tr>
+        <tr>
+          <td><span class="person"><span class="avatar">VK</span>Vasyl Kravchenko</span></td>
+          <td>Developer</td><td>Malaysia</td>
+          <td><span class="person"><span class="avatar">RP</span>Roman Petrenko</span></td>
+          <td><span class="person"><span class="avatar">OB</span>Oleh Boiko</span></td>
+          <td><span class="person"><span class="avatar">AF</span>Andrii Fedorchuk</span></td><td>—</td>
+          <td>—</td><td>—</td>
+        </tr>
       </table>
-      <div class="note">No grade, no risk, no mentorship-status column or filter — S13/S6/S4 are closed to colleagues, so those columns are never offered, not just unchecked. No saved-view tabs either — colleague mode has no filter engine to save a view from beyond the whitelist.</div>
+      </div>
+      </div>
+      <div class="note">Every column here is a genuine S1 field (colleague gets full read of S1, per section-matrix.md), S10 (dates only, no type — v1.5), or S11's project name only. No grade, no risk, no mentorship-status column or filter — those sections don't exist for this viewer, so their columns are never offered, not just unchecked. No saved-view tabs — colleague mode has no filter engine to save a view from beyond the whitelist. No bulk-select checkboxes either, since there's no bulk action available to this audience. Grouping stays available — it only reorganizes rows already visible, it doesn't expose anything new.</div>
+      <div class="pagination"><span class="refresh">↻</span> Showing 1–14 of 62</div>
     </div>
   </div>
 
