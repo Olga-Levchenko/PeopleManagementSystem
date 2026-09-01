@@ -142,21 +142,45 @@ public sealed class AccessRoleResolverCompositionTests : IAsyncLifetime
     {
         // AccessRoleResolver's own doc comment states concurrent calls against the same instance
         // "are not safe and will throw" -- backed by a scoped, non-thread-safe EF Core DbContext.
-        // Proves that claim concretely: two ResolveAsync calls launched concurrently via
-        // Task.WhenAll against the same DI-composed resolver instance throw, rather than silently
-        // racing or corrupting results. AccessRoleResolverTests (the fake-repository unit tests)
-        // can't demonstrate this -- FakeRelationshipRepository completes synchronously and has no
-        // real shared, non-thread-safe state, so nothing there would actually interleave.
+        // Proves that claim concretely: concurrent ResolveAsync calls launched against the same
+        // DI-composed resolver instance throw, rather than silently racing or corrupting results.
+        // AccessRoleResolverTests (the fake-repository unit tests) can't demonstrate this --
+        // FakeRelationshipRepository completes synchronously and has no real shared, non-thread-safe
+        // state, so nothing there would actually interleave.
+        //
+        // A single pair of calls occasionally fails to overlap against a fast local Postgres
+        // round trip (one call's individual EF Core operation can complete before the next call's
+        // own first operation begins, especially on a low-latency CI runner) -- widen the race
+        // across the Engineer->PlatformLead->Director->Executive reports-to chain (multiple
+        // sequential repository round trips per call, not just one) and retry the whole burst a
+        // few times as a safety net against pure scheduling luck, rather than asserting on exactly
+        // one pair of calls.
         _factory = new WebApplicationFactory<Program>();
         using var client = _factory.CreateClient();
 
-        using var scope = _factory.Services.CreateScope();
-        var resolver = scope.ServiceProvider.GetRequiredService<AccessRoleResolver>();
+        InvalidOperationException? observed = null;
+        for (var attempt = 0; attempt < 5 && observed is null; attempt++)
+        {
+            using var attemptScope = _factory.Services.CreateScope();
+            var attemptResolver = attemptScope.ServiceProvider.GetRequiredService<AccessRoleResolver>();
 
-        var firstCall = resolver.ResolveAsync(FixtureSeedData.PlatformLeadId, FixtureSeedData.EngineerId);
-        var secondCall = resolver.ResolveAsync(FixtureSeedData.EngineerId, FixtureSeedData.PlatformLeadId);
+            var tasks = Enumerable.Range(0, 10)
+                .Select(i => i % 2 == 0
+                    ? attemptResolver.ResolveAsync(FixtureSeedData.ExecutiveId, FixtureSeedData.EngineerId)
+                    : attemptResolver.ResolveAsync(FixtureSeedData.EngineerId, FixtureSeedData.ExecutiveId))
+                .ToArray();
 
-        await Assert.ThrowsAnyAsync<InvalidOperationException>(() => Task.WhenAll(firstCall, secondCall));
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch (InvalidOperationException ex)
+            {
+                observed = ex;
+            }
+        }
+
+        Assert.NotNull(observed);
     }
 
     // -- spec-1-2: proves the "no propagation delay, no cache lag" guarantee end-to-end, against
