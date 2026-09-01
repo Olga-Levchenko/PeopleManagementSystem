@@ -2,7 +2,7 @@
 name: People Management Platform
 description: Internal HR/people-management platform for a 500+-person engineering org; shadcn/ui (radix-nova) on React + Vite + Tailwind v4. This DESIGN.md mirrors the tokens already committed in services/frontend/src/index.css and components.json, plus the product-specific severity/status layer those files don't yet have.
 status: final
-updated: 2026-08-29
+updated: 2026-09-01
 colors:
   # Zinc base - light (verbatim from index.css)
   background: 'oklch(1 0 0)'
@@ -149,6 +149,12 @@ components:
     off-foreground: '{colors.muted-foreground}'
     radius: '{rounded.md}'
     font: '{typography.label}'
+  avatar:
+    fallback-background: '{colors.muted}'
+    fallback-foreground: '{colors.muted-foreground}'
+    shape: '{rounded.full}'
+    font: '{typography.label}'
+    note: "Photo-first (S1 photo); initials on the fallback tokens above when no photo is set. Never a per-person hashed/random color - that reads as decorative, against Do's and Don'ts."
 ---
 
 # People Management Platform — Design Spine
@@ -233,6 +239,11 @@ decorative" brand posture.
 - **FlagIndicator** — the on/off control + state display for S7's two independent flags (visible
   for employee, visible for PM). Must read unambiguously as *off* by default — this gates real
   access, not a cosmetic preference, so it can't look like an inert checkbox someone might miss.
+- **Avatar** — a small circle for any field that references another employee (a row's own name,
+  or a Manager/People Partner/Mentor reference elsewhere): the person's own S1 photo when set,
+  otherwise initials on the fallback tokens. Deliberately *not* a per-person random/hashed color —
+  this platform's restraint posture (see Brand & Style) rules out decoration for its own sake, even
+  where a denser list (e.g. All Employees) would visually benefit from more color variety.
 
 ## Do's and Don'ts
 

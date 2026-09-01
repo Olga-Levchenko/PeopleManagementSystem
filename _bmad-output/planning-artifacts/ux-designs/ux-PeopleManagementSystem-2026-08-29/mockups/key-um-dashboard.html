@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Key screen — Unit Manager Dashboard</title>
+<style>
+  /*
+    Spine sections this mock illustrates:
+    - EXPERIENCE.md > Information Architecture > "Unit Manager Dashboard"
+    - EXPERIENCE.md > Key Flows > Flow 2 (Olena, UM fulfilling a resourcing request)
+    - EXPERIENCE.md > Component Patterns > SeverityBadge, StatusPill
+    - DESIGN.md > Colors (severity ramp), Components (severity-badge, status-pill), Shapes
+    Grouped by PEOPLE (not by project, unlike the DM/PM dashboard) - one team table, not
+    per-project blocks. The one highlighted request is Olena's own department's unfulfilled
+    request (Flow 2, step 1) - proposing a candidate against it is what silently generates the
+    evaluation-view shared link Diana (Flow 3) later sees; that generation itself is invisible
+    here, by design (Component Patterns > Section omission's sibling: nothing is shown for a
+    mechanism that has no UI surface of its own).
+  */
+  :root {
+    --background: oklch(1 0 0); --foreground: oklch(0.145 0.004 286);
+    --card: oklch(1 0 0); --secondary: oklch(0.961 0.003 286);
+    --secondary-foreground: oklch(0.205 0.008 286); --muted: oklch(0.961 0.003 286);
+    --muted-foreground: oklch(0.556 0.012 286); --border: oklch(0.898 0.003 286);
+    --primary: oklch(0.488 0.243 264.376); --primary-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.577 0.245 27.325); --destructive-foreground: oklch(0.985 0 0);
+    --severity-low: oklch(0.65 0.15 145); --severity-attention: oklch(0.75 0.15 90);
+    --severity-medium: oklch(0.75 0.18 60); --severity-high: oklch(0.577 0.245 27.325);
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background: var(--muted); font-family: system-ui, sans-serif; color: var(--foreground); padding: 24px; }
+  .browser { max-width: 1180px; margin: 0 auto; background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+  .chrome { display:flex; align-items:center; gap:6px; padding:10px 14px; background: var(--secondary); border-bottom: 1px solid var(--border); }
+  .dot { width:10px; height:10px; border-radius:999px; background: var(--border); }
+  .url { margin-left:12px; font-size:12px; color: var(--muted-foreground); background: var(--card); border:1px solid var(--border); border-radius:6px; padding:3px 10px; flex:1; }
+  .content { padding: 24px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { font-size: 13px; color: var(--muted-foreground); margin: 0 0 20px; }
+  .counters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+  .counter { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+  .counter .num { font-size: 24px; font-weight: 700; }
+  .counter .lbl { font-size: 11px; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.04em; }
+  .callout { border: 1px solid var(--primary); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 20px; display:flex; justify-content:space-between; align-items:center; background: color-mix(in oklch, var(--primary) 6%, white); }
+  .callout .msg { font-size: 13px; }
+  .callout .msg strong { display:block; font-size: 14px; margin-bottom: 2px; }
+  .btn { border: none; border-radius: 999px; padding: 8px 16px; font-size: 12px; font-weight: 600; background: var(--primary); color: var(--primary-foreground); cursor: default; }
+  .block { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 20px; overflow: hidden; }
+  .block-head { padding: 10px 16px; background: var(--secondary); font-weight: 600; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 16px; color: var(--muted-foreground); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; border-bottom: 1px solid var(--border); }
+  td { padding: 8px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  .sev { display:inline-flex; align-items:center; gap:6px; }
+  .sev-dot { width:8px; height:8px; border-radius:999px; }
+  .pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 999px; background: var(--secondary); color: var(--secondary-foreground); }
+  .pill-overdue { background: var(--destructive); color: var(--destructive-foreground); }
+</style>
+</head>
+<body>
+<div class="browser">
+  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    <span class="url">app.pms.internal/dashboard</span></div>
+  <div class="content">
+    <h1>Olena's Dashboard</h1>
+    <p class="sub">Unit Manager · grouped by people</p>
+
+    <div class="counters">
+      <div class="counter"><div class="num">9</div><div class="lbl">People (department)</div></div>
+      <div class="counter"><div class="num">2</div><div class="lbl">Active risks</div></div>
+      <div class="counter"><div class="num">3</div><div class="lbl">Open action items</div></div>
+      <div class="counter"><div class="num">1</div><div class="lbl">Unfulfilled requests</div></div>
+    </div>
+
+    <div class="callout">
+      <div class="msg"><strong>1 request routed to Engineering management</strong>1x Backend Developer — no candidate proposed yet</div>
+      <button class="btn">Propose candidate</button>
+    </div>
+
+    <div class="block">
+      <div class="block-head">Team</div>
+      <table>
+        <tr><th>Name</th><th>Risk</th><th>Leave status</th></tr>
+        <tr><td>Andriy Kovalenko</td><td><span class="sev"><span class="sev-dot" style="background:var(--severity-medium)"></span>Medium</span></td><td>—</td></tr>
+        <tr><td>Sofiia Tkachenko</td><td><span class="sev"><span class="sev-dot" style="background:var(--severity-low)"></span>Low</span></td><td>Upcoming Sep 14–18</td></tr>
+        <tr><td>Bohdan Marchenko</td><td><span class="sev"><span class="sev-dot" style="background:var(--severity-high)"></span>High</span></td><td>—</td></tr>
+        <tr><td>Iryna Poliakova</td><td><span class="sev"><span class="sev-dot" style="background:var(--severity-low)"></span>Low</span></td><td>—</td></tr>
+      </table>
+    </div>
+
+    <div class="block">
+      <div class="block-head">Olena's own action items</div>
+      <table>
+        <tr><th>Item</th><th>Status</th><th>Due</th></tr>
+        <tr><td>Review Q3 mentorship pairing requests</td><td><span class="pill pill-overdue">Overdue by 2 days</span></td><td>Aug 30</td></tr>
+        <tr><td>Complete security-training campaign task</td><td><span class="pill">Open</span></td><td>Sep 5</td></tr>
+        <tr><td>Sign off on IDP for Sofiia Tkachenko</td><td><span class="pill">Open</span></td><td>Sep 10</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+</body>
+</html>
