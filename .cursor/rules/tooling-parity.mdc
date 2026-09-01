@@ -42,3 +42,21 @@ the primary graded quality attribute.
   `react-*.md` rules) are mirrored as root-level `.cursor/rules/{nest,react}-*.mdc` files with
   `globs` scoped to the relevant service path(s), since Cursor doesn't look up rules per-service
   the way Claude Code does.
+
+## Planning gap audit
+
+The shared [planning-gap-audit skill](../../.claude/skills/planning-gap-audit/SKILL.md) works in both
+Claude Code and Cursor. Use it before recommending the next story, approving a story
+specification, starting implementation, changing story order, or marking a story complete.
+
+Examples:
+
+    /planning-gap-audit
+    /planning-gap-audit Check whether Story 1.4 is ready for implementation.
+    /planning-gap-audit Check whether Story 1.3 can be marked done.
+
+It checks the PRD, architecture, UX, epics, stories, dependencies, Git/PR delivery,
+authentication, authorization, cross-service contracts, and testing. It distinguishes BMAD
+status, implementation delivery, and end-to-end verification, then reports gaps and remediation
+recommendations. The audit is read-only by default and must not modify stories, statuses, or
+planning artifacts without explicit approval.
