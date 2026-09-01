@@ -38,7 +38,7 @@ development_status:
   epic-1: in-progress
   1-1-two-dimensional-access-role-resolution: done
   1-2-access-role-un-derives-when-a-relationship-ends: done
-  1-3-organisational-relationship-changes-as-a-dedicated-journaled: backlog
+  1-3-organisational-relationship-changes-as-a-dedicated-journaled: in-progress
   1-4-functional-roles-and-permissions-as-runtime-editable-data: backlog
   1-5-full-profile-access-as-a-separate-journaled-grant: backlog
   1-6-server-assembled-section-gated-profile-response: backlog

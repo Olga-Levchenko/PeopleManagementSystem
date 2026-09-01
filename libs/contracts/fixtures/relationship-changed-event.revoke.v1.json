@@ -1,0 +1,18 @@
+{
+  "eventId": "44444444-4444-4444-8444-444444444444",
+  "schemaVersion": 1,
+  "occurredAtUtc": "2026-08-31T12:01:00.000Z",
+  "source": {
+    "service": "people-service",
+    "aggregateType": "person",
+    "aggregateId": "22222222-2222-4222-8222-222222222222",
+    "aggregateVersion": 2
+  },
+  "relationship": {
+    "type": "reports_to",
+    "subjectId": "22222222-2222-4222-8222-222222222222",
+    "beforeId": "33333333-3333-4333-8333-333333333333",
+    "afterId": null
+  },
+  "accessEffect": "revoke"
+}

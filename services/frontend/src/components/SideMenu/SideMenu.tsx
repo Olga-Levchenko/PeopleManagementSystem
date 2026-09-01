@@ -1,4 +1,4 @@
-import { Home } from 'lucide-react'
+import { Home, Network } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useLayout } from '@/contexts/LayoutContext'
 import { SideMenuItem } from './components/SideMenuItem/SideMenuItem'
@@ -45,6 +45,14 @@ export const SideMenu = ({ collapsible = true, expanded }: SideMenuProps) => {
             label={t('sidebar.home')}
             path="/"
             hint={t('sidebar.home')}
+            expanded={showLabels}
+            onNavigate={closeMobileSidebar}
+          />
+          <SideMenuItem
+            icon={Network}
+            label={t('sidebar.relationships')}
+            path="/organisational-relationships"
+            hint={t('sidebar.relationships')}
             expanded={showLabels}
             onNavigate={closeMobileSidebar}
           />

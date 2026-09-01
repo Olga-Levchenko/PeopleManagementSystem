@@ -58,6 +58,11 @@ class ApiClient {
     return response.data
   }
 
+  async patch<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.client.patch<T>(url, data, config)
+    return response.data
+  }
+
   /**
    * Generic DELETE request
    */

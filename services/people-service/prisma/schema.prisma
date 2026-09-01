@@ -9,4 +9,96 @@ datasource db {
   provider = "postgresql"
 }
 
-// Domain models go here — none seeded yet.
+enum RelationshipType {
+  REPORTS_TO
+  PP_ASSIGNMENT
+  DEPARTMENT_MEMBERSHIP
+  DEPARTMENT_MANAGER
+}
+
+enum OutboxStatus {
+  PENDING
+  PROCESSING
+  PUBLISHED
+  FAILED
+}
+
+enum OutboxAggregateType {
+  PERSON
+  DEPARTMENT
+}
+
+enum FreshnessStatus {
+  UNCERTAIN
+  CONFIRMED
+}
+
+model Person {
+  id                   String       @id @default(uuid()) @db.Uuid
+  managerId            String?      @db.Uuid
+  peoplePartnerId      String?      @db.Uuid
+  departmentId         String?      @db.Uuid
+  relationshipVersion  Int          @default(0)
+  manager              Person?      @relation("person_manager", fields: [managerId], references: [id], onDelete: Restrict)
+  reports              Person[]     @relation("person_manager")
+  peoplePartner        Person?      @relation("person_pp", fields: [peoplePartnerId], references: [id], onDelete: Restrict)
+  partneredPeople      Person[]     @relation("person_pp")
+  department           Department?  @relation("person_department", fields: [departmentId], references: [id], onDelete: Restrict)
+  departmentManagerOf  Department[] @relation("department_manager")
+
+  @@map("people")
+}
+
+model Department {
+  id                  String      @id @default(uuid()) @db.Uuid
+  managerId           String?     @db.Uuid
+  relationshipVersion Int         @default(0)
+  members             Person[]    @relation("person_department")
+  manager             Person?     @relation("department_manager", fields: [managerId], references: [id], onDelete: Restrict)
+
+  @@map("departments")
+}
+
+model RelationshipJournalEntry {
+  id             String           @id @default(uuid()) @db.Uuid
+  relationship   RelationshipType
+  actorId        String           @db.Uuid
+  subjectId      String           @db.Uuid
+  beforeId       String?          @db.Uuid
+  afterId        String?          @db.Uuid
+  occurredAtUtc  DateTime         @default(now())
+
+  @@index([subjectId, occurredAtUtc])
+  @@map("relationship_journal_entries")
+}
+
+model OutboxEvent {
+  eventId             String             @id @default(uuid()) @db.Uuid
+  aggregateType       OutboxAggregateType
+  aggregateId         String             @db.Uuid
+  aggregateVersion    Int
+  payload             Json
+  status              OutboxStatus       @default(PENDING)
+  retryCount          Int                @default(0)
+  nextAttemptAt       DateTime?
+  lastError           String?
+  createdAtUtc        DateTime           @default(now())
+  publishedAtUtc      DateTime?
+  lockedAtUtc         DateTime?
+  lockedBy            String?            @db.Uuid
+
+  @@index([status, nextAttemptAt])
+  @@index([aggregateId, aggregateVersion])
+  @@unique([aggregateType, aggregateId, aggregateVersion])
+  @@map("outbox_events")
+}
+
+model RelationshipProjectionFreshness {
+  subjectId          String          @id @db.Uuid
+  status             FreshnessStatus @default(CONFIRMED)
+  reason             String?
+  detectedAtUtc      DateTime?
+  lastConfirmedAtUtc DateTime?
+
+  @@map("relationship_projection_freshness")
+}

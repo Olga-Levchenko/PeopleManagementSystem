@@ -1,0 +1,35 @@
+{
+  "name": "@pms/contracts",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Shared versioned API and message contracts for the People Management Platform.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./schemas/relationship-changed-event.v1.schema.json": "./schemas/relationship-changed-event.v1.schema.json",
+    "./fixtures/*": "./fixtures/*"
+  },
+  "files": [
+    "dist",
+    "schemas",
+    "fixtures",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test \"test/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.2",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "tsx": "^4.20.5",
+    "typescript": "^5.7.3"
+  }
+}
