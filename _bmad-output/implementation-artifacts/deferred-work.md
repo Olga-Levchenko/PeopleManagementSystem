@@ -244,6 +244,24 @@
   summary: Decide whether Story 1.10's custom-field-visibility authorization decision point lives in People/Organization (which owns the field and its visibility setting) or is proxied through Access Control (for consistency with AD-2's "Access Control owns policy decisions" rule, like every other authorization decision in this epic).
   evidence: ADR-003 found this genuinely undecided while tracing Story 1.10's dependencies; the visibility policy itself (S16, management/employee/colleague) is already fully specified, only the decision-point's owning service is open.
 
+## Deferred from: code review of story-1-2 (2026-09-01)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-2-access-role-un-derives-when-a-relationship-ends.md`
+  summary: Add a Department-management revoke test that changes a multi-level department-ancestor chain (e.g. the department's own manager, or a department several levels below the managed one), not just the direct hop-0 case the shipped test covers.
+  evidence: Code review of story-1-2 found `ResolveAsync_DepartmentManagementEditRevokesReportingLine_...` only sets `subject.DepartmentId = null`, never exercising `ManagesSubjectsDepartmentOrAncestorAsync`'s multi-hop walk against real Postgres; the walk itself is already unit-tested against the hand-written fake in `AccessControlService.Domain.Tests`, so this is an integration-test coverage gap only, not an unverified algorithm.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-2-access-role-un-derives-when-a-relationship-ends.md`
+  summary: Add a Department-management grant-direction test, mirroring `ResolveAsync_ReportsToEditGrantsReportingLine_...` — the shipped tests cover reports-to revoke+grant and department-management revoke, but not department-management grant.
+  evidence: Code review of story-1-2 found this asymmetry; not required by the frozen I/O matrix (which has no "department-management grants" row), so it's a nice-to-have completeness gap rather than an AC violation.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-2-access-role-un-derives-when-a-relationship-ends.md`
+  summary: Add a Project-line revoke test using `Role: ProjectAssignmentRole.ProjectManager`, not just `DeliveryManager` — confirm the guarantee holds for both qualifying roles once they're distinguished.
+  evidence: Code review of story-1-2 found only the DM role is exercised; low priority today since `AccessRoleResolver.QualifiesViaProjectAssignmentAsync` doesn't yet branch on role (Story 1.9's project-line-narrowing work is what will make DM vs. PM behavior actually diverge), so a PM-specific test would currently just duplicate the DM one's assertions.
+
+- source_spec: `_bmad-output/implementation-artifacts/sprint-status.yaml`
+  summary: Update `1-1-two-dimensional-access-role-resolution`'s status from `review` to `done` — its PR (#14, story-1-1-access-role-resolution) already merged to `main`.
+  evidence: Code review of story-1-2 found this stale entry while touching the adjacent `1-2-...` line in the same file; pre-existing, not caused by this diff, but worth a `bmad-sprint-planning` repair pass.
+
 ## Corrections
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1-two-dimensional-access-role-resolution.md`
