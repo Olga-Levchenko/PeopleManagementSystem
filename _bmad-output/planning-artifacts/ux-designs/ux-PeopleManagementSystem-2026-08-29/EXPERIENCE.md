@@ -8,14 +8,14 @@ sources:
   - "docs/requirements/project-requirements.md"
   - "docs/requirements/Spec_Changelog_v1.2_to_v1.5.md"
   - "imports/requirements-v1.5-full.md"
-updated: 2026-08-29
+updated: 2026-09-01
 ---
 
 # People Management Platform — Experience Spine
 
 > DESIGN.md is the visual identity reference; this spine owns behavior, states, interactions,
 > accessibility, and journeys. Both spines win on conflict with any mock, wireframe, or import —
-> the four HTML mocks in `mockups/` illustrate, they do not amend, this contract.
+> the six HTML mocks in `mockups/` illustrate, they do not amend, this contract.
 
 ## Foundation
 
@@ -90,6 +90,10 @@ to copy.)
   access-control information, so a screen-reader user losing the visual color/position signal must
   not also lose which flag is which.
 - **Button** — stock shadcn, no behavioral delta from the library defaults.
+- **Avatar** — display-only, same non-interactivity rule as SeverityBadge/StatusPill (clicking it
+  doesn't open anything; the row/cell it's in does). Used for any person-reference column (Name,
+  Manager, People Partner, Mentor) so a dense list like All Employees reads at a glance without
+  requiring color-coding — see DESIGN.md > Components for the photo-first/initials-fallback rule.
 - **Section omission** — the universal pattern underlying every profile render: a section the
   viewer has no access to is not present in the DOM, not disabled, not blurred, not behind a lock
   icon. The layout itself reflows around its absence. This is the single most load-bearing
@@ -145,6 +149,14 @@ to copy.)
   spec calls out explicitly.
 - **Saved views**: named tab, owned by creator, optionally shared to other managers.
   Filter+column configuration only — not a separate access grant.
+- **Column picker** (All Employees): a search-filterable checklist, not a static list — type to
+  narrow, check/uncheck to show/hide, with a "Create a field" entry (manager mode only, per 4.1's
+  no-deploy custom-field flow) and a plain "X of Y" count in the footer. Critically, the picker
+  itself is access-scoped: it must only ever list fields the viewer's role can see. A field closed
+  to this viewer (e.g. Grade for a colleague, per S4) must not appear in the picker **at all**,
+  disabled or otherwise — showing it greyed-out with a reason is the same leak as an error message
+  naming a closed section, per State Patterns' "Permission-adjacent absence." The picker's item
+  list and the profile's own section-omission rule are the same access decision, just two surfaces.
 - **Approve / Reject** (resourcing): reject requires a written reason (spec: "rejects it with a
   written reason"); approve does not fill and auto-close the request — closing is always a
   separate, explicit action.
@@ -154,6 +166,23 @@ to copy.)
 - **Flag toggles** (S7): two independent, separately-labeled toggles, both defaulting off,
   requiring no confirmation to flip (they're not destructive — but see Voice and Tone for
   departure/revocation actions, which do require confirmation).
+- **Row grouping** (All Employees, both modes): an optional group-by (e.g. department) collapses
+  the flat list into named, collapsible sections — reusing the same group-header bar the UM/DM/PP
+  dashboards already use for their per-project/per-department blocks, rather than inventing a
+  second grouped-header style. Expand/collapse state is per-session, not part of a saved view.
+  Grouping never changes which fields a row exposes — it only reorganizes rows the viewer could
+  already see ungrouped, so it applies equally in colleague mode.
+- **Bulk selection** (All Employees, manager mode only): a checkbox column selects multiple rows
+  for a shared action (export-selected, add-to-saved-view). Not offered in colleague mode, which
+  has no bulk action to apply — same "not offered, not disabled" discipline as a closed column.
+- **Pagination** (All Employees, both modes): the list paginates rather than rendering all 500+
+  rows at once, with a compact "Showing X–Y of N" footer and a manual refresh — supporting the
+  spec's 2-second response requirement (4.1) at scale without an infinite-scroll performance cliff.
+- **Quick-filter avatar stack** (All Employees, manager mode): a small cluster of the viewer's own
+  direct reports' Avatars sits in the toolbar; clicking one filters the list to that person — a
+  shortcut into the same filter engine used everywhere else on the page, not a second mechanism.
+- **Collapse all / Expand all** (All Employees, when grouped): a single toggle above the table
+  flips every group header at once, alongside each group header's own individual chevron.
 
 ## Accessibility Floor
 
@@ -224,6 +253,9 @@ Protagonist: **Olena**, Unit Manager, Engineering management.
 doesn't offer them as a candidate at all — this isn't a validation error to recover from, it's a
 scope the UI never presents.
 
+Mockup: [`mockups/key-um-dashboard.html`](mockups/key-um-dashboard.html) — grouped by people (not
+project), summary counters, the highlighted unfulfilled request, own action items.
+
 ### 3. Delivery Manager reviewing and closing — Diana
 
 Protagonist: **Diana**, Delivery Manager, the request's original creator.
@@ -263,6 +295,10 @@ independent.
 
 **Failure path**: attempting to record the departure without resolving the re-parent step re-blocks
 with the same prompt — there's no partial/silent departure state.
+
+Mockup: [`mockups/key-pp-dashboard.html`](mockups/key-pp-dashboard.html) — department selector
+(also project-capable, same shared dashboard engine as UM/DM), grouped blocks, and deliberately no
+resourcing/Unassigned block anywhere on the page.
 
 ### 5. HR Admin standing up an extensible role — Anton
 
@@ -326,7 +362,8 @@ Protagonist: **Vagif**, plain colleague to almost everyone.
 correct behavior, not an error state to design around.
 
 Mockup: [`mockups/key-all-employees.html`](mockups/key-all-employees.html) — manager mode vs
-colleague mode, same page, different column/filter sets.
-
-Mockup: [`mockups/key-all-employees.html`](mockups/key-all-employees.html) — manager mode vs
-colleague mode, same page, different column/filter sets.
+colleague mode, same page, different column/filter sets, each with an explicit Columns panel
+tracing every column back to 4.1's example list (manager) or the section-matrix.md whitelist
+(colleague), plus a disabled "never offered" row naming the section that closes each excluded
+field. Also shows row grouping (collapsible department headers), Avatar badges on every
+person-reference column, and pagination — bulk-select checkboxes appear in manager mode only.
