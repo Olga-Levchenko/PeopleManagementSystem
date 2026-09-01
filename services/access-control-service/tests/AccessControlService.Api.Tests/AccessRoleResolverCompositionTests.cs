@@ -1,8 +1,10 @@
 using AccessControlService.Domain;
+using AccessControlService.Infrastructure.Messaging;
 using AccessControlService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Testcontainers.PostgreSql;
 
 namespace AccessControlService.Api.Tests;
@@ -155,5 +157,327 @@ public sealed class AccessRoleResolverCompositionTests : IAsyncLifetime
         var secondCall = resolver.ResolveAsync(FixtureSeedData.EngineerId, FixtureSeedData.PlatformLeadId);
 
         await Assert.ThrowsAnyAsync<InvalidOperationException>(() => Task.WhenAll(firstCall, secondCall));
+    }
+
+    // -- spec-1-2: proves the "no propagation delay, no cache lag" guarantee end-to-end, against
+    // this same real, DI-composed resolver/repository stack. No caching layer exists anywhere in
+    // AccessRoleResolver/EfRelationshipRepository today (both read live on every call) -- these
+    // tests are the assertion that a reviewer can point to, not a new mechanism. Every test below
+    // mutates data through a second, independent AccessControlDbContext instance bound to the same
+    // Postgres connection string (mirroring EfRelationshipRepositoryTests' own test-local-row
+    // pattern) -- never through the DI-scoped context the resolver/repository read through -- and
+    // calls ResolveAsync sequentially, before and after, on the SAME resolver instance (never
+    // Task.WhenAll, per AccessRoleResolver's own documented sequential-only contract). Test-local
+    // people/departments are used throughout (rather than the shared reports-to/department-chain
+    // fixture ids) because that fixture's reports-to and department-management hierarchies
+    // deliberately coincide (each reports-to ancestor also manages the matching department), which
+    // would make a "reports-to only" or "department only" edit inseparable from the other path.
+
+    /// <summary>
+    /// Opens a second, independent <see cref="AccessControlDbContext"/> against the same ephemeral
+    /// Postgres instance the DI-composed resolver/repository read through -- standing in for
+    /// Story 1.3's not-yet-built relationship-change screen, per this spec's Approach.
+    /// </summary>
+    private AccessControlDbContext CreateWriteDbContext()
+    {
+        var options = new DbContextOptionsBuilder<AccessControlDbContext>()
+            .UseNpgsql(_postgresConnectionString)
+            .Options;
+        return new AccessControlDbContext(options);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ReportsToEditRevokesReportingLine_NextCallReflectsChangeImmediately()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        using var scope = _factory.Services.CreateScope();
+        var resolver = scope.ServiceProvider.GetRequiredService<AccessRoleResolver>();
+
+        var managerId = Guid.NewGuid();
+        var reportId = Guid.NewGuid();
+        await using (var write = CreateWriteDbContext())
+        {
+            write.People.AddRange(
+                new Person
+                {
+                    Id = managerId,
+                    Label = "Fixture Person: reports-to-revoke manager (test-local)",
+                    ManagerId = null,
+                    DepartmentId = null,
+                    ManagesDepartmentId = null,
+                },
+                new Person
+                {
+                    Id = reportId,
+                    Label = "Fixture Person: reports-to-revoke report (test-local)",
+                    ManagerId = managerId,
+                    DepartmentId = null,
+                    ManagesDepartmentId = null,
+                });
+            await write.SaveChangesAsync();
+        }
+
+        var before = await resolver.ResolveAsync(managerId, reportId);
+        Assert.True(before.ReportingLine);
+
+        // Platform-owned relationship edit, made directly against AccessControlDbContext --
+        // standing in for Story 1.3's not-yet-built screen, per this spec's Approach.
+        await using (var write = CreateWriteDbContext())
+        {
+            var report = await write.People.SingleAsync(p => p.Id == reportId);
+            report.ManagerId = null;
+            await write.SaveChangesAsync();
+        }
+
+        var after = await resolver.ResolveAsync(managerId, reportId);
+        Assert.False(after.ReportingLine);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_DepartmentManagementEditRevokesReportingLine_NextCallReflectsChangeImmediately()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        using var scope = _factory.Services.CreateScope();
+        var resolver = scope.ServiceProvider.GetRequiredService<AccessRoleResolver>();
+
+        var departmentId = Guid.NewGuid();
+        var managerId = Guid.NewGuid();
+        var subjectId = Guid.NewGuid();
+        await using (var write = CreateWriteDbContext())
+        {
+            write.Departments.Add(new Department
+            {
+                Id = departmentId,
+                Label = "Fixture Dept: department-management-revoke (test-local)",
+                ParentDepartmentId = null,
+            });
+            write.People.AddRange(
+                new Person
+                {
+                    Id = managerId,
+                    Label = "Fixture Person: department-management-revoke manager (test-local)",
+                    ManagerId = null,
+                    DepartmentId = null,
+                    ManagesDepartmentId = departmentId,
+                },
+                new Person
+                {
+                    Id = subjectId,
+                    Label = "Fixture Person: department-management-revoke subject (test-local)",
+                    ManagerId = null,
+                    DepartmentId = departmentId,
+                    ManagesDepartmentId = null,
+                });
+            await write.SaveChangesAsync();
+        }
+
+        // No reports-to link between manager and subject at all -- ReportingLine here can only be
+        // qualifying via department management, isolating the path this test is about.
+        var before = await resolver.ResolveAsync(managerId, subjectId);
+        Assert.True(before.ReportingLine);
+
+        // Platform-owned relationship edit (the subject's department changes so the viewer no
+        // longer manages an ancestor of it), made directly against AccessControlDbContext.
+        await using (var write = CreateWriteDbContext())
+        {
+            var subject = await write.People.SingleAsync(p => p.Id == subjectId);
+            subject.DepartmentId = null;
+            await write.SaveChangesAsync();
+        }
+
+        var after = await resolver.ResolveAsync(managerId, subjectId);
+        Assert.False(after.ReportingLine);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ReportsToEditGrantsReportingLine_NextCallReflectsChangeImmediately()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        using var scope = _factory.Services.CreateScope();
+        var resolver = scope.ServiceProvider.GetRequiredService<AccessRoleResolver>();
+
+        var managerId = Guid.NewGuid();
+        var reportId = Guid.NewGuid();
+        await using (var write = CreateWriteDbContext())
+        {
+            write.People.AddRange(
+                new Person
+                {
+                    Id = managerId,
+                    Label = "Fixture Person: reports-to-grant manager (test-local)",
+                    ManagerId = null,
+                    DepartmentId = null,
+                    ManagesDepartmentId = null,
+                },
+                new Person
+                {
+                    Id = reportId,
+                    Label = "Fixture Person: reports-to-grant report (test-local)",
+                    ManagerId = null,
+                    DepartmentId = null,
+                    ManagesDepartmentId = null,
+                });
+            await write.SaveChangesAsync();
+        }
+
+        // Proves the guarantee isn't one-directional (revoke-only): no relationship on file yet.
+        var before = await resolver.ResolveAsync(managerId, reportId);
+        Assert.False(before.ReportingLine);
+
+        // Platform-owned relationship edit that establishes a qualifying chain, made directly
+        // against AccessControlDbContext.
+        await using (var write = CreateWriteDbContext())
+        {
+            var report = await write.People.SingleAsync(p => p.Id == reportId);
+            report.ManagerId = managerId;
+            await write.SaveChangesAsync();
+        }
+
+        var after = await resolver.ResolveAsync(managerId, reportId);
+        Assert.True(after.ReportingLine);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ProjectAssignmentRevokeEvent_NextCallReflectsProjectLineAbsent()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        using var scope = _factory.Services.CreateScope();
+        var resolver = scope.ServiceProvider.GetRequiredService<AccessRoleResolver>();
+
+        var viewerId = Guid.NewGuid();
+        var aggregateId = Guid.NewGuid();
+
+        await using (var write = CreateWriteDbContext())
+        {
+            write.People.Add(new Person
+            {
+                Id = viewerId,
+                Label = "Fixture Person: project-line-revoke viewer (test-local)",
+                ManagerId = null,
+                DepartmentId = null,
+                ManagesDepartmentId = null,
+            });
+            await write.SaveChangesAsync();
+        }
+
+        // Grant, through the real ProjectAssignmentEventProcessor (not a direct row insert), so a
+        // watermark actually establishes this aggregate's ownership of
+        // (ProjectPhoenixId, viewerId) -- a bare insert would leave the pair without an owning
+        // watermark, and the revoke below would then be rejected as a cross-aggregate conflict per
+        // ProjectAssignmentEventProcessor's own broadened conflict check, not applied.
+        await using (var write = CreateWriteDbContext())
+        {
+            var processor = new ProjectAssignmentEventProcessor(write, NullLogger<ProjectAssignmentEventProcessor>.Instance);
+            var grantOutcome = await processor.ProcessAsync(new ProjectAssignmentChangedEvent
+            {
+                EventId = Guid.NewGuid(),
+                AggregateId = aggregateId,
+                AggregateVersion = 1,
+                OccurredAtUtc = DateTime.UtcNow,
+                SchemaVersion = ProjectAssignmentEventProcessor.SupportedSchemaVersion,
+                IsGrant = true,
+                ProjectId = FixtureSeedData.ProjectPhoenixId,
+                PersonId = viewerId,
+                Role = ProjectAssignmentRole.DeliveryManager,
+            });
+            Assert.Equal(ProjectAssignmentEventOutcome.Applied, grantOutcome);
+        }
+
+        // FixtureSeedData.ProjectAssigneeId is already seeded as a Member of Project Phoenix --
+        // reused here as the subject so only the viewer's new DM assignment above needs setting up.
+        var before = await resolver.ResolveAsync(viewerId, FixtureSeedData.ProjectAssigneeId);
+        Assert.True(before.ProjectLine);
+
+        // Project-assignment-ended event, processed through the real consumer path
+        // (ProjectAssignmentEventProcessor.ProcessAsync with IsGrant: false) -- not a direct row
+        // delete, per this spec's Boundaries.
+        await using (var write = CreateWriteDbContext())
+        {
+            var processor = new ProjectAssignmentEventProcessor(write, NullLogger<ProjectAssignmentEventProcessor>.Instance);
+            var revokeOutcome = await processor.ProcessAsync(new ProjectAssignmentChangedEvent
+            {
+                EventId = Guid.NewGuid(),
+                AggregateId = aggregateId,
+                AggregateVersion = 2,
+                OccurredAtUtc = DateTime.UtcNow,
+                SchemaVersion = ProjectAssignmentEventProcessor.SupportedSchemaVersion,
+                IsGrant = false,
+                ProjectId = FixtureSeedData.ProjectPhoenixId,
+                PersonId = viewerId,
+                Role = ProjectAssignmentRole.DeliveryManager,
+            });
+            Assert.Equal(ProjectAssignmentEventOutcome.Applied, revokeOutcome);
+        }
+
+        var after = await resolver.ResolveAsync(viewerId, FixtureSeedData.ProjectAssigneeId);
+        Assert.False(after.ProjectLine);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_SameResolverInstanceSequentialCalls_TogglesGrantThenRevokeWithNoMemoization()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        using var scope = _factory.Services.CreateScope();
+        var resolver = scope.ServiceProvider.GetRequiredService<AccessRoleResolver>();
+
+        var managerId = Guid.NewGuid();
+        var reportId = Guid.NewGuid();
+        await using (var write = CreateWriteDbContext())
+        {
+            write.People.AddRange(
+                new Person
+                {
+                    Id = managerId,
+                    Label = "Fixture Person: sequential-toggle manager (test-local)",
+                    ManagerId = null,
+                    DepartmentId = null,
+                    ManagesDepartmentId = null,
+                },
+                new Person
+                {
+                    Id = reportId,
+                    Label = "Fixture Person: sequential-toggle report (test-local)",
+                    ManagerId = null,
+                    DepartmentId = null,
+                    ManagesDepartmentId = null,
+                });
+            await write.SaveChangesAsync();
+        }
+
+        // Three ResolveAsync calls in sequence, all against the single `resolver` instance above --
+        // demonstrates no per-instance memoization exists in either direction, not just that one
+        // edit happens to be reflected.
+        var firstResult = await resolver.ResolveAsync(managerId, reportId);
+        Assert.False(firstResult.ReportingLine);
+
+        await using (var write = CreateWriteDbContext())
+        {
+            var report = await write.People.SingleAsync(p => p.Id == reportId);
+            report.ManagerId = managerId;
+            await write.SaveChangesAsync();
+        }
+
+        var secondResult = await resolver.ResolveAsync(managerId, reportId);
+        Assert.True(secondResult.ReportingLine);
+
+        await using (var write = CreateWriteDbContext())
+        {
+            var report = await write.People.SingleAsync(p => p.Id == reportId);
+            report.ManagerId = null;
+            await write.SaveChangesAsync();
+        }
+
+        var thirdResult = await resolver.ResolveAsync(managerId, reportId);
+        Assert.False(thirdResult.ReportingLine);
     }
 }
