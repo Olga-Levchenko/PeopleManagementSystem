@@ -1,3 +1,5 @@
+using System.Net;
+using System.Text.Json;
 using AccessControlService.Domain;
 using AccessControlService.Infrastructure.Messaging;
 using AccessControlService.Infrastructure.Persistence;
@@ -503,5 +505,192 @@ public sealed class AccessRoleResolverCompositionTests : IAsyncLifetime
 
         var thirdResult = await resolver.ResolveAsync(managerId, reportId);
         Assert.False(thirdResult.ReportingLine);
+    }
+
+    // -- spec-1-9: real end-to-end HTTP tests for GET /api/v1/access-roles/resolve (ADR-003),
+    // proving AccessRolesController's actual composition -- AccessRoleResolver then
+    // ManagerSectionAccessPolicy -- against this same real, DI-composed, migrated-Postgres stack,
+    // not a hand-constructed controller instance. Reuses FixtureSeedData's reports-to/department/
+    // project-assignment fixture (see its own doc comment for the shape) rather than test-local
+    // rows, since these tests only need existing qualifying/non-qualifying pairs, not a new edit.
+
+    [Fact]
+    public async Task ResolveEndpoint_ReportingLineOnly_ReturnsUnnarrowedManagerSectionAccess()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        // Director is Engineer's transitive reports-to manager (Engineer -> PlatformLead ->
+        // Director), and holds no DM/PM project assignment at all -- Reporting-line-only.
+        using var response = await client.GetAsync(
+            $"/api/v1/access-roles/resolve?viewerPersonId={FixtureSeedData.DirectorId}&subjectPersonId={FixtureSeedData.EngineerId}");
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+
+        Assert.True(root.GetProperty("reportingLine").GetBoolean());
+        Assert.False(root.GetProperty("projectLine").GetBoolean());
+
+        var managerSectionAccess = root.GetProperty("managerSectionAccess");
+        Assert.Equal(JsonValueKind.Object, managerSectionAccess.ValueKind);
+        // All 16 properties, asserted through the real HTTP response -- not just S1/S2/S3/S5/S6 --
+        // since AccessRolesController.ToResponse hand-maps each of the 16 ManagerSectionAccess
+        // properties individually to its response DTO counterpart; a copy/paste mistake there
+        // (e.g. wiring S9's response field to access.S8) would compile clean and pass every other
+        // HTTP test in this class, since only the Domain-level ManagerSectionAccessPolicyTests
+        // cover all 16 sections and those never touch this controller's own mapping code.
+        AssertSection(managerSectionAccess, "s1", "ReadWrite", null);
+        AssertSection(managerSectionAccess, "s2", "Read", null);
+        AssertSection(managerSectionAccess, "s3", "Read", null);
+        AssertSection(managerSectionAccess, "s4", "ReadWrite", null);
+        AssertSection(managerSectionAccess, "s5", "Read", null);
+        AssertSection(managerSectionAccess, "s6", "ReadWrite", null);
+        AssertSection(managerSectionAccess, "s7", "ReadWrite", null);
+        AssertSection(managerSectionAccess, "s8", "ReadWrite", null);
+        AssertSection(managerSectionAccess, "s9", "ReadWrite", null);
+        AssertSection(managerSectionAccess, "s10", "Read", null);
+        AssertSection(managerSectionAccess, "s11", "Read", null);
+        AssertSection(managerSectionAccess, "s12", "ReadWrite", null);
+        AssertSection(managerSectionAccess, "s13", "ReadWrite", null);
+        AssertSection(managerSectionAccess, "s14", "ReadWrite", null);
+        AssertSection(managerSectionAccess, "s15", "Read", null);
+        AssertSection(managerSectionAccess, "s16", "ReadWrite", null);
+    }
+
+    [Fact]
+    public async Task ResolveEndpoint_ProjectLineOnly_ReturnsNarrowedManagerSectionAccess()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        // DeliveryManagerOnlyId is DM on Project Phoenix; ProjectAssigneeId is a plain Member of
+        // Project Phoenix; neither has any reports-to/department relation on file --
+        // Project-line-only, per FixtureSeedData's own doc comment.
+        using var response = await client.GetAsync(
+            $"/api/v1/access-roles/resolve?viewerPersonId={FixtureSeedData.DeliveryManagerOnlyId}&subjectPersonId={FixtureSeedData.ProjectAssigneeId}");
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+
+        Assert.False(root.GetProperty("reportingLine").GetBoolean());
+        Assert.True(root.GetProperty("projectLine").GetBoolean());
+
+        var managerSectionAccess = root.GetProperty("managerSectionAccess");
+        Assert.Equal(JsonValueKind.Object, managerSectionAccess.ValueKind);
+        AssertSection(managerSectionAccess, "s2", "None", null);
+        AssertSection(managerSectionAccess, "s3", "None", null);
+        AssertSection(managerSectionAccess, "s5", "Read", "CV and certificates only");
+        // Everything else, including S6, is identical to the Reporting line.
+        AssertSection(managerSectionAccess, "s1", "ReadWrite", null);
+        AssertSection(managerSectionAccess, "s6", "ReadWrite", null);
+    }
+
+    [Fact]
+    public async Task ResolveEndpoint_BothLinesQualify_ReturnsUnnarrowedManagerSectionAccessNotNarrowed()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        // PlatformLead is Engineer's direct reports-to manager AND is DM on Project Orion, which
+        // Engineer is assigned to -- qualifies for both lines at once, per FixtureSeedData's own
+        // doc comment. Most-permissive-path-wins must yield the unnarrowed result, not the
+        // Project-line narrowing.
+        using var response = await client.GetAsync(
+            $"/api/v1/access-roles/resolve?viewerPersonId={FixtureSeedData.PlatformLeadId}&subjectPersonId={FixtureSeedData.EngineerId}");
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+
+        Assert.True(root.GetProperty("reportingLine").GetBoolean());
+        Assert.True(root.GetProperty("projectLine").GetBoolean());
+
+        var managerSectionAccess = root.GetProperty("managerSectionAccess");
+        AssertSection(managerSectionAccess, "s2", "Read", null);
+        AssertSection(managerSectionAccess, "s3", "Read", null);
+        AssertSection(managerSectionAccess, "s5", "Read", null);
+    }
+
+    [Fact]
+    public async Task ResolveEndpoint_NeitherLineQualifies_ReturnsNullManagerSectionAccess()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        // Executive has no reports-to/department relation to, and holds no DM/PM project
+        // assignment overlapping, UnrelatedProjectDmId -- neither line qualifies.
+        using var response = await client.GetAsync(
+            $"/api/v1/access-roles/resolve?viewerPersonId={FixtureSeedData.ExecutiveId}&subjectPersonId={FixtureSeedData.UnrelatedProjectDmId}");
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+
+        Assert.False(root.GetProperty("reportingLine").GetBoolean());
+        Assert.False(root.GetProperty("projectLine").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("managerSectionAccess").ValueKind);
+    }
+
+    [Fact]
+    public async Task ResolveEndpoint_InvalidGuidQueryParam_ReturnsBadRequestValidationProblem()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        using var response = await client.GetAsync(
+            $"/api/v1/access-roles/resolve?viewerPersonId=not-a-guid&subjectPersonId={FixtureSeedData.EngineerId}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var body = await response.Content.ReadAsStringAsync();
+        using var json = JsonDocument.Parse(body);
+        // ASP.NET Core's default [ApiController] validation-problem body shape.
+        Assert.True(json.RootElement.TryGetProperty("errors", out _), "response body must include 'errors'");
+    }
+
+    [Fact]
+    public async Task ResolveEndpoint_MissingQueryParam_BindsToGuidEmptyAndReturns200WithNoManagerSectionAccess()
+    {
+        // Pins the distinction the doc comment on AccessRolesController.Resolve calls out
+        // explicitly: an entirely absent Guid query parameter is NOT a 400 -- ASP.NET Core's
+        // default model binding for a non-nullable value-type query parameter with no value
+        // present binds it to default(Guid) (Guid.Empty) rather than failing validation, so the
+        // request resolves normally (200). Guid.Empty never matches a real fixture person, so
+        // AccessRoleResolver.ResolveAsync correctly returns AccessRole.None -- both flags false,
+        // managerSectionAccess null. Only a value present but not parseable as a Guid (the
+        // ResolveEndpoint_InvalidGuidQueryParam_... test above) fails model binding and 400s.
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        using var response = await client.GetAsync(
+            $"/api/v1/access-roles/resolve?viewerPersonId={FixtureSeedData.EngineerId}");
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+
+        Assert.False(root.GetProperty("reportingLine").GetBoolean());
+        Assert.False(root.GetProperty("projectLine").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("managerSectionAccess").ValueKind);
+    }
+
+    private static async Task<JsonElement> ReadJsonRootAsync(HttpResponseMessage response)
+    {
+        var body = await response.Content.ReadAsStringAsync();
+        var document = JsonDocument.Parse(body);
+        return document.RootElement.Clone();
+    }
+
+    private static void AssertSection(JsonElement managerSectionAccess, string sectionName, string expectedLevel, string? expectedRestriction)
+    {
+        var section = managerSectionAccess.GetProperty(sectionName);
+        Assert.Equal(expectedLevel, section.GetProperty("level").GetString());
+
+        if (expectedRestriction is null)
+        {
+            var hasRestriction = section.TryGetProperty("restriction", out var restriction);
+            Assert.True(!hasRestriction || restriction.ValueKind == JsonValueKind.Null);
+        }
+        else
+        {
+            Assert.Equal(expectedRestriction, section.GetProperty("restriction").GetString());
+        }
     }
 }

@@ -157,6 +157,26 @@ available.**
 Story-by-story implementation remains real, not-yet-built work. This ADR only maps current status
 and proposes stub contracts, per `parallel-work-boundaries.md`.
 
+## Addendum (2026-09-01, Story 1.9): shipped response shape adds `managerSectionAccess`
+
+Story 1.9 built the endpoint this ADR proposed, but the shipped response is **not** field-for-field
+identical to the shape above. It adds a third top-level field beyond `AccessRole`'s own two
+properties:
+
+```json
+{
+  "reportingLine": true,
+  "projectLine": false,
+  "managerSectionAccess": { "s1": { "level": "ReadWrite", "restriction": null }, "...": "..." }
+}
+```
+
+`managerSectionAccess` is the Manager audience's resolved per-section (S1–S16) access, computed by
+a new sibling Domain component (`ManagerSectionAccessPolicy`, not `AccessRoleResolver` itself) from
+the same `AccessRole` result — `null` whenever neither `reportingLine` nor `projectLine` qualifies.
+Story 1.6/1.8/1.10's owners integrating against this endpoint should code against the actual
+three-field shape, not this ADR's original two-field proposal.
+
 ## Related
 
 - `docs/decisions/ADR-002-people-access-control-relationship-boundary.md` — the sibling ADR this
