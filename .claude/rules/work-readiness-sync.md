@@ -1,0 +1,27 @@
+# Work readiness sync
+
+Before a developer recommends the next story, **selects**, **starts**, **resumes**, or
+**completes** a story, invokes `bmad-build` or any story implementation workflow, changes
+`sprint-status.yaml`, or continues after related PRs are merged, run the read-only audit in
+`.claude/skills/work-readiness-sync/SKILL.md`. Also run when the user asks "is story X ready",
+"work readiness", or "sync check".
+
+## What to do
+
+1. Read and follow `work-readiness-sync/SKILL.md` end to end.
+2. Emit all required report sections (Sync metadata → Next actions).
+3. Stop at the verdict — do not recommend a next story, invoke `bmad-build`, start or resume
+   implementation, change sprint status, merge, or edit artifacts unless the audit permits it
+   and the user explicitly approves a named correction where required.
+
+## Hard boundaries
+
+- **Read-only Git synchronization** — `git fetch` is allowed and may update remote-tracking
+  refs, but must not modify the working tree or local branch history. Merge, rebase, reset,
+  stash, commit, push, and conflict resolution require approval.
+- **No done-by-PR** — a merged PR is not sufficient to mark a story complete.
+- **No silent overwrites** — parallel artifact updates require human approval.
+- **Facts vs inference** — label both; report when remote PR visibility is unavailable.
+
+Mirrored in `.cursor/rules/work-readiness-sync.mdc` — keep both in sync by hand if either
+changes.

@@ -32,6 +32,41 @@ the primary graded quality attribute.
   byte-for-byte content — the Cursor versions are reframed, not verbatim copies, and that's
   correct: `.mdc` frontmatter and Cursor's auto-attach model differ from Claude Code's.
 
+## Planning gap audit
+
+The shared [planning-gap-audit skill](../skills/planning-gap-audit/SKILL.md) works in both
+Claude Code and Cursor. Use it before recommending the next story, approving a story
+specification, starting implementation, changing story order, or marking a story complete.
+
+Examples:
+
+    /planning-gap-audit
+    /planning-gap-audit Check whether Story 1.4 is ready for implementation.
+    /planning-gap-audit Check whether Story 1.3 can be marked done.
+
+It checks the PRD, architecture, UX, epics, stories, dependencies, Git/PR delivery,
+authentication, authorization, cross-service contracts, and testing. It distinguishes BMAD
+status, implementation delivery, and end-to-end verification, then reports gaps and remediation
+recommendations. The audit is read-only by default and must not modify stories, statuses, or
+planning artifacts without explicit approval.
+
+## Work-readiness synchronization
+
+The shared [work-readiness-sync skill](../skills/work-readiness-sync/SKILL.md) works in both
+Cursor and Claude Code. It runs automatically before selecting, starting, resuming, reviewing,
+or completing a story, and before `bmad-build`.
+
+It checks the current branch, `origin/main` divergence, open PRs, parallel work, BMAD statuses,
+dependencies, artifact consistency, and collision risk. It invokes `planning-gap-audit` as part
+of its readiness decision. The sync is read-only by default and requires explicit approval before
+merge, rebase, artifact or status edits, commit, push, or PR changes.
+
+Manual invocation is optional because the trigger rules normally run it automatically:
+
+    /work-readiness-sync Story 1.4
+    /work-readiness-sync Can Story 1.3 be resumed or completed?
+    /work-readiness-sync Reconcile main with BMAD sprint artifacts.
+
 ## Related
 
 - `.cursor/rules/tooling-parity.mdc` — the Cursor-side mirror of this file (this rule applies to
