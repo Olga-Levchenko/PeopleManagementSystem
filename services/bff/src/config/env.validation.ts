@@ -6,4 +6,5 @@ export const envValidationSchema = Joi.object({
     .default('development'),
   PORT: Joi.number().port().default(3001),
   CORS_ORIGIN: Joi.string().uri().default('http://localhost:4200'),
+  PEOPLE_SERVICE_URL: Joi.string().uri().default('http://localhost:3002'),
 });

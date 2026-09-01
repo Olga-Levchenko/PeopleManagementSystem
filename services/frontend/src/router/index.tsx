@@ -6,6 +6,7 @@ import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 import { AppLayout } from '@/components/AppLayout/AppLayout'
 import { HomePage } from '@/pages/HomePage/HomePage'
 import { ErrorPage } from '@/pages/ErrorPage/ErrorPage'
+import { OrganisationalRelationshipsPage } from '@/pages/OrganisationalRelationshipsPage/OrganisationalRelationshipsPage'
 
 const router = createBrowserRouter([
   // Standalone error page (rendered outside the main layout)
@@ -22,6 +23,10 @@ const router = createBrowserRouter([
       {
         index: true,
         element: <HomePage />,
+      },
+      {
+        path: 'organisational-relationships',
+        element: <OrganisationalRelationshipsPage />,
       },
     ],
   },

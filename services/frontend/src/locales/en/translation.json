@@ -14,6 +14,33 @@
     "notAvailable": "Not available"
   },
   "sidebar": {
-    "home": "Home"
+    "home": "Home",
+    "relationships": "Relationships"
+  },
+  "relationships": {
+    "title": "Organisational relationships",
+    "description": "Use the dedicated relationship operation for manager, People Partner, department, and department-manager changes.",
+    "success": "Relationship change submitted.",
+    "error": "The relationship change could not be completed.",
+    "saving": "Saving...",
+    "save": "Save change",
+    "fields": {
+      "personId": "Person ID",
+      "managerId": "Manager ID",
+      "peoplePartnerId": "People Partner ID",
+      "departmentId": "Department ID"
+    },
+    "manager": {
+      "title": "Change manager"
+    },
+    "peoplePartner": {
+      "title": "Change People Partner"
+    },
+    "department": {
+      "title": "Change department"
+    },
+    "departmentManager": {
+      "title": "Change department manager"
+    }
   }
 }
