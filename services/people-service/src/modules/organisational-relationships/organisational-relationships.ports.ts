@@ -1,26 +1,40 @@
-import { Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common'
-import type { RelationshipChangedEvent } from '../../../../../libs/contracts/relationship-events'
+import {
+  Injectable,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import type { RelationshipChangedEvent } from '@pms/contracts';
 
-export const RELATIONSHIP_PERMISSION = 'change organisational relationships'
+export const RELATIONSHIP_PERMISSION = 'change organisational relationships';
 
 export interface RelationshipPermissionPort {
-  canChange(actorId: string, subjectId: string, relationshipType: string): Promise<boolean>
+  canChange(
+    actorId: string,
+    subjectId: string,
+    relationshipType: string,
+  ): Promise<boolean>;
 }
 
 export interface ProjectionUpdatePort {
-  update(event: RelationshipChangedEvent): Promise<void>
+  update(event: RelationshipChangedEvent): Promise<void>;
 }
 
 @Injectable()
 export class UnavailableRelationshipPermissionAdapter implements RelationshipPermissionPort {
-  async canChange(): Promise<boolean> {
-    throw new UnauthorizedException('Relationship authorization is unavailable')
+  canChange(): Promise<boolean> {
+    return Promise.reject(
+      new UnauthorizedException('Relationship authorization is unavailable'),
+    );
   }
 }
 
 @Injectable()
 export class UnavailableProjectionUpdateAdapter implements ProjectionUpdatePort {
-  async update(): Promise<void> {
-    throw new ServiceUnavailableException('Access Control projection update is unavailable')
+  update(): Promise<void> {
+    return Promise.reject(
+      new ServiceUnavailableException(
+        'Access Control projection update is unavailable',
+      ),
+    );
   }
 }

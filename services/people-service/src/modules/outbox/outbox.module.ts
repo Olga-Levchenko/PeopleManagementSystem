@@ -1,7 +1,7 @@
-import { Module } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
-import { OutboxPublisherService } from './outbox-publisher.service'
-import { RabbitMqOutboxBroker } from './rabbitmq-outbox-broker'
+import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { OutboxPublisherService } from './outbox-publisher.service';
+import { RabbitMqOutboxBroker } from './rabbitmq-outbox-broker';
 
 @Module({
   providers: [
@@ -14,7 +14,8 @@ import { RabbitMqOutboxBroker } from './rabbitmq-outbox-broker'
     {
       provide: 'RABBITMQ_EXCHANGE',
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => config.getOrThrow<string>('RABBITMQ_EXCHANGE'),
+      useFactory: (config: ConfigService) =>
+        config.getOrThrow<string>('RABBITMQ_EXCHANGE'),
     },
   ],
 })

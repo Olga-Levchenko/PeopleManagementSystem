@@ -7,6 +7,7 @@ import {
   changeDepartmentManager,
   changeManager,
   changePeoplePartner,
+  getRelationshipChangeError,
 } from '@/api/organisationalRelationships'
 
 type RelationshipForm = 'manager' | 'peoplePartner' | 'department' | 'departmentManager'
@@ -41,8 +42,8 @@ export const OrganisationalRelationshipsPage = () => {
         await changeDepartmentManager(value.target, value.related || undefined)
       }
       setMessage(t('relationships.success'))
-    } catch {
-      setMessage(t('relationships.error'))
+    } catch (error) {
+      setMessage(t(`relationships.errors.${getRelationshipChangeError(error)}`))
     } finally {
       setBusy(null)
     }

@@ -15,7 +15,11 @@ export class OrganisationalRelationshipsService {
     body: unknown,
     authorization?: string,
   ): Promise<UpstreamResponse> {
-    return this.patch(`/organisational-relationships/people/${personId}/manager`, body, authorization);
+    return this.patch(
+      `/organisational-relationships/people/${personId}/manager`,
+      body,
+      authorization,
+    );
   }
 
   changePeoplePartner(
@@ -35,7 +39,11 @@ export class OrganisationalRelationshipsService {
     body: unknown,
     authorization?: string,
   ): Promise<UpstreamResponse> {
-    return this.patch(`/organisational-relationships/people/${personId}/department`, body, authorization);
+    return this.patch(
+      `/organisational-relationships/people/${personId}/department`,
+      body,
+      authorization,
+    );
   }
 
   changeDepartmentManager(
@@ -62,15 +70,18 @@ export class OrganisationalRelationshipsService {
       headers.authorization = authorization;
     }
 
-    const response = await fetch(`${this.config.getOrThrow<string>('PEOPLE_SERVICE_URL')}/api/v1${path}`, {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify(body),
-    });
+    const response = await fetch(
+      `${this.config.getOrThrow<string>('PEOPLE_SERVICE_URL')}/api/v1${path}`,
+      {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(body),
+      },
+    );
 
     const contentType = response.headers.get('content-type') ?? '';
-    const responseBody = contentType.includes('application/json')
-      ? await response.json()
+    const responseBody: unknown = contentType.includes('application/json')
+      ? ((await response.json()) as unknown)
       : await response.text();
 
     return { status: response.status, body: responseBody };

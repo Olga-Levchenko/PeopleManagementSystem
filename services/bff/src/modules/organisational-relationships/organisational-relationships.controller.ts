@@ -54,11 +54,18 @@ export class OrganisationalRelationshipsController {
   ) {
     return this.forward(
       response,
-      await this.service.changeDepartmentManager(departmentId, body, authorization),
+      await this.service.changeDepartmentManager(
+        departmentId,
+        body,
+        authorization,
+      ),
     );
   }
 
-  private forward(response: Response, upstream: { status: number; body: unknown }) {
+  private forward(
+    response: Response,
+    upstream: { status: number; body: unknown },
+  ) {
     response.status(upstream.status);
     return upstream.body;
   }

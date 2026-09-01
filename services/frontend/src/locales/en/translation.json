@@ -21,7 +21,13 @@
     "title": "Organisational relationships",
     "description": "Use the dedicated relationship operation for manager, People Partner, department, and department-manager changes.",
     "success": "Relationship change submitted.",
-    "error": "The relationship change could not be completed.",
+    "errors": {
+      "validation": "Check the IDs and try again.",
+      "permission": "You do not have permission to change this relationship.",
+      "missing": "The requested person or department was not found.",
+      "unavailable": "The relationship service is temporarily unavailable. Try again later.",
+      "unknown": "The relationship change could not be completed."
+    },
     "saving": "Saving...",
     "save": "Save change",
     "fields": {

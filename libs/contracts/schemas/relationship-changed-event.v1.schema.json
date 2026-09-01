@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://people-management.example/contracts/relationship-changed-event.v1.schema.json",
+  "title": "RelationshipChangedEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "eventId",
+    "schemaVersion",
+    "occurredAtUtc",
+    "source",
+    "relationship",
+    "accessEffect"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "occurredAtUtc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "service",
+        "aggregateType",
+        "aggregateId",
+        "aggregateVersion"
+      ],
+      "properties": {
+        "service": {
+          "const": "people-service"
+        },
+        "aggregateType": {
+          "enum": [
+            "person",
+            "department"
+          ]
+        },
+        "aggregateId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "aggregateVersion": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "relationship": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "subjectId",
+        "beforeId",
+        "afterId"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "reports_to",
+            "pp_assignment",
+            "department_membership",
+            "department_manager"
+          ]
+        },
+        "subjectId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "beforeId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "afterId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        }
+      }
+    },
+    "accessEffect": {
+      "enum": [
+        "grant",
+        "revoke",
+        "both",
+        "none"
+      ]
+    }
+  }
+}

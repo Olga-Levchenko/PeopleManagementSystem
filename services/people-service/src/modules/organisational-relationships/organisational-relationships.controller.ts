@@ -1,8 +1,8 @@
-import { Body, Controller, Param, ParseUUIDPipe, Patch } from '@nestjs/common'
-import { ChangeDepartmentDto } from './dto/change-department.dto'
-import { ChangePersonRelationshipDto } from './dto/change-person-relationship.dto'
-import { OrganisationalRelationshipsService } from './organisational-relationships.service'
-import { RequestActorContext } from './request-actor.context'
+import { Body, Controller, Param, ParseUUIDPipe, Patch } from '@nestjs/common';
+import { ChangeDepartmentDto } from './dto/change-department.dto';
+import { ChangePersonRelationshipDto } from './dto/change-person-relationship.dto';
+import { OrganisationalRelationshipsService } from './organisational-relationships.service';
+import { RequestActorContext } from './request-actor.context';
 
 @Controller('organisational-relationships')
 export class OrganisationalRelationshipsController {
@@ -16,7 +16,11 @@ export class OrganisationalRelationshipsController {
     @Param('personId', new ParseUUIDPipe()) personId: string,
     @Body() body: ChangePersonRelationshipDto,
   ) {
-    return this.service.changeManager(this.actor.actorId, personId, body.relatedPersonId)
+    return this.service.changeManager(
+      this.actor.actorId,
+      personId,
+      body.relatedPersonId,
+    );
   }
 
   @Patch('people/:personId/people-partner')
@@ -24,7 +28,11 @@ export class OrganisationalRelationshipsController {
     @Param('personId', new ParseUUIDPipe()) personId: string,
     @Body() body: ChangePersonRelationshipDto,
   ) {
-    return this.service.changePeoplePartner(this.actor.actorId, personId, body.relatedPersonId)
+    return this.service.changePeoplePartner(
+      this.actor.actorId,
+      personId,
+      body.relatedPersonId,
+    );
   }
 
   @Patch('people/:personId/department')
@@ -32,7 +40,11 @@ export class OrganisationalRelationshipsController {
     @Param('personId', new ParseUUIDPipe()) personId: string,
     @Body() body: ChangeDepartmentDto,
   ) {
-    return this.service.changeDepartment(this.actor.actorId, personId, body.departmentId)
+    return this.service.changeDepartment(
+      this.actor.actorId,
+      personId,
+      body.departmentId,
+    );
   }
 
   @Patch('departments/:departmentId/manager')
@@ -44,6 +56,6 @@ export class OrganisationalRelationshipsController {
       this.actor.actorId,
       departmentId,
       body.relatedPersonId,
-    )
+    );
   }
 }

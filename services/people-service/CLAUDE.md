@@ -20,7 +20,9 @@ matching files.
 ## Commands
 
 - `nvm use` — REQUIRED first: project needs Node 22 (`.nvmrc`)
-- `npm install` — and once, `npm install` inside `libs/config/` too (shared ESLint deps live there)
+- `npm install` — first run `npm install && npm run build` inside `libs/contracts/`, then install
+  People Service dependencies; also run `npm install` inside `libs/config/` once (shared ESLint
+  deps live there)
 - `npm run start:dev` — dev server with watch (port 3002)
 - `npm run build` / `npm run lint` — build / ESLint
 - `npm test` / `npm run test:e2e` (e2e needs Postgres up via `infra/docker-compose.yml`)

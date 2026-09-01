@@ -10,13 +10,11 @@ describe('OrganisationalRelationshipsService', () => {
     service = new OrganisationalRelationshipsService({
       getOrThrow: jest.fn().mockReturnValue(peopleServiceUrl),
     } as unknown as ConfigService);
-    fetchMock = jest
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue({
-        status: 422,
-        headers: new Headers({ 'content-type': 'application/json' }),
-        json: jest.fn().mockResolvedValue({ message: 'safe upstream error' }),
-      } as unknown as Response);
+    fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+      status: 422,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: jest.fn().mockResolvedValue({ message: 'safe upstream error' }),
+    } as unknown as Response);
   });
 
   afterEach(() => {
@@ -24,14 +22,24 @@ describe('OrganisationalRelationshipsService', () => {
   });
 
   it.each([
-    ['manager', 'changeManager', 'people/person-id/manager', { relatedPersonId: 'manager-id' }],
+    [
+      'manager',
+      'changeManager',
+      'people/person-id/manager',
+      { relatedPersonId: 'manager-id' },
+    ],
     [
       'People Partner',
       'changePeoplePartner',
       'people/person-id/people-partner',
       { relatedPersonId: 'partner-id' },
     ],
-    ['department', 'changeDepartment', 'people/person-id/department', { departmentId: 'department-id' }],
+    [
+      'department',
+      'changeDepartment',
+      'people/person-id/department',
+      { departmentId: 'department-id' },
+    ],
     [
       'department manager',
       'changeDepartmentManager',

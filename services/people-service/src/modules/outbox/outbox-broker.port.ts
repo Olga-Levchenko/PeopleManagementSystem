@@ -1,8 +1,5 @@
-import type { RelationshipChangedEvent } from '../../../../../libs/contracts/relationship-events'
+import type { RelationshipChangedEvent } from '@pms/contracts';
 
 export interface OutboxBroker {
-  publish(
-    event: RelationshipChangedEvent,
-    routingKey: string,
-  ): Promise<void>
+  publish(event: RelationshipChangedEvent, routingKey: string): Promise<void>;
 }
