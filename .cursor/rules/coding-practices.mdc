@@ -1,0 +1,35 @@
+---
+description: Implementation practices for repository application and test code
+globs: services/**/*.cs,services/**/*.{ts,tsx},services/**/prisma/**,services/**/test/**,services/**/tests/**,services/**/e2e/**,services/**/package.json,services/**/tsconfig*.json,services/**/eslint.config.*,services/**/prisma.config.ts,services/**/playwright.config.ts,services/**/*.csproj,services/**/global.json,libs/**/*.{ts,tsx,js,mjs,cjs,json},.editorconfig,Directory.Build.*
+alwaysApply: false
+---
+
+# Coding practices
+
+Before generating or modifying matched application, test, or implementation-configuration files,
+follow `.claude/skills/coding-practices/SKILL.md`.
+
+Detect the affected technology and service, then read:
+- the nearest `CLAUDE.md`;
+- applicable shared ESLint, Prettier, TypeScript, .NET, and test configuration;
+- adjacent production and test code;
+- relevant architecture and ADR boundaries.
+
+The trigger should automatically load the skill for matching files when supported by the active
+tool. Deterministic compliance remains the responsibility of compiler, analyzers, lint, tests,
+and CI.
+
+Preserve existing service ownership, public contracts, strict typing, async/resource safety,
+server-side authorization, safe errors, migration safety, and truthful unit/integration/E2E claims.
+
+Prefer existing utilities, ports, adapters, validators, fixtures, and test infrastructure. Keep
+controllers/components thin and business logic in the established service/domain layers. Do not
+invent abstractions, libraries, infrastructure, or configuration keys without demonstrated need.
+
+Apply the technology-specific C#/.NET, NestJS/TypeScript/Prisma, React, and test guidance in the
+canonical skill. Use deterministic tooling for formatting, compilation, linting, analyzers,
+database checks, and CI rather than relying on this rule.
+
+Do not activate this rule for documentation-only work, BMAD planning artifacts, Git operations,
+status synchronization, PR-description-only work, or skill/rule maintenance unless explicitly
+requested.
