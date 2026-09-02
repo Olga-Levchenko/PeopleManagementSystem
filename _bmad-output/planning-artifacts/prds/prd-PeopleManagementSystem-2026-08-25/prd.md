@@ -1201,11 +1201,13 @@ still applies.
    site/project is now confirmed (`bootcamp4altex.atlassian.net`, project **O4**, board 3) and
    reachable live via the project's Atlassian MCP server (`.mcp.json`, per-contributor OAuth) —
    first real link is O4-1. Fully resolved; unaffected by the v1.5 changelog.
-3. Real pain points with the current internal system being replaced are not yet known firsthand —
-   the problem framing in §1 Vision is derived from the spec's stated functional gaps rather than
-   direct user complaints. Worth a short conversation with actual HR/manager users if time
-   allows, to sharpen §1 and the dashboard "what matters most" prioritization within the
-   [DESIGN FREEDOM] widget list. Unaffected by the v1.5 changelog.
+3. ~~Real pain points with the current internal system being replaced are not yet known
+   firsthand~~ **RESOLVED (deprioritized) by stakeholder guidance, 2026-09-03**: focus primarily
+   on the updated current-system requirements and expected behavior instead — that's the most
+   useful context for the assignment right now. The stakeholder will share pain-points context or
+   a comparison against the existing system later if the opportunity arises. §1 Vision's problem
+   framing stays derived from the spec's stated functional gaps, not direct user complaints, for
+   now. Unaffected by the v1.5 changelog.
 4. `[v1.5, narrowed]` **Identity linkage across PeopleForce, Employee, and Timetracker records.**
    **Resolved for the current Timetracker integration:** persist Timetracker `Employee.id` as an
    opaque provider-scoped external ID and use project-member email only to locate a candidate
