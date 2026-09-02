@@ -1,0 +1,48 @@
+{
+  "id": "people-management",
+  "realm": "people-management",
+  "displayName": "People Management Platform",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "accessTokenLifespan": 300,
+  "clients": [
+    {
+      "clientId": "bff-confidential",
+      "name": "BFF confidential client",
+      "description": "Confidential client used by the BFF. directAccessGrantsEnabled is on for this story's integration test only; standardFlowEnabled is on for the future BFF-initiated authorization-code redirect flow.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "local-dev-bff-confidential-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:4200/*", "http://localhost:3001/*"],
+      "webOrigins": ["http://localhost:4200"],
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["web-origins", "acr", "profile", "email", "basic"]
+    }
+  ],
+  "users": [
+    {
+      "username": "story1-11.test-user",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Story1-11",
+      "lastName": "TestUser",
+      "email": "story1-11.test-user@peoplemanagement.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Story1-11-TestPassword!",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

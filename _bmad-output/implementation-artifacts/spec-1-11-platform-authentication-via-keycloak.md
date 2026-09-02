@@ -1,0 +1,265 @@
+---
+title: 'Story 1.11: Platform authentication via Keycloak'
+type: 'feature'
+created: '2026-09-01'
+status: 'done'
+review_loop_iteration: 1
+baseline_commit: 'e9d4229f75077f6735abe2575a93f9282912241f'
+context:
+  - '{project-root}/docs/decisions/'
+---
+
+<frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
+
+## Intent
+
+**Problem:** `services/authentication-service/` is an empty scaffold and Keycloak in
+`infra/docker-compose.yml` is an unpinned placeholder with no realm/client — nothing in this
+platform can issue or verify a real identity yet, and every downstream fail-closed stub (Story
+1.3's `RequestActorContext`, Story 1.9's unauthenticated endpoint) is waiting on it.
+
+**Approach:** Scaffold `authentication-service` as a .NET/ASP.NET Core service matching
+`access-control-service`'s conventions (its documented sibling .NET service — see Spec Change
+Log), own a realm-export config that provisions a real, pinned local Keycloak realm/client via
+Keycloak's native `--import-realm` startup mechanism, and expose one endpoint
+(`GET /api/v1/auth/config`) that gives downstream services the issuer/JWKS info needed to validate
+tokens — proven by an integration test that runs a real Keycloak container (Testcontainers) and
+performs a direct-grant login. BFF JWT validation and downstream identity propagation are Story
+1.11's remaining slices (`deferred-work.md`), out of scope here.
+
+## Boundaries & Constraints
+
+**Always:**
+- Realm/client config lives under `services/authentication-service/` (already noted as this
+  service's ownership boundary in `infra/docker-compose.yml`'s existing comment), applied via
+  Keycloak's own `--import-realm` flag — never hand-rolled Admin REST API provisioning code.
+- The test client has `directAccessGrantsEnabled: true` *for testing only* (proves token issuance
+  without a browser); the real login flow (authorization-code, BFF-initiated) is explicitly out of
+  scope here — that's the next slice.
+- Match `access-control-service`'s ASP.NET Core conventions: `AppConfig`-style fail-fast env
+  validation, `CorrelationIdMiddleware`, health check via `AspNetCore.HealthChecks.*` at
+  `/api/v1/health`, Swagger (Development only), explicit `/api/v1/...` route versioning,
+  `global.json` pinning the SDK to `8.0.x`. No `libs/config`/`libs/contracts` — those are Node-only
+  (per their own READMEs), same exclusion `access-control-service` already has.
+- Health check pings the realm's own `/.well-known/openid-configuration` (a custom
+  `IHealthCheck`, or `AddUrlGroup`) — proves both "Keycloak is up" and "our realm actually exists"
+  in one check, not just a bare TCP ping.
+- Pin the Keycloak image tag actually used and remove the "must be verified and pinned" placeholder
+  comment in `infra/docker-compose.yml` once this story exercises it in a real test.
+
+**Ask First:** None anticipated — this is new, additive infrastructure with no existing consumer.
+
+**Never:**
+- No BFF changes, no JWT-validation middleware, no propagation to domain services — deferred
+  (`deferred-work.md`, target specs `spec-1-11b-*`/`spec-1-11c-*`).
+- No production TLS/secret-management story — dev-mode Keycloak (`start-dev`), same posture as
+  every other local-only piece of infra in this repo today.
+- No new database for `authentication-service` — it is stateless; Keycloak is the identity store.
+
+## I/O & Edge-Case Matrix
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|----------|--------------|---------------------------|----------------|
+| Realm/client provisioned | Keycloak container starts with the realm-export file mounted | The configured realm, client, and one seeded test user exist without any manual Admin Console step | N/A |
+| Token issuance | Direct-grant (`password`) login against the test client/user | Keycloak returns a well-formed JWT with the expected issuer and a non-expired `exp` claim | N/A |
+| Discovery endpoint | `GET /api/v1/auth/config` while Keycloak is reachable | `200` with `{ issuer, jwksUri, realm }` resolved from this service's own config, matching Keycloak's real discovery document | N/A |
+| Keycloak unreachable | `GET /api/v1/health` while Keycloak is down/unstarted | Health check reports unhealthy for the `keycloak` indicator; the service itself still boots (same "boots fine when a dependency is down" contract as every other service's health check) | N/A |
+
+</frozen-after-approval>
+
+## Code Map
+
+- `services/access-control-service/` — the ASP.NET Core scaffold pattern to mirror
+  (`src/AccessControlService.Api/Program.cs`, `Configuration/AppConfig.cs`,
+  `Middleware/CorrelationIdMiddleware.cs`, `Health/HealthCheckResponseWriter.cs`, `CLAUDE.md`,
+  `global.json`, `.github/workflows/access-control-service-ci.yml`) — read-only reference, do not
+  modify. Unlike it, this service needs no `AccessControlDbContext`/EF Core/Postgres — it is
+  stateless, so skip the Domain/Infrastructure project split entirely; a single
+  `AuthenticationService.Api` project (plus its test project) is enough for this thin façade.
+- `services/authentication-service/` — currently only `.gitkeep` (+ `keycloak/realm-export.json`
+  from this same story's earlier groundwork); scaffold the full service here
+- `services/authentication-service-nestjs/` — a reference-only backup from an earlier, incorrect
+  NestJS attempt at this same spec (see Spec Change Log) — not live, not wired into CI, may be
+  useful for the realm-export.json shape and integration-test approach, but do not copy its code
+  structure (wrong stack for this service)
+- `services/authentication-service/keycloak/realm-export.json` — already created: realm
+  `people-management`, one confidential client (`bff-confidential`,
+  `directAccessGrantsEnabled: true` for this story's test only, standard flow enabled for the
+  future BFF redirect flow), one seeded test user — reuse as-is, do not recreate
+- `infra/docker-compose.yml` — already updated: Keycloak mounts the realm-export file into
+  `/opt/keycloak/data/import/`, `--import-realm` added to `start-dev`, version pinned — no changes
+  needed here, just confirm it still resolves against the new project's directory structure
+- `.github/workflows/access-control-service-ci.yml` — pattern to copy for
+  `authentication-service-ci.yml` (`_reusable-dotnet-ci.yml`, different `service_path`) — this
+  restores the ALREADY-CORRECT wiring in `all-services-artifacts.yml`'s dotnet matrix, which
+  already lists `services/authentication-service` — do not re-add it there
+
+## Tasks & Acceptance
+
+**Execution:**
+- [x] `services/authentication-service/src/AuthenticationService.Api/` — scaffold the ASP.NET Core
+  service (`.csproj`, `Program.cs`, `Configuration/AppConfig.cs`,
+  `Middleware/CorrelationIdMiddleware.cs`, health check, Swagger) — mirrors
+  `access-control-service`'s Api project, no Domain/Infrastructure split needed
+- [x] `services/authentication-service/AuthenticationService.sln` — solution file at the service
+  root (CI-glob-compatible, matching `access-control-service`'s convention)
+- [x] `services/authentication-service/global.json` — pin SDK to `8.0.x`
+- [x] `services/authentication-service/src/AuthenticationService.Api/Controllers/` —
+  `GET /api/v1/auth/config` endpoint resolving `{issuer, jwksUri, realm}` from `AppConfig`
+- [x] `services/authentication-service/src/AuthenticationService.Api/Health/` — health check
+  pinging the realm's OIDC discovery endpoint
+- [x] `services/authentication-service/tests/AuthenticationService.Api.Tests/` — integration test:
+  boot a real Keycloak (Testcontainers, `keycloak/realm-export.json` mounted), perform a
+  direct-grant login, assert a valid JWT; assert `GET /api/v1/auth/config` matches Keycloak's real
+  discovery document
+- [x] `.github/workflows/authentication-service-ci.yml` — point at `_reusable-dotnet-ci.yml`,
+  matching `access-control-service-ci.yml` (confirm `all-services-artifacts.yml`'s dotnet matrix
+  already lists this service — it does, no edit needed there)
+- [x] `services/authentication-service/CLAUDE.md` — document the service per existing convention
+- [x] `services/authentication-service/.env.example` — `PORT=3008`, `CORS_ORIGIN`,
+  `ConnectionStrings:Postgres` is NOT needed (stateless); `KEYCLOAK_BASE_URL`, `KEYCLOAK_REALM`
+
+**Acceptance Criteria:**
+- Given the platform's Keycloak container starts with this story's realm-export mounted, when it
+  finishes starting, then the configured realm/client/test user exist with no manual step
+- Given a direct-grant login against the test client using the seeded test user's credentials,
+  when the request completes, then Keycloak returns a valid, well-formed JWT
+- Given `authentication-service` is running with Keycloak reachable, when a client calls
+  `GET /api/v1/auth/config`, then the response's `issuer`/`jwksUri` match Keycloak's own discovery
+  document for the configured realm
+
+## Design Notes
+
+`authentication-service` is a thin façade, not an OIDC proxy: it owns realm/client provisioning
+(infra-as-code, versioned alongside the code that depends on it) and gives downstream services one
+canonical place to learn the realm's issuer/JWKS location, rather than each service hardcoding
+Keycloak's internal URL/realm name. The actual interactive login (browser → Keycloak
+authorization-code flow, BFF-initiated) and per-request JWT validation are the next two slices —
+this story only proves the realm and token issuance are real and reachable.
+
+For the Testcontainers-based integration test, check whether an official `Testcontainers.Keycloak`
+NuGet package resolves; if not, fall back to Testcontainers' generic container builder (the same
+library already proven in this repo via `Testcontainers.PostgreSql`/`Testcontainers.RabbitMq` in
+`access-control-service`), running `quay.io/keycloak/keycloak:26.0` with `start-dev --import-realm`
+and the realm-export file mounted, waiting on the HTTP port.
+
+## Spec Change Log
+
+- **Finding:** The first implementation pass (2026-09-01) scaffolded this service in NestJS,
+  pattern-matching `people-service`'s conventions without checking prior architecture intent.
+  Human review caught that four independent, pre-existing records — root `CLAUDE.md`
+  (`services/authentication-service (.NET + Keycloak)`), `libs/config/README.md` (`not used by
+  authentication-service (.NET)`), `.claude/agents/identity-access-engineer.md` (twice), and
+  `all-services-artifacts.yml`'s CI matrix (already pairing `authentication-service` with
+  `access-control-service` on `_reusable-dotnet-ci.yml`) — all agree this service is .NET. No ADR
+  ever recorded a switch away from that.
+- **Amended:** Intent/Approach and the "Always" boundary now specify ASP.NET Core matching
+  `access-control-service`'s conventions, not NestJS/`people-service`. Code Map, Tasks, and
+  Verification below were rewritten for the .NET toolchain.
+- **Known-bad state avoided:** Shipping a second Node service where the architecture, CI matrix,
+  and a dedicated subagent (`identity-access-engineer`) all already expected .NET — which would
+  have silently forked the platform's tech-stack story with no decision record.
+- **KEEP:** The realm design itself (`keycloak/realm-export.json`: realm `people-management`,
+  confidential client `bff-confidential`, direct-grant test user, `--import-realm` provisioning via
+  `infra/docker-compose.yml`) is stack-agnostic and correct as already built — reuse verbatim, do
+  not redesign. The NestJS attempt is preserved at `services/authentication-service-nestjs/` as a
+  non-live reference for the integration-test approach only.
+
+## Review Findings
+
+Full adversarial review (identity-access-engineer + blind-hunter + edge-case-hunter +
+verification-gap), all findings resolved or deferred with rationale:
+
+- [x] [Review][Patch] Fail-open URI bug: `KEYCLOAK_BASE_URL` of only `/` characters reduced to an
+  empty string, throwing an unhandled `UriFormatException` instead of failing fast — fixed with
+  `ValidateAbsoluteUrl` in `AppConfig.cs`.
+- [x] [Review][Patch] No validation on `KEYCLOAK_REALM`'s character set — fixed with
+  `ValidateRealmName` in `AppConfig.cs`.
+- [x] [Review][Patch] `CORS_ORIGIN` got no trailing-slash normalization unlike `KEYCLOAK_BASE_URL` —
+  fixed, same `TrimEnd('/')` treatment applied.
+- [x] [Review][Patch] No explicit timeout on the Keycloak health check — fixed, 5s timeout added to
+  `AddUrlGroup`.
+- [x] [Review][Patch] `DecodeJwtPart`'s base64 padding switch had an unguarded remainder-1 gap
+  (test helper only) — fixed, throws a clear `FormatException`.
+- [x] [Review][Patch] Zero test coverage for `CorrelationIdMiddleware`'s safety-filtering branches,
+  unlike `access-control-service`'s own port of the "identical" class — fixed, added
+  `CorrelationIdMiddlewareTests.cs` mirroring it fact-for-fact.
+- [x] [Review][Patch] No test for "Keycloak reachable but configured realm doesn't exist" — fixed,
+  added `HealthEndpoint_WithKeycloakReachableButRealmDoesNotExist_...`.
+- [x] [Review][Patch] `realm-export.json` relied on Keycloak's `sslRequired: "external"` default,
+  contradicting the stated no-TLS dev intent — fixed, set to `"none"` explicitly.
+- [x] [Review][Patch] Inaccurate `--import-realm` idempotency comment in `docker-compose.yml` —
+  fixed, corrected to describe the actual "ignore existing" import strategy.
+- [x] [Review][Patch] `fullScopeAllowed: true` with no explicit client scopes on `bff-confidential` —
+  insecure-by-default given this project's "Keycloak carries identity facts, not authorization
+  decisions" invariant. Fixed: `fullScopeAllowed: false` + explicit `defaultClientScopes` excluding
+  `roles`; verified via the real Testcontainers suite that token issuance and discovery-document
+  parity still pass.
+- [x] [Review][Defer] `directAccessGrantsEnabled: true` must be stripped before any non-local
+  import — logged to `deferred-work.md`.
+- [x] [Review][Defer] Hostname/`iss` drift risk for `spec-1-11b`'s token validation — logged to
+  `deferred-work.md`.
+- [x] [Review][Defer] Back-channel logout must be an explicit AC of the future login/logout spec —
+  logged to `deferred-work.md`.
+- [x] [Review][Defer] Token-claims design guardrail for `spec-1-11b`/`spec-1-11c` (never
+  role/permission claims from Keycloak) — logged to `deferred-work.md`.
+- [x] [Review][Defer] Client secret/test password should be templated before any non-local
+  import — logged to `deferred-work.md`.
+- [x] [Review][Defer] `docker-compose.yml`'s realm-provisioning path has no automated smoke test
+  (separate CI-infrastructure decision) — logged to `deferred-work.md`.
+
+Dismissed as noise or already-intentional (not written to any file): liveness/readiness
+"conflation" in the health check (this is the spec's own explicitly required behavior, not a bug);
+default-config duplication across `.env.example`/`launchSettings.json` and the bare
+`"HealthEndpointTests"` collection-name string (both match `access-control-service`'s own
+established, already-reviewed pattern); no Dockerfile (already a documented, accepted Gotcha
+matching the sibling service); the `IOException` catch-and-relabel in `Program.cs` (copied verbatim
+from `access-control-service`'s already-shipped pattern, not a new problem); Keycloak's version
+hardcoded in two places (very low drift risk, not worth a shared-constant mechanism for two
+files); NestJS backup being kept in-tree (acceptable per explicit user instruction, not something
+this review should second-guess).
+
+## Verification
+
+**Commands:**
+- `cd services/authentication-service && dotnet build --configuration Release` — expected: builds clean, matches CI
+- `cd services/authentication-service && dotnet test --configuration Release` — expected: all tests pass, including the Testcontainers-Keycloak integration test (Docker required locally)
+
+**Actual result:** Build clean, 0 warnings/errors. 46/46 tests passed (up from the initial 26 after
+the review-driven test additions), including the real Testcontainers-Keycloak integration suite.
+
+## Suggested Review Order
+
+**Keycloak realm/client config**
+
+- Entry point — the realm every other piece of this story provisions and depends on.
+  [`realm-export.json:1`](../../services/authentication-service/keycloak/realm-export.json#L1)
+- Review-driven hardening: no TLS heuristic, no default-scope role-claim leakage risk.
+  [`realm-export.json:6`](../../services/authentication-service/keycloak/realm-export.json#L6)
+- `fullScopeAllowed: false` + explicit non-role default scopes — the security-hardening patch.
+  [`realm-export.json:27`](../../services/authentication-service/keycloak/realm-export.json#L27)
+
+**Config validation: fail closed, not fail open**
+
+- `AppConfig.Load` — every startup value validated before the app ever builds.
+  [`AppConfig.cs:51`](../../services/authentication-service/src/AuthenticationService.Api/Configuration/AppConfig.cs#L51)
+- Fail-closed guard added after review found a `"/"` input silently produced a malformed URI.
+  [`AppConfig.cs:87`](../../services/authentication-service/src/AuthenticationService.Api/Configuration/AppConfig.cs#L87)
+- Realm-name character validation, since it's spliced directly into outbound URLs.
+  [`AppConfig.cs:107`](../../services/authentication-service/src/AuthenticationService.Api/Configuration/AppConfig.cs#L107)
+
+**HTTP surface**
+
+- `GET /api/v1/auth/config` — the one new endpoint, pure config-derived, never calls Keycloak live.
+  [`AuthConfigController.cs:28`](../../services/authentication-service/src/AuthenticationService.Api/Controllers/AuthConfigController.cs#L28)
+- Health check wiring, with the review-added timeout against a merely-slow Keycloak.
+  [`Program.cs:41`](../../services/authentication-service/src/AuthenticationService.Api/Program.cs#L41)
+
+**Tests**
+
+- Real end-to-end proof: a live Keycloak container, direct-grant login, discovery-doc parity.
+  [`KeycloakIntegrationTests.cs:101`](../../services/authentication-service/tests/AuthenticationService.Api.Tests/KeycloakIntegrationTests.cs#L101)
+- The "realm doesn't exist" case review flagged as untested.
+  [`KeycloakIntegrationTests.cs:175`](../../services/authentication-service/tests/AuthenticationService.Api.Tests/KeycloakIntegrationTests.cs#L175)
+- Correlation-id safety-filter coverage, missing entirely before review caught the gap against the sibling service.
+  [`CorrelationIdMiddlewareTests.cs:13`](../../services/authentication-service/tests/AuthenticationService.Api.Tests/Middleware/CorrelationIdMiddlewareTests.cs#L13)
