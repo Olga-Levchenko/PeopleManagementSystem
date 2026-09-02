@@ -7,11 +7,12 @@ on:
         required: true
         type: string
       run_e2e:
-        # Opt-in only: services/people-service's own test/app.e2e-spec.ts requires a real,
-        # already-running Postgres (its health check asserts database.status === 'up'), which
-        # this workflow does not provision - a blanket e2e step would break that service's CI.
-        # Only services/bff (whose e2e suite is fully self-contained via Testcontainers) sets
-        # this true; every other caller is unaffected by omitting it (defaults to false).
+        # Opt-in: a caller sets this true only once every e2e spec file it runs via
+        # `npm run test:e2e` is self-contained (e.g. Testcontainers-provisioned Postgres/
+        # RabbitMQ/Keycloak), since this workflow does not provision any persistent
+        # infrastructure itself. services/bff and services/people-service (as of Story 1.6,
+        # once app.e2e-spec.ts was made Testcontainers-self-contained too) both qualify; every
+        # other caller is unaffected by omitting it (defaults to false).
         required: false
         type: boolean
         default: false

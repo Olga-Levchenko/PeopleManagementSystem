@@ -18,12 +18,13 @@ matching files.
 - **Validation**: global `ValidationPipe` (whitelist, transform) + class-validator
 - **Docs**: Swagger at `/api/docs`; health via `@nestjs/terminus` at `/api/v1/health` (includes a
   Prisma DB ping)
-- **Tests**: Jest — unit in `src/modules/*/__tests__/`, e2e in `test/` (`test/jwt-guard.e2e-spec.ts`
-  boots a real, ephemeral Keycloak via Testcontainers and stubs `PrismaService` — Docker required,
-  but no real Postgres; `test/app.e2e-spec.ts` is the *other* e2e file and still needs a real,
-  already-running Postgres — do not run the full `test:e2e` suite without one; `test/profile.e2e-spec.ts`
-  (Story 1.6) boots its own real, ephemeral Postgres via `@testcontainers/postgresql`, self-contained
-  like the Keycloak suite — see Gotchas for how it authenticates requests without a real token)
+- **Tests**: Jest — unit in `src/modules/*/__tests__/`, e2e in `test/`, all three files self-contained
+  via Testcontainers (Docker required, no dependency on `infra/docker-compose.yml`'s shared
+  instances, and CI-safe — `people-service-ci.yml` sets `run_e2e: true`): `test/jwt-guard.e2e-spec.ts`
+  boots a real, ephemeral Keycloak and stubs `PrismaService` (no real Postgres needed there);
+  `test/app.e2e-spec.ts` and `test/profile.e2e-spec.ts` (Story 1.6) each boot their own real,
+  ephemeral Postgres via `@testcontainers/postgresql` — see Gotchas for how `profile.e2e-spec.ts`
+  authenticates requests without a real token
 - Lint/tsconfig/jest bases are shared via `libs/config/` (see `libs/config/README.md`) — this
   service's `eslint.config.mjs`, `tsconfig.json`, and `package.json`'s `"jest"`/`"prettier"`
   fields just point at them plus whatever is service-specific.

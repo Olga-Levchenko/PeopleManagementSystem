@@ -17,3 +17,8 @@ jobs:
     uses: ./.github/workflows/_reusable-node-ci.yml
     with:
       service_path: services/people-service
+      # All three e2e specs are self-contained via Testcontainers as of Story 1.6
+      # (app.e2e-spec.ts, jwt-guard.e2e-spec.ts, profile.e2e-spec.ts each boot their own
+      # ephemeral Postgres/Keycloak) -- no dependency on infra/docker-compose.yml's shared
+      # instance, so this is safe to enable, same reasoning as bff-ci.yml.
+      run_e2e: true
