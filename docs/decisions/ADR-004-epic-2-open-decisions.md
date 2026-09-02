@@ -1,6 +1,7 @@
 # ADR-004: Epic 2 open decisions — batch access-role resolution and upload storage
 
-- **Status:** Accepted (see 2026-09-02 addendum below — both decisions made)
+- **Status:** Partially accepted — Decisions 1 and 2 accepted (see 2026-09-02 addendum below);
+  Decision 3 added 2026-09-02 via a per-story gap pass and is still **open**
 - **Date:** 2026-09-02
 
 ## Context
@@ -90,6 +91,34 @@ This isn't Story 2.6-only — S1's photo field and S5's CV/certificates (referen
 dev without a later migration, and MinIO is a lightweight addition to the existing
 docker-compose-based dev environment. Flagged as open — not settled.
 
+## Decision 3 (added 2026-09-02, open): how is a 500+-row list actually delivered to the frontend?
+
+**The gap.** Story 2.1's AC guarantees a ≤2s *response*, but never states whether that response
+carries all 500+ rows at once, a paginated slice, or a virtualized/windowed feed — and no other
+Epic 2 story fills the gap either. This affects more than 2.1 itself: Story 2.3 (saved views)
+persists "a filter-and-column configuration," Story 2.4 (export) works from "the current list
+view," and Story 2.5 (colleague mode) restricts the same list's columns — all four assume some
+settled shape for what "the list" actually is per request, which doesn't exist yet.
+
+**Options:**
+1. **Full payload per request** — return all matching rows (up to whatever filters narrow it to)
+   in one response; simplest, but caps how large "500+" can grow before the 2s budget breaks
+   again regardless of Decision 1's fix.
+2. **Server-side pagination** — page number/size params, matching how most internal admin tools
+   work; interacts with Story 2.3's saved views (does a saved view also remember page size?) and
+   Story 2.4's export (does export walk all pages server-side, or only the currently-loaded one?).
+3. **Cursor-based/virtualized windowing** — frontend requests a window as the user scrolls; best
+   perceived performance, most implementation work, and the least precedent elsewhere in this
+   codebase (no other service does windowed delivery today).
+
+**Recommendation (non-binding):** option 2, server-side pagination — it's the most common shape
+for this kind of internal tool, composes cleanly with Story 2.4's export (export can intentionally
+walk all pages rather than just the visible one, which the AC's "current list view" wording
+doesn't rule out), and doesn't require new frontend infrastructure the way virtualization would.
+
+This decision is genuinely open — outlined here per the same "outline, don't resolve" instruction
+Decisions 1 and 2 originally carried, not yet accepted.
+
 ## Consequences
 
 ### Positive
@@ -137,4 +166,4 @@ scaffold ahead of it.
 - `_bmad-output/implementation-artifacts/deferred-work.md` — the existing `AccessRoleResolver`
   scaling entry (recursive CTE) that Decision 1's option 1 would need to land alongside.
 - `_bmad-output/planning-artifacts/epics.md` — Epic 2, Stories 2.1 and 2.6, source of both gaps'
-  acceptance criteria.
+  acceptance criteria; Decision 3 also touches Stories 2.3, 2.4, 2.5.
