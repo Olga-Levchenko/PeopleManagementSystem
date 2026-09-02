@@ -41,7 +41,22 @@ describe('HttpAccessRoleResolutionAdapter', () => {
 
     const result = await adapter.resolve(VIEWER_ID, SUBJECT_ID);
 
-    expect(result).toEqual(body);
+    // parseAccessRoleResolution normalizes the wire response: adds missing boolean flags as false,
+    // fills in absent section groups as null, and adds missing s10/s11 with level:'None'.
+    // Note: parseSectionAccess returns { level: 'None' } (no restriction) for undefined keys,
+    // but { level, restriction: null } when the key is present as an object.
+    expect(result).toEqual({
+      reportingLine: true,
+      projectLine: false,
+      peoplePartnerLine: false,
+      managerSectionAccess: {
+        s1: { level: 'ReadWrite', restriction: null },
+        s2: { level: 'Read', restriction: null },
+        s10: { level: 'None' },
+        s11: { level: 'None' },
+      },
+      peoplePartnerSectionAccess: null,
+    });
     const [calledUrl, calledInit] = fetchMock.mock.calls[0] as [
       URL,
       RequestInit,

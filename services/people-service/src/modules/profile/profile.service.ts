@@ -322,7 +322,7 @@ export class ProfileService {
   private toS11(assignments: ProjectAssignmentRow[]): S11ProjectEntry[] {
     return assignments.map((a) => ({
       projectName: a.projectName,
-      ...(a.role ? { role: a.role } : {}),
+      ...(a.role !== null ? { role: a.role } : {}),
       ...(a.startDate !== null ? { startDate: a.startDate } : {}),
       ...(a.endDate !== null ? { endDate: a.endDate } : {}),
     }));

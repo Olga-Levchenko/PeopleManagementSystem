@@ -2,7 +2,7 @@
 title: 'Story 1.8: Colleague view field whitelist'
 type: 'feature'
 created: '2026-09-02'
-status: 'in-review'
+status: 'done'
 review_loop_iteration: 1
 baseline_commit: 'ddb4f64'
 context:
@@ -73,3 +73,11 @@ context:
 - `cd services/people-service && node node_modules/jest-cli/bin/jest.js "profile.service.spec" --no-coverage` -- expected: all unit tests pass including new S10/S11 and whitelist-key assertions
 - `cd services/people-service && node node_modules/jest-cli/bin/jest.js "profile.e2e-spec" --no-coverage` -- expected: all e2e tests pass including colleague key-set and field-restriction spot-checks
 - `cd services/people-service && npm run lint` -- expected: no lint errors
+
+### Review Findings
+
+- [x] [Review][Patch] Adapter test `toEqual(body)` fails after `parseAccessRoleResolution` normalizes response with extra fields [http-access-role-resolution.adapter.spec.ts:44]
+- [x] [Review][Patch] `toS11` full mapper uses truthiness check `a.role ?` — strips empty-string role; use `a.role !== null` [profile.service.ts]
+- [x] [Review][Patch] Missing `toS11` test variants for `startDate: null` with non-null `endDate` and vice versa [profile.service.spec.ts]
+- [x] [Review][Defer] `PersonProjectAssignment` table has no writer — S11 returns empty arrays in production until epic-14 populates the table — deferred, pre-existing
+- [x] [Review][Defer] `orderBy: { startDate: 'asc' }` on nullable `PersonProjectAssignment.startDate` — PostgreSQL nulls-last by default, ordering semantics undocumented — deferred, pre-existing
