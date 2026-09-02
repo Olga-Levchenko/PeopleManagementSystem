@@ -61,7 +61,12 @@ There is deliberately no `prisma/` or `src/prisma/` here — this service does n
   `KEYCLOAK_BASE_URL`, `KEYCLOAK_REALM` (letters/digits/`-`/`_` only — same restriction as
   `authentication-service`'s `AppConfig.ValidateRealmName`) — the same two values
   `authentication-service`'s `AppConfig` reads; `JwtStrategy` derives its own issuer/JWKS URI from
-  them independently (see Gotchas), never via a live call to `authentication-service`
+  them independently (see Gotchas), never via a live call to `authentication-service`.
+  **`KEYCLOAK_REALM` must exactly match the realm `authentication-service` actually has
+  provisioned** (`people-management` in every environment today) — this value is never fetched
+  live from `authentication-service`, so a typo here doesn't fail fast with a clear error; it
+  silently derives a wrong issuer/JWKS URI, and every real token then fails validation with a
+  generic JWKS-fetch/401 failure that looks like a Keycloak outage, not a config typo
 
 ## Gotchas
 
