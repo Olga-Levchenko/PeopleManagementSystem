@@ -316,6 +316,14 @@
   summary: Add pagination (`take`/`skip`) to `people-service`'s Prisma `leaves` and `personProjectAssignments` selects in `ProfileService.getProfile` before real org-scale data exists, to avoid unbounded memory loading for subjects with large leave/assignment histories.
   evidence: Edge-case-hunter review of story-1-8 found no pagination on either relation select. Ordering is now implemented (`orderBy: { startDate: 'asc' }`); pagination is deferred because no page-size or API shape for S10/S11 is spec'd yet — revisit when UX pagination requirements are defined.
 
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-8-colleague-view-field-whitelist.md`
+  summary: `PersonProjectAssignment` table has no writer — `s11` will return empty arrays in production until the timetracker sync (epic-14) or another mechanism populates `person_project_assignments`. The schema and access-pattern are implemented; population is out of scope for Story 1.8.
+  evidence: Code review of story-1-8 (blind-hunter) found no inbound event consumer or sync adapter writing to this table. Epic-14 is the intended owner.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-8-colleague-view-field-whitelist.md`
+  summary: `orderBy: { startDate: 'asc' }` on nullable `PersonProjectAssignment.startDate` uses PostgreSQL's default null ordering (nulls last), which is not explicitly specified. If the product requires nulls first (open-ended assignments at top), an explicit `nulls: 'first'` Prisma modifier is needed.
+  evidence: Code review of story-1-8 (edge-case-hunter) noted that nullable columns have DB-engine-dependent null ordering. Current behavior (nulls last) is probably acceptable but is undocumented.
+
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-11b-bff-jwt-validation.md`
   summary: Override `JwtAuthGuard.handleRequest` to distinguish a JWKS-fetch failure (Keycloak/network outage) from an actually-invalid/expired token, and log the distinction — both currently surface as an indistinguishable bare 401, which will make a real Keycloak outage look identical to normal bad-token traffic in monitoring/on-call triage.
   evidence: Code review of story-1-11b (blind-hunter) found this; correct fail-closed security posture either way, so this is an observability improvement, not a security gap.

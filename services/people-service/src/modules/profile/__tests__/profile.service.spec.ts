@@ -260,6 +260,76 @@ describe('ProfileService', () => {
     expect(result.s11![0]).toHaveProperty('endDate');
   });
 
+  it('toS11 full mapper: startDate null with endDate set -> startDate key absent, endDate key present', async () => {
+    const rowWithNullStart = {
+      ...FULL_PERSON_ROW,
+      personProjectAssignments: [
+        {
+          projectName: 'Project Alpha',
+          role: 'Member',
+          startDate: null,
+          endDate: new Date('2024-06-01T00:00:00.000Z'),
+        },
+      ],
+    };
+    const resolve = jest.fn().mockResolvedValue({
+      reportingLine: true,
+      projectLine: false,
+      peoplePartnerLine: false,
+      managerSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'Read' },
+        s10: { level: 'Read' },
+        s11: { level: 'Read' },
+      },
+      peoplePartnerSectionAccess: null,
+    });
+    const { service } = createService({ resolve }, rowWithNullStart);
+
+    const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
+
+    expect(result.s11).toHaveLength(1);
+    expect(result.s11![0]).toHaveProperty('projectName', 'Project Alpha');
+    expect(result.s11![0]).toHaveProperty('role', 'Member');
+    expect(result.s11![0]).not.toHaveProperty('startDate');
+    expect(result.s11![0]).toHaveProperty('endDate');
+  });
+
+  it('toS11 full mapper: endDate null with startDate set -> endDate key absent, startDate key present', async () => {
+    const rowWithNullEnd = {
+      ...FULL_PERSON_ROW,
+      personProjectAssignments: [
+        {
+          projectName: 'Project Alpha',
+          role: 'Member',
+          startDate: new Date('2023-06-01T00:00:00.000Z'),
+          endDate: null,
+        },
+      ],
+    };
+    const resolve = jest.fn().mockResolvedValue({
+      reportingLine: true,
+      projectLine: false,
+      peoplePartnerLine: false,
+      managerSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'Read' },
+        s10: { level: 'Read' },
+        s11: { level: 'Read' },
+      },
+      peoplePartnerSectionAccess: null,
+    });
+    const { service } = createService({ resolve }, rowWithNullEnd);
+
+    const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
+
+    expect(result.s11).toHaveLength(1);
+    expect(result.s11![0]).toHaveProperty('projectName', 'Project Alpha');
+    expect(result.s11![0]).toHaveProperty('role', 'Member');
+    expect(result.s11![0]).toHaveProperty('startDate');
+    expect(result.s11![0]).not.toHaveProperty('endDate');
+  });
+
   it('Resolver unreachable: port already failed closed to the "neither line" shape -> Colleague whitelist s1+s10+s11, no 5xx', async () => {
     const resolve = jest.fn().mockResolvedValue(NEITHER_LINE_RESOLUTION);
     const { service } = createService({ resolve });
