@@ -11,6 +11,14 @@ Before a developer recommends the next story, **selects**, **starts**, **resumes
 `.claude/skills/work-readiness-sync/SKILL.md`. Also run when the user asks "is story X ready",
 "work readiness", or "sync check".
 
+Before final commit, final push, PR creation or update, final review request, story `review` or
+`done` status completion, or PR merge, the final readiness decision must be orchestrated by
+`.claude/skills/pr-readiness-check/SKILL.md`.
+
+If the branch is behind `origin/main`, parallel work is detected, or artifacts may be stale, run
+this audit first. If it already ran for the same branch, commit, target, and freshly fetched
+remote state, the PR readiness audit must reuse its result.
+
 ## What to do
 
 1. Read and follow `work-readiness-sync/SKILL.md` end to end.

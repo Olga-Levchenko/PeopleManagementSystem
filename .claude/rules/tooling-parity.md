@@ -32,6 +32,32 @@ the primary graded quality attribute.
   byte-for-byte content — the Cursor versions are reframed, not verbatim copies, and that's
   correct: `.mdc` frontmatter and Cursor's auto-attach model differ from Claude Code's.
 
+The custom `pr-readiness-check` skill is canonical under
+`.claude/skills/pr-readiness-check/SKILL.md` and has concise mirrored trigger rules in
+`.claude/rules/pr-readiness-check.md` and `.cursor/rules/pr-readiness-check.mdc`.
+
+## PR readiness check
+
+Before final story delivery, PR creation or update, final review request, marking a story
+`review` or `done`, or merging a PR, run the shared
+[pr-readiness-check skill](../skills/pr-readiness-check/SKILL.md).
+
+It is the final orchestrator. It is repository-read-only by default, although safe verification
+may create disposable outputs or ephemeral containers that must be cleaned up. Dependency,
+environment, Git, planning-artifact, and PR mutations require explicit approval.
+
+Reuse `work-readiness-sync` or `planning-gap-audit` results when they already cover the same
+repository state; do not start duplicate audit chains.
+
+Manual examples:
+
+    /pr-readiness-check
+    /pr-readiness-check Check Story 1.4 before creating a PR.
+    /pr-readiness-check Re-check PR #20 after review fixes.
+
+Verdicts are `PR READY`, `READY WITH DOCUMENTED BLOCKERS`, `NOT READY`, `SYNC REQUIRED`, and
+`DECISION REQUIRED`, as defined by the canonical skill.
+
 ## Planning gap audit
 
 The shared [planning-gap-audit skill](../skills/planning-gap-audit/SKILL.md) works in both
