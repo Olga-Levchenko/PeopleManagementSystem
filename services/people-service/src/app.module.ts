@@ -8,6 +8,7 @@ import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 import { HealthModule } from './modules/health/health.module';
 import { OrganisationalRelationshipsModule } from './modules/organisational-relationships/organisational-relationships.module';
 import { OutboxModule } from './modules/outbox/outbox.module';
+import { ProfileModule } from './modules/profile/profile.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -21,6 +22,7 @@ import { PrismaModule } from './prisma/prisma.module';
     HealthModule,
     OrganisationalRelationshipsModule,
     OutboxModule,
+    ProfileModule,
   ],
   providers: [
     {

@@ -22,3 +22,10 @@ if (!process.env.KEYCLOAK_BASE_URL) {
 if (!process.env.KEYCLOAK_REALM) {
   process.env.KEYCLOAK_REALM = 'people-management';
 }
+// Same reasoning: env.validation.ts makes this required (no default) so a real deployment fails
+// fast rather than silently resolving every non-Self profile request as Colleague forever. This
+// placeholder is only ever seen by the eager pre-override validation pass -- no e2e spec in this
+// service actually exercises a live access-control-service call today.
+if (!process.env.ACCESS_CONTROL_SERVICE_BASE_URL) {
+  process.env.ACCESS_CONTROL_SERVICE_BASE_URL = 'http://localhost:3007';
+}

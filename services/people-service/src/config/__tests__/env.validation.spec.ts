@@ -12,6 +12,7 @@ describe('envValidationSchema', () => {
     RABBITMQ_URL: 'amqp://guest:guest@localhost:5672',
     KEYCLOAK_BASE_URL: 'http://localhost:8080',
     KEYCLOAK_REALM: 'people-management',
+    ACCESS_CONTROL_SERVICE_BASE_URL: 'http://localhost:3007',
   };
 
   it('accepts a fully valid environment with no error', () => {
@@ -46,6 +47,16 @@ describe('envValidationSchema', () => {
     const withoutBaseUrl: Record<string, string> = { ...validEnv };
     delete withoutBaseUrl.KEYCLOAK_BASE_URL;
     const { error } = envValidationSchema.validate(withoutBaseUrl);
+
+    expect(error).toBeTruthy();
+  });
+
+  it('rejects an environment with ACCESS_CONTROL_SERVICE_BASE_URL omitted', () => {
+    const withoutAccessControlBaseUrl: Record<string, string> = {
+      ...validEnv,
+    };
+    delete withoutAccessControlBaseUrl.ACCESS_CONTROL_SERVICE_BASE_URL;
+    const { error } = envValidationSchema.validate(withoutAccessControlBaseUrl);
 
     expect(error).toBeTruthy();
   });

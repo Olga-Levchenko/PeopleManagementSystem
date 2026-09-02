@@ -46,6 +46,24 @@ model Person {
   department           Department?  @relation("person_department", fields: [departmentId], references: [id], onDelete: Restrict)
   departmentManagerOf  Department[] @relation("department_manager")
 
+  // S1 -- Identity card (Story 1.6). fullName is non-nullable: an empty profile identity would
+  // make every s1.fullName assertion meaningless, and this table carries no seeded rows yet to
+  // backfill.
+  fullName             String
+  photoUrl             String?
+  position             String?
+  countryCity          String?
+  workEmail            String?
+  workPhone            String?
+  birthdayMonth        Int?
+  birthdayDay          Int?
+  startDate            DateTime?
+
+  // S2 -- Personal contacts (Story 1.6).
+  personalPhone        String?
+  personalEmail        String?
+  residentialAddress   String?
+
   @@map("people")
 }
 
@@ -55,6 +73,8 @@ model Department {
   relationshipVersion Int         @default(0)
   members             Person[]    @relation("person_department")
   manager             Person?     @relation("department_manager", fields: [managerId], references: [id], onDelete: Restrict)
+  // Backing data for S1's department/unit field on the profile response (Story 1.6).
+  name                String?
 
   @@map("departments")
 }

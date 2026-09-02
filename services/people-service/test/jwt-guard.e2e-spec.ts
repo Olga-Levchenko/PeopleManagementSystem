@@ -228,6 +228,7 @@ describe('JWT guard (e2e)', () => {
       // second; this value keeps it from ever firing during the run without disabling the
       // service outright.
       OUTBOX_PUBLISHER_INTERVAL_MS: '999999999',
+      ACCESS_CONTROL_SERVICE_BASE_URL: 'http://stub-access-control:3007',
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
