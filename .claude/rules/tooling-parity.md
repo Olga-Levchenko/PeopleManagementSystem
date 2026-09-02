@@ -36,6 +36,14 @@ The custom `pr-readiness-check` skill is canonical under
 `.claude/skills/pr-readiness-check/SKILL.md` and has concise mirrored trigger rules in
 `.claude/rules/pr-readiness-check.md` and `.cursor/rules/pr-readiness-check.mdc`.
 
+The implementation-time `coding-practices` skill is canonical under
+`.claude/skills/coding-practices/SKILL.md` and has equivalent trigger rules in
+`.claude/rules/coding-practices.md` and `.cursor/rules/coding-practices.mdc`.
+
+It guides repository-specific implementation practices for C#/.NET, NestJS/TypeScript/Prisma,
+React/TypeScript, and xUnit/Jest/Playwright/Testcontainers code. It is not a replacement for
+compiler, analyzer, ESLint, Prettier, database, or CI enforcement.
+
 ## PR readiness check
 
 Before final story delivery, PR creation or update, final review request, marking a story
