@@ -14,6 +14,8 @@
 // already-set *empty string* (e.g. an unset CI secret that resolves to `''`) would pass through
 // unchanged and still fail Joi's `.required()` for any e2e spec that doesn't need a real
 // Keycloak -- an empty string is not a value worth preserving here.
+//
+// Mirrors services/bff/test/jest-e2e-setup.ts exactly.
 if (!process.env.KEYCLOAK_BASE_URL) {
   process.env.KEYCLOAK_BASE_URL = 'http://localhost:8080';
 }

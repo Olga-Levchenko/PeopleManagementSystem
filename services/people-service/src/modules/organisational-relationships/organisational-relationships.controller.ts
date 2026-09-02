@@ -1,9 +1,11 @@
 import { Body, Controller, Param, ParseUUIDPipe, Patch } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { ChangeDepartmentDto } from './dto/change-department.dto';
 import { ChangePersonRelationshipDto } from './dto/change-person-relationship.dto';
 import { OrganisationalRelationshipsService } from './organisational-relationships.service';
 import { RequestActorContext } from './request-actor.context';
 
+@ApiBearerAuth()
 @Controller('organisational-relationships')
 export class OrganisationalRelationshipsController {
   constructor(

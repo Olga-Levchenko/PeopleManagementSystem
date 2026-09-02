@@ -322,6 +322,113 @@
   summary: Consider a shared fixture or contract test asserting `authentication-service`'s `AppConfig.Issuer`/`JwksUri` (.NET) and the BFF's `deriveIssuer`/`deriveJwksUri` (Node) derive identical values from the same `KEYCLOAK_BASE_URL`/`KEYCLOAK_REALM` inputs — today the same formula is hand-duplicated in two languages with nothing catching a future silent desync (e.g. a Keycloak version bump changing the certs path in one place but not the other).
   evidence: Code review of story-1-11b (blind-hunter) found this gap; real but low-current-risk, and a cross-language contract test is nontrivial to set up cheaply.
 
+## Deferred from: story-1-11c (2026-09-02)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11c-verified-identity-propagation.md`
+  summary: Add the same JWT-validation pattern (`passport-jwt`/`jwks-rsa`, global guard,
+  `@Public()` opt-out) to each of `access-control-service`, `work-management-service`, and
+  `resourcing-service` once it individually gains a real consumer that reads an actor identity —
+  today none of the three has an endpoint that does, so adding the plumbing now would be
+  speculative infrastructure with no real caller. For `access-control-service` this is the
+  identical trigger condition already logged from Story 1.9's review ("Decide and implement
+  service-to-service authentication/authorization for access-control-service's domain HTTP
+  endpoints"). Consolidated from three near-duplicate entries (one per service) into this single
+  entry so the three stay in sync as one unit rather than drifting independently.
+  evidence: `spec-1-11c`'s own Boundaries & Constraints explicitly scope JWT validation to
+  `people-service` only for this reason, naming all three of these services as deliberately left
+  unauthenticated; recorded here per that spec's Design Notes, mirroring the same principle
+  already applied from Story 1.9's review.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11c-verified-identity-propagation.md`
+  summary: Wire `services/people-service/test/jwt-guard.e2e-spec.ts` into `people-service-ci.yml`
+  (`run_e2e: true`) once `people-service`'s *other* e2e file (`test/app.e2e-spec.ts`, which needs
+  a real, already-running Postgres) is itself made CI-safe (e.g. its own
+  `@testcontainers/postgresql`-based setup) — flipping `run_e2e: true` today would run both e2e
+  files in the same `npm run test:e2e` invocation and break CI on the Postgres-dependent one,
+  exactly as `_reusable-node-ci.yml`'s own `run_e2e` input comment already warns.
+  evidence: `spec-1-11c`'s own Tasks explicitly required confirming this before touching CI wiring;
+  confirmed by inspection of `people-service-ci.yml`/`_reusable-node-ci.yml` (unlike `bff-ci.yml`,
+  which sets `run_e2e: true` because the BFF's e2e suite is fully Testcontainers-self-contained)
+  and verified locally: the new `jwt-guard.e2e-spec.ts` itself needed `PrismaService` stubbed to
+  run without a real Postgres, but `app.e2e-spec.ts` still asserts a real database ping and was
+  left unchanged, per this story's Never boundaries.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11c-verified-identity-propagation.md`
+  summary: Addendum to the story-1-11b entry above titled "Consider a shared fixture or contract
+  test asserting `authentication-service`'s `AppConfig.Issuer`/`JwksUri` (.NET) and the BFF's
+  `deriveIssuer`/`deriveJwksUri` (Node) derive identical values" — that entry described the
+  formula as hand-duplicated in two languages/two places; as of this story it is hand-duplicated
+  in three: `authentication-service`'s `AppConfig` (.NET), `services/bff`'s `JwtStrategy` (Node),
+  and now `services/people-service`'s `JwtStrategy` (Node, a second copy of the same Node
+  formula). Any future contract test covering this should cover all three, not just the original
+  two.
+  evidence: `services/people-service/src/modules/auth/jwt.strategy.ts`'s `deriveIssuer`/
+  `deriveJwksUri` are a byte-for-byte-identical port of `services/bff/src/modules/auth/jwt.strategy.ts`'s
+  own functions of the same name, per this story's own Code Map instruction to port the BFF's
+  pattern verbatim.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11c-verified-identity-propagation.md`
+  summary: Named boundary, not yet addressed: both `services/bff` and `services/people-service`
+  validate the identical browser-obtained bearer token against the same `audience:
+  'bff-confidential'` — there is no per-hop token exchange or downscoped credential between the
+  BFF and `people-service` (or any future adopting Node service). A leaked bearer token is
+  therefore equally powerful at every service that adopts this pattern, not just at the BFF where
+  the browser session lives. This is a legitimate, currently-accepted tradeoff (simplicity over a
+  token-exchange flow neither Keycloak realm nor any client currently implements) — record it so
+  whoever wires a third/fourth Node service into this pattern consciously re-evaluates it rather
+  than treating "same audience at every hop" as an unexamined default that just falls out of
+  continued copy-paste.
+  evidence: Adversarial review of story-1-11c (identity-access-engineer) flagged this as an
+  unwritten security tradeoff once a second service (`people-service`) started validating the
+  same audience the BFF does; `services/people-service/src/modules/auth/jwt.strategy.ts`'s own
+  `BFF_CLIENT_ID` doc comment already explains *why* this is correct for the current two-hop
+  topology, but nothing previously flagged it as a boundary to reconsider as more services adopt
+  the pattern.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11c-verified-identity-propagation.md`
+  summary: `services/bff/src/modules/auth/` and `services/people-service/src/modules/auth/` are
+  now byte-for-byte duplicated in full — `jwt.strategy.ts`, `jwt-auth.guard.ts`,
+  `public.decorator.ts`, `auth.module.ts`, including the hardcoded `'bff-confidential'`
+  client-id literal — and their respective `test/jwt-guard.e2e-spec.ts` e2e fixtures duplicate the
+  same Testcontainers-Keycloak client secret/test username/password constants. Recommend
+  extracting into a shared library (e.g. a new `libs/auth` alongside the existing `libs/config`/
+  `libs/contracts`) once a third Node service adopts this identical pattern, per
+  `.claude/rules/parallel-work-boundaries.md`'s guidance on treating genuinely shared code as a
+  shared seam rather than continuing to hand-copy it service by service.
+  evidence: Adversarial review of story-1-11c (blind-hunter) diffed `services/people-service/src/modules/auth/`
+  against `services/bff/src/modules/auth/` and found the port intentionally verbatim (per this
+  story's own Code Map instruction), which is correct for a second consumer but becomes a real
+  maintenance-drift risk (a fix applied to one copy silently missing the other) the moment a third
+  consumer appears.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11c-verified-identity-propagation.md`
+  summary: `UnavailableRelationshipPermissionAdapter.canChange()` rejects with
+  `UnauthorizedException` (401) instead of `ForbiddenException` (403), even though
+  `RelationshipPermissionPort`'s own contract expects a resolved `false` → 403 via
+  `OrganisationalRelationshipsService.assertPermission`'s `if (!allowed)` branch. This mismatch
+  was invisible before this story (every request already 401'd earlier, at `RequestActorContext`,
+  before ever reaching the permission stub); now that a real, verified actor reaches the stub, a
+  real client sees two different 401s — "not authenticated" vs. "not authorized" — distinguishable
+  only by response message text, never by status code. Recommend Story 1.4 fix the stub (or its
+  eventual real replacement) to reject with `ForbiddenException` instead, matching the documented
+  port contract. Deliberately not fixed here: `spec-1-11c`'s own frozen "Never" boundary forbids
+  touching `organisational-relationships.ports.ts`/`RequestActorContext` in this story.
+  evidence: Adversarial review of story-1-11c (edge-case-hunter + verification-gap, independently)
+  both flagged that `services/people-service/test/jwt-guard.e2e-spec.ts`'s own "valid token" test
+  now asserts a `401` with a message-text distinction, not a `403`, for what the port's own
+  interface contract documents as a permission (not authentication) failure.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11c-verified-identity-propagation.md`
+  summary: The story-1-11b entry above ("Add a cross-realm 'wrong issuer' and 'wrong audience'
+  test once a second Keycloak realm/client fixture exists") now also applies to
+  `services/people-service/test/jwt-guard.e2e-spec.ts`, which has the identical gap: only one
+  realm/client fixture, so a correctly-signed token from a genuinely different issuer or audience
+  is unverified by any test that could fail, proven correct only by `JwtStrategy`'s own config.
+  evidence: Adversarial review of story-1-11c (verification-gap) found the same gap already logged
+  from story-1-11b's review now repeated verbatim in `people-service`'s own e2e suite; still
+  disproportionate effort to fix now (needs a second realm fixture) relative to the current
+  single-client reality, same reasoning as the original entry.
+
 ## Corrections
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1-two-dimensional-access-role-resolution.md`

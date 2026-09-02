@@ -10,6 +10,9 @@ import { ExtractJwt, Strategy, StrategyOptions } from 'passport-jwt';
  * `authentication-service/keycloak/realm-export.json` (the single source of truth for this
  * realm). Kept as a constant, not an env var: unlike `KEYCLOAK_BASE_URL`/`KEYCLOAK_REALM`, this
  * value never varies per environment -- it names a specific client, not a deployment topology.
+ * `people-service` validates the same audience as the BFF because it re-verifies the identical
+ * bearer token the browser obtained and the BFF forwards unchanged (see this module's own
+ * `auth.module.ts` doc comment) -- it is not a second, different client.
  */
 const BFF_CLIENT_ID = 'bff-confidential';
 
@@ -34,8 +37,9 @@ export interface AuthenticatedUser {
 
 /**
  * Derives this realm's OIDC issuer from `KEYCLOAK_BASE_URL`/`KEYCLOAK_REALM` using the exact same
- * formula as `authentication-service`'s `AppConfig.Issuer` (see that class's doc comment) -- a
- * deliberate duplication, not a live discovery call, so the BFF stays startable independent of
+ * formula as `authentication-service`'s `AppConfig.Issuer` (see that class's doc comment) and the
+ * BFF's own `deriveIssuer` (`services/bff/src/modules/auth/jwt.strategy.ts`) -- a deliberate
+ * duplication, not a live discovery call, so this service stays startable independent of
  * `authentication-service`'s own uptime. `KEYCLOAK_BASE_URL` is trimmed of any trailing slash
  * first, matching `AppConfig.Load`'s own trim -- a copy-pasted value with one would otherwise
  * double up in this derived URL (and in `deriveJwksUri`'s below it).
@@ -57,6 +61,12 @@ export function deriveJwksUri(issuer: string): string {
  * Validates a bearer token's signature against Keycloak's real JWKS (via `jwks-rsa`, cached and
  * rate-limited) and its `iss` claim against this realm's real issuer. Never reads a role/
  * permission claim -- see `AuthenticatedUser` above.
+ *
+ * This is `people-service`'s own, independent re-verification of the same token the BFF already
+ * validated at the edge (Story 1.11b) -- the first "trusted service-to-service identity" hop in
+ * this platform (`deferred-work.md`'s 1-11c entry). `people-service` never trusts a forwarded
+ * `request.user` or a caller-supplied `actorId`; it verifies the signature/issuer/audience itself,
+ * exactly as the BFF does.
  */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {

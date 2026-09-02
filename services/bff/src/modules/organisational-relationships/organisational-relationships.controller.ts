@@ -1,7 +1,9 @@
 import { Body, Controller, Headers, Param, Patch, Res } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { OrganisationalRelationshipsService } from './organisational-relationships.service';
 
+@ApiBearerAuth()
 @Controller('organisational-relationships')
 export class OrganisationalRelationshipsController {
   constructor(private readonly service: OrganisationalRelationshipsService) {}
