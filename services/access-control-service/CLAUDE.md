@@ -136,8 +136,9 @@ section matrix's PP column, corrected during that spec's review.
   `SectionAccessLevel` enum — `None`/`Read`/`ReadWrite` — plus `SectionAccess`/`ManagerSectionAccess`
   records and `ManagerSectionAccessPolicy.Resolve(AccessRole)`, the pure most-permissive-path-wins
   mapping from a resolved `AccessRole` to the Manager audience's 16 named section properties,
-  S1–S16; spec-1-6b reuses this same method with a synthetic `AccessRole { ReportingLine = true }`
-  for the PP audience rather than adding a second mapping)
+  S1–S16; spec-1-6b adds a dedicated `ManagerSectionAccessPolicy.ResolveForPeoplePartner()` for the
+  PP audience instead — PP diverges from the unnarrowed Reporting-line view on S2/S3/S5, so reusing
+  `Resolve` with a synthetic `AccessRole { ReportingLine = true }` would have been wrong)
 - `src/AccessControlService.Infrastructure/Persistence/` — `AccessControlDbContext.cs` (EF Core,
   Npgsql provider), `Person.cs`/`Department.cs`/`ProjectAssignment.cs`/`ProjectAssignmentRole.cs`
   (fixture-only entities, stubbed pending a real synced relationship/project-assignment projection

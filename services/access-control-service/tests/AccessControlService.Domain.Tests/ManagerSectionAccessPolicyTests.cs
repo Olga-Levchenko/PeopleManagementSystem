@@ -206,4 +206,33 @@ public class ManagerSectionAccessPolicyTests
         Assert.NotEqual(Unnarrowed.S3, result.S3);
         Assert.NotEqual(Unnarrowed.S5, result.S5);
     }
+
+    [Theory]
+    [InlineData("S1")]
+    [InlineData("S4")]
+    [InlineData("S6")]
+    [InlineData("S7")]
+    [InlineData("S8")]
+    [InlineData("S9")]
+    [InlineData("S10")]
+    [InlineData("S11")]
+    [InlineData("S12")]
+    [InlineData("S13")]
+    [InlineData("S14")]
+    [InlineData("S15")]
+    [InlineData("S16")]
+    public void ResolveForPeoplePartner_EverySectionExceptS2S3S5StaysEqualToUnnarrowedReportingLine(
+        string sectionName)
+    {
+        // Regression guard for the two mappings drifting apart: Resolve(ReportingLine=true) and
+        // ResolveForPeoplePartner() are separate, hand-written 16-property mappings (spec-1-6b's
+        // Design Notes -- a dedicated method, not a call to Resolve with a synthetic role) that
+        // are only supposed to differ on S2/S3/S5. Without this, a future edit to one could
+        // silently desync from the other on any of the remaining 13 sections with nothing to
+        // catch it -- exactly the class of bug the S2/S3/S5 divergence above was found for.
+        var reportingLineResult = ManagerSectionAccessPolicy.Resolve(new AccessRole { ReportingLine = true });
+        var ppResult = ManagerSectionAccessPolicy.ResolveForPeoplePartner();
+
+        Assert.Equal(GetSection(reportingLineResult, sectionName), GetSection(ppResult, sectionName));
+    }
 }

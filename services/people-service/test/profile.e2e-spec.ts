@@ -225,6 +225,30 @@ describe('Profile (e2e)', () => {
     expect(body.s1.manager).toMatchObject({ fullName: 'Manager Testenko' });
   });
 
+  it('Narrowed Project line + PP line together: PP is the only line granting S2, must not be dropped by checking Manager first', async () => {
+    const { subject } = await seedSubject();
+    currentViewerId = 'viewer-project-and-pp-line';
+    resolveMock.mockResolvedValue({
+      reportingLine: false,
+      projectLine: true,
+      peoplePartnerLine: true,
+      managerSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'None' },
+      },
+      peoplePartnerSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'ReadWrite' },
+      },
+    });
+
+    const res = await request(app.getHttpServer())
+      .get(`/people/${subject.id}/profile`)
+      .expect(200);
+
+    expect(Object.keys(res.body as object).sort()).toEqual(['s1', 's2']);
+  });
+
   it('Project line only, narrowed: s2 key absent (not null) from the actual JSON', async () => {
     const { subject } = await seedSubject();
     currentViewerId = 'viewer-project-line';

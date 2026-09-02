@@ -126,14 +126,16 @@ export class ProfileService {
 
   /**
    * Self short-circuits before ever calling the resolver -- never call
-   * `AccessRoleResolutionPort.resolve` for a person against themselves. Otherwise, Reporting-line
-   * or Project-line qualifying (with a non-null `managerSectionAccess`) gates on the resolved
-   * per-section levels; PP-line qualifying (with a non-null `peoplePartnerSectionAccess`) is
-   * checked as a third, independent qualifying line -- the Manager check stays first and takes
-   * priority when both qualify (the matrix cells are identical either way, per spec-1-6b, so
-   * order has no visible effect, but Manager was already there first). Anything else -- no line
-   * qualifies, or the resolver having already failed closed to the "no line" shape -- resolves to
-   * the Colleague whitelist (S1 read-only, no S2).
+   * `AccessRoleResolutionPort.resolve` for a person against themselves. Otherwise, Manager
+   * (Reporting-line/Project-line, via `managerSectionAccess`) and PP-line (via
+   * `peoplePartnerSectionAccess`) are two independent, simultaneously-possible qualifying lines --
+   * per-section, the most-permissive level across whichever lines qualify wins (matching
+   * `ManagerSectionAccessPolicy`'s own most-permissive-path-wins rule one level up: a narrowed
+   * Project-line-only viewer who is also the subject's PP must still get PP's ReadWrite on S2,
+   * not the narrowed Project-line Read/None -- checking Manager first and returning immediately
+   * would silently drop that). A malformed section object (present but missing a `level` key) is
+   * treated as absent, not dereferenced -- fails closed, never throws. No line qualifying at all
+   * resolves to the Colleague whitelist (S1 read-only, no S2).
    */
   private async resolveAudience(
     viewerPersonId: string,
@@ -148,24 +150,44 @@ export class ProfileService {
       subjectPersonId,
     );
 
-    if (
-      (resolution.reportingLine || resolution.projectLine) &&
-      resolution.managerSectionAccess
-    ) {
-      return {
-        s1: resolution.managerSectionAccess.s1.level,
-        s2: resolution.managerSectionAccess.s2.level,
-      };
+    const managerAccess =
+      resolution.reportingLine || resolution.projectLine
+        ? resolution.managerSectionAccess
+        : null;
+    const ppAccess = resolution.peoplePartnerLine
+      ? resolution.peoplePartnerSectionAccess
+      : null;
+
+    if (!managerAccess && !ppAccess) {
+      return { s1: 'Read', s2: 'None' };
     }
 
-    if (resolution.peoplePartnerLine && resolution.peoplePartnerSectionAccess) {
-      return {
-        s1: resolution.peoplePartnerSectionAccess.s1.level,
-        s2: resolution.peoplePartnerSectionAccess.s2.level,
-      };
-    }
+    return {
+      s1: this.mostPermissive(managerAccess?.s1?.level, ppAccess?.s1?.level),
+      s2: this.mostPermissive(managerAccess?.s2?.level, ppAccess?.s2?.level),
+    };
+  }
 
-    return { s1: 'Read', s2: 'None' };
+  /**
+   * Most-permissive-wins across independently-qualifying lines. An `undefined` input (line
+   * didn't qualify, or its section object was malformed/missing a `level`) is treated as `None`,
+   * never dereferenced further -- allowlist ranking, not a denylist, so an unrecognized level
+   * string also loses (falls through to the `?? 0` default) rather than winning by accident.
+   */
+  private mostPermissive(
+    ...levels: (SectionAccessLevel | undefined)[]
+  ): SectionAccessLevel {
+    const rank: Record<SectionAccessLevel, number> = {
+      None: 0,
+      Read: 1,
+      ReadWrite: 2,
+    };
+    return levels.reduce<SectionAccessLevel>((best, level) => {
+      const candidateRank = level ? rank[level] : undefined;
+      return candidateRank !== undefined && candidateRank > rank[best]
+        ? level!
+        : best;
+    }, 'None');
   }
 
   private toS1(person: PersonWithRelations): S1IdentityCard {

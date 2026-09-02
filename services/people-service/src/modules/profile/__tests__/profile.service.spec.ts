@@ -188,7 +188,7 @@ describe('ProfileService', () => {
     expect(result.s1?.peoplePartner).toEqual(FULL_PERSON_ROW.peoplePartner);
   });
 
-  it('PP line and Reporting line both qualify: Manager check takes priority (S2 differs between the two -- Reporting line Read, PP ReadWrite -- so this proves which one actually wins)', async () => {
+  it('PP line and Reporting line both qualify: most-permissive-wins per section (Reporting Read vs PP ReadWrite on S2 -> PP wins)', async () => {
     const resolve = jest.fn().mockResolvedValue({
       reportingLine: true,
       projectLine: false,
@@ -207,6 +207,48 @@ describe('ProfileService', () => {
     const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
 
     expect(Object.keys(result).sort()).toEqual(['s1', 's2']);
+    expect(result.s2).toMatchObject({
+      personalEmail: FULL_PERSON_ROW.personalEmail,
+    });
+  });
+
+  it('Narrowed Project line and PP line both qualify: PP is the only line that grants S2 -- checking Manager first must not drop it', async () => {
+    const resolve = jest.fn().mockResolvedValue({
+      reportingLine: false,
+      projectLine: true,
+      peoplePartnerLine: true,
+      managerSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'None' },
+      },
+      peoplePartnerSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'ReadWrite' },
+      },
+    });
+    const { service } = createService({ resolve });
+
+    const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
+
+    expect(Object.keys(result).sort()).toEqual(['s1', 's2']);
+    expect(result.s2).toMatchObject({
+      personalEmail: FULL_PERSON_ROW.personalEmail,
+    });
+  });
+
+  it('managerSectionAccess present but missing the s2 key entirely: treated as None, never throws', async () => {
+    const resolve = jest.fn().mockResolvedValue({
+      reportingLine: true,
+      projectLine: false,
+      managerSectionAccess: {
+        s1: { level: 'ReadWrite' },
+      },
+    });
+    const { service } = createService({ resolve });
+
+    const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
+
+    expect(Object.keys(result)).toEqual(['s1']);
   });
 
   it('PP line qualifies but peoplePartnerSectionAccess missing falls back to Colleague (defensive, malformed response)', async () => {
