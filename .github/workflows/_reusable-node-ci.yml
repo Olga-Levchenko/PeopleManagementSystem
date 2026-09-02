@@ -6,6 +6,15 @@ on:
       service_path:
         required: true
         type: string
+      run_e2e:
+        # Opt-in only: services/people-service's own test/app.e2e-spec.ts requires a real,
+        # already-running Postgres (its health check asserts database.status === 'up'), which
+        # this workflow does not provision - a blanket e2e step would break that service's CI.
+        # Only services/bff (whose e2e suite is fully self-contained via Testcontainers) sets
+        # this true; every other caller is unaffected by omitting it (defaults to false).
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   build-and-test:
@@ -89,6 +98,12 @@ jobs:
       - name: Test
         if: steps.scaffolded.outputs.present == 'true'
         run: npm test --if-present
+
+      - name: E2E test
+        # Gated behind the new run_e2e input (default false) - see that input's own comment above
+        # for why this can't be a blanket step for every service.
+        if: steps.scaffolded.outputs.present == 'true' && inputs.run_e2e == true
+        run: npm run test:e2e --if-present
 
       - name: Check for Dockerfile
         id: dockerized

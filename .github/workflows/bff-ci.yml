@@ -17,3 +17,8 @@ jobs:
     uses: ./.github/workflows/_reusable-node-ci.yml
     with:
       service_path: services/bff
+      # This service's e2e suite (test/jwt-guard.e2e-spec.ts) is fully self-contained via
+      # Testcontainers (boots its own ephemeral Keycloak) - safe to run in CI, unlike
+      # people-service's e2e suite, which needs an already-running Postgres this workflow
+      # doesn't provision.
+      run_e2e: true
