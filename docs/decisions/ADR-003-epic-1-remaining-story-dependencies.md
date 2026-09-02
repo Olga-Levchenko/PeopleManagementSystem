@@ -187,3 +187,35 @@ three-field shape, not this ADR's original two-field proposal.
 - `docs/access-control/section-matrix.md` — the already-decided policy (full-access RW-everywhere
   row, S16 custom-field visibility, colleague whitelist) several stories above depend on for
   *policy* but not *implementation*.
+
+## Addendum (2026-09-02, Story 1.7): `projectRoles` — option (a) accepted
+
+Decision: accept this ADR's option (a) for Story 1.7's PM-vs-DM distinction — extend
+`GET /api/v1/access-roles/resolve`'s response with an additive `projectRoles` field, rather than
+having `work-management-service` read project-assignment data itself (option (b), rejected, for
+the AD-2 reason already given above: keeps the "resolve access role" decision in one place).
+
+```json
+{
+  "reportingLine": true,
+  "projectLine": true,
+  "projectRoles": ["DeliveryManager"],
+  "managerSectionAccess": { "...": "..." }
+}
+```
+
+The underlying data already exists and needs no new schema: `ProjectAssignment.Role`
+(`AccessControlService.Infrastructure.Persistence`) is a `ProjectAssignmentRole` enum
+(`Member` | `ProjectManager` | `DeliveryManager`) keyed by `(ProjectId, PersonId)`, unique per
+person per project. `AccessRoleResolver`'s current output (`AccessRole`) collapses this to the
+`ProjectLine` boolean and doesn't expose the role value; `AccessRolesController.Resolve` would need
+to also read the viewer's `ProjectAssignmentRole` value(s) across all projects shared with the
+subject and surface them as `projectRoles` (a array, since a viewer could hold different roles on
+different shared projects). `projectRoles` is empty/absent when `projectLine` is `false`, mirroring
+`managerSectionAccess`'s existing null-when-not-qualifying convention.
+
+This is still a decision only, not an implementation — the endpoint, `AccessRoleResolveResponse`,
+and `AccessRoleResolverCompositionTests` all still reflect the two/three-field shape from the
+2026-09-01 addendum above. Building `projectRoles` is Story 1.7-owned work (or a small shared-seam
+change ahead of it, per `.claude/rules/parallel-work-boundaries.md`), to go through `bmad-build`
+like any other spec, not to be improvised ad hoc against the shared endpoint.
