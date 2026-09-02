@@ -1,7 +1,6 @@
 # ADR-004: Epic 2 open decisions — batch access-role resolution and upload storage
 
-- **Status:** Partially accepted — Decisions 1 and 2 accepted (see 2026-09-02 addendum below);
-  Decision 3 added 2026-09-02 via a per-story gap pass and is still **open**
+- **Status:** Accepted — all three decisions made (see 2026-09-02 addenda below)
 - **Date:** 2026-09-02
 
 ## Context
@@ -116,8 +115,8 @@ for this kind of internal tool, composes cleanly with Story 2.4's export (export
 walk all pages rather than just the visible one, which the AC's "current list view" wording
 doesn't rule out), and doesn't require new frontend infrastructure the way virtualization would.
 
-This decision is genuinely open — outlined here per the same "outline, don't resolve" instruction
-Decisions 1 and 2 originally carried, not yet accepted.
+This decision was originally left open, per the same "outline, don't resolve" instruction
+Decisions 1 and 2 carried at first — see the second addendum below for its acceptance.
 
 ## Consequences
 
@@ -158,6 +157,20 @@ recommendation deliberately — MinIO remains available as a later migration if 
 target ever requires it, but is not being built now. No separate prerequisite story is needed:
 the volume mount is small enough to fold into Story 2.6's own implementation (O4-40) rather than
 scaffold ahead of it.
+
+## Addendum (2026-09-02, second): Decision 3 accepted
+
+**Decision 3 — accepted: option 2, server-side pagination.** Matches this ADR's own
+recommendation. The All Employees list endpoint takes page number/size params and returns one
+page per request; Story 2.3's saved views persist page size alongside the filter/column
+configuration; Story 2.4's export walks all pages server-side rather than being limited to
+whichever page happened to be loaded client-side (permitted by the AC's "current list view"
+wording, which describes the active filter/column configuration, not a single loaded page).
+
+No separate prerequisite story is needed — pagination is core to Story 2.1's own filter/column
+engine, not a separable shared capability the way Decision 1's batch endpoint was. Stories 2.3,
+2.4, and 2.5 absorb the consequence in their own scope once they're built against 2.1's paginated
+shape.
 
 ## Related
 
