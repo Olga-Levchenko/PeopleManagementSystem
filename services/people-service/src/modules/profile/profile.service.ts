@@ -36,6 +36,21 @@ export interface S2PersonalContacts {
   residentialAddress: string | null;
 }
 
+/** S10: Leave entry. `leaveType` is present for Self/Manager/PP; absent (stripped) for Colleague. */
+export interface S10Leave {
+  startDate: Date;
+  endDate: Date;
+  leaveType?: string;
+}
+
+/** S11: Project assignment entry. `role`/`startDate`/`endDate` absent (stripped) for Colleague. */
+export interface S11ProjectEntry {
+  projectName: string;
+  role?: string;
+  startDate?: Date;
+  endDate?: Date;
+}
+
 /**
  * A section absent from this object entirely means "no access" -- never `s2: null`, never an
  * empty `{}`. Callers must assert on `Object.keys`, not a null check, per the frozen I/O matrix.
@@ -43,7 +58,22 @@ export interface S2PersonalContacts {
 export interface ProfileResponse {
   s1?: S1IdentityCard;
   s2?: S2PersonalContacts;
+  s10?: S10Leave[];
+  s11?: S11ProjectEntry[];
 }
+
+type LeaveRow = {
+  startDate: Date;
+  endDate: Date;
+  leaveType: string;
+};
+
+type ProjectAssignmentRow = {
+  projectName: string;
+  role: string | null;
+  startDate: Date | null;
+  endDate: Date | null;
+};
 
 type PersonWithRelations = {
   fullName: string;
@@ -61,6 +91,8 @@ type PersonWithRelations = {
   manager: PersonSummary | null;
   peoplePartner: PersonSummary | null;
   department: DepartmentSummary | null;
+  leaves: LeaveRow[];
+  personProjectAssignments: ProjectAssignmentRow[];
 };
 
 @Injectable()
@@ -93,6 +125,19 @@ export class ProfileService {
         manager: { select: { id: true, fullName: true } },
         peoplePartner: { select: { id: true, fullName: true } },
         department: { select: { id: true, name: true } },
+        leaves: {
+          select: { startDate: true, endDate: true, leaveType: true },
+          orderBy: { startDate: 'asc' },
+        },
+        personProjectAssignments: {
+          select: {
+            projectName: true,
+            role: true,
+            startDate: true,
+            endDate: true,
+          },
+          orderBy: { startDate: 'asc' },
+        },
       },
     });
     if (!person) {
@@ -110,6 +155,16 @@ export class ProfileService {
     }
     if (this.grantsAccess(audience.s2)) {
       response.s2 = this.toS2(person);
+    }
+    if (this.grantsAccess(audience.s10)) {
+      response.s10 = audience.isColleague
+        ? this.toS10Colleague(person.leaves)
+        : this.toS10(person.leaves);
+    }
+    if (this.grantsAccess(audience.s11)) {
+      response.s11 = audience.isColleague
+        ? this.toS11Colleague(person.personProjectAssignments)
+        : this.toS11(person.personProjectAssignments);
     }
     return response;
   }
@@ -135,14 +190,31 @@ export class ProfileService {
    * not the narrowed Project-line Read/None -- checking Manager first and returning immediately
    * would silently drop that). A malformed section object (present but missing a `level` key) is
    * treated as absent, not dereferenced -- fails closed, never throws. No line qualifying at all
-   * resolves to the Colleague whitelist (S1 read-only, no S2).
+   * resolves to the Colleague whitelist (S1 read-only, no S2; S10/S11 read with field
+   * restrictions).
+   *
+   * `isColleague` flag is distinct from `s2 === 'None'`: a narrowed Project-line-only viewer also
+   * has `s2 === 'None'` per the section matrix but is entitled to full (unrestricted) S10/S11 data.
+   * The flag makes the distinction unambiguous without further inspection of the resolution.
    */
   private async resolveAudience(
     viewerPersonId: string,
     subjectPersonId: string,
-  ): Promise<{ s1: SectionAccessLevel; s2: SectionAccessLevel }> {
+  ): Promise<{
+    s1: SectionAccessLevel;
+    s2: SectionAccessLevel;
+    s10: SectionAccessLevel;
+    s11: SectionAccessLevel;
+    isColleague: boolean;
+  }> {
     if (viewerPersonId === subjectPersonId) {
-      return { s1: 'ReadWrite', s2: 'ReadWrite' };
+      return {
+        s1: 'ReadWrite',
+        s2: 'ReadWrite',
+        s10: 'ReadWrite',
+        s11: 'ReadWrite',
+        isColleague: false,
+      };
     }
 
     const resolution = await this.accessRoleResolution.resolve(
@@ -159,12 +231,23 @@ export class ProfileService {
       : null;
 
     if (!managerAccess && !ppAccess) {
-      return { s1: 'Read', s2: 'None' };
+      // Colleague whitelist: S10 and S11 are readable but with field restrictions applied
+      // by the isColleague flag -- `leaveType` stripped from S10, `role`/dates stripped from S11.
+      return {
+        s1: 'Read',
+        s2: 'None',
+        s10: 'Read',
+        s11: 'Read',
+        isColleague: true,
+      };
     }
 
     return {
       s1: this.mostPermissive(managerAccess?.s1?.level, ppAccess?.s1?.level),
       s2: this.mostPermissive(managerAccess?.s2?.level, ppAccess?.s2?.level),
+      s10: this.mostPermissive(managerAccess?.s10?.level, ppAccess?.s10?.level),
+      s11: this.mostPermissive(managerAccess?.s11?.level, ppAccess?.s11?.level),
+      isColleague: false,
     };
   }
 
@@ -213,5 +296,45 @@ export class ProfileService {
       personalEmail: person.personalEmail,
       residentialAddress: person.residentialAddress,
     };
+  }
+
+  /** Full S10 mapper (Self/Manager/PP): includes `leaveType`. */
+  private toS10(leaves: LeaveRow[]): S10Leave[] {
+    return leaves.map((l) => ({
+      startDate: l.startDate,
+      endDate: l.endDate,
+      ...(l.leaveType ? { leaveType: l.leaveType } : {}),
+    }));
+  }
+
+  /**
+   * Colleague S10 mapper: strips `leaveType` entirely per the section matrix
+   * (v1.5: "dates only, no type").
+   */
+  private toS10Colleague(leaves: LeaveRow[]): S10Leave[] {
+    return leaves.map((l) => ({
+      startDate: l.startDate,
+      endDate: l.endDate,
+    }));
+  }
+
+  /** Full S11 mapper (Self/Manager/PP): includes `role`, `startDate`, `endDate`. */
+  private toS11(assignments: ProjectAssignmentRow[]): S11ProjectEntry[] {
+    return assignments.map((a) => ({
+      projectName: a.projectName,
+      ...(a.role ? { role: a.role } : {}),
+      ...(a.startDate !== null ? { startDate: a.startDate } : {}),
+      ...(a.endDate !== null ? { endDate: a.endDate } : {}),
+    }));
+  }
+
+  /**
+   * Colleague S11 mapper: strips `role`, `startDate`, `endDate` entirely per the section matrix
+   * ("project name only").
+   */
+  private toS11Colleague(
+    assignments: ProjectAssignmentRow[],
+  ): S11ProjectEntry[] {
+    return assignments.map((a) => ({ projectName: a.projectName }));
   }
 }

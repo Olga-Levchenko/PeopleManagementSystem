@@ -133,7 +133,10 @@ describe('Profile (e2e)', () => {
     jest.clearAllMocks();
   });
 
-  async function seedSubject(overrides: Record<string, unknown> = {}) {
+  async function seedSubject(
+    overrides: Record<string, unknown> = {},
+    { seedRecords = true }: { seedRecords?: boolean } = {},
+  ) {
     const department = await prisma.department.create({
       data: { name: 'Engineering' },
     });
@@ -163,10 +166,34 @@ describe('Profile (e2e)', () => {
         ...overrides,
       },
     });
+
+    if (seedRecords) {
+      // S10: one leave entry (used to verify date-only restriction for Colleague)
+      await prisma.leave.create({
+        data: {
+          personId: subject.id,
+          startDate: new Date('2024-08-01T00:00:00.000Z'),
+          endDate: new Date('2024-08-14T00:00:00.000Z'),
+          leaveType: 'vacation',
+        },
+      });
+
+      // S11: one project assignment (used to verify project-name-only restriction for Colleague)
+      await prisma.personProjectAssignment.create({
+        data: {
+          personId: subject.id,
+          projectName: 'Project Beta',
+          role: 'Developer',
+          startDate: new Date('2023-06-01T00:00:00.000Z'),
+          endDate: new Date('2024-06-01T00:00:00.000Z'),
+        },
+      });
+    }
+
     return { subject, manager, peoplePartner, department };
   }
 
-  it('Self: full s1+s2, resolver never called', async () => {
+  it('Self: full s1+s2+s10+s11, resolver never called', async () => {
     const { subject } = await seedSubject();
     currentViewerId = subject.id;
 
@@ -174,11 +201,27 @@ describe('Profile (e2e)', () => {
       .get(`/people/${subject.id}/profile`)
       .expect(200);
 
-    expect(Object.keys(res.body as object).sort()).toEqual(['s1', 's2']);
+    expect(Object.keys(res.body as object).sort()).toEqual([
+      's1',
+      's10',
+      's11',
+      's2',
+    ]);
     expect(resolveMock).not.toHaveBeenCalled();
+    // Self sees full S10 including leaveType
+    const body = res.body as {
+      s10: Array<Record<string, unknown>>;
+      s11: Array<Record<string, unknown>>;
+    };
+    expect(body.s10).toHaveLength(1);
+    expect(body.s10[0]).toHaveProperty('leaveType', 'vacation');
+    // Self sees full S11 including role and dates
+    expect(body.s11).toHaveLength(1);
+    expect(body.s11[0]).toHaveProperty('projectName', 'Project Beta');
+    expect(body.s11[0]).toHaveProperty('role', 'Developer');
   });
 
-  it('Reporting line: ReadWrite s1 / Read s2 -> both sections present', async () => {
+  it('Reporting line: ReadWrite s1 / Read s2 / Read s10/s11 -> all four sections present with full field data', async () => {
     const { subject } = await seedSubject();
     currentViewerId = 'viewer-reporting-line';
     resolveMock.mockResolvedValue({
@@ -187,6 +230,8 @@ describe('Profile (e2e)', () => {
       managerSectionAccess: {
         s1: { level: 'ReadWrite' },
         s2: { level: 'Read' },
+        s10: { level: 'Read' },
+        s11: { level: 'Read' },
       },
     });
 
@@ -194,12 +239,27 @@ describe('Profile (e2e)', () => {
       .get(`/people/${subject.id}/profile`)
       .expect(200);
 
-    const body = res.body as { s1: { manager: unknown }; s2: unknown };
-    expect(Object.keys(res.body as object).sort()).toEqual(['s1', 's2']);
+    const body = res.body as {
+      s1: { manager: unknown };
+      s2: unknown;
+      s10: Array<Record<string, unknown>>;
+      s11: Array<Record<string, unknown>>;
+    };
+    expect(Object.keys(res.body as object).sort()).toEqual([
+      's1',
+      's10',
+      's11',
+      's2',
+    ]);
     expect(body.s1.manager).toMatchObject({ fullName: 'Manager Testenko' });
+    // Manager sees full S10 with leaveType
+    expect(body.s10[0]).toHaveProperty('leaveType', 'vacation');
+    // Manager sees full S11 with role
+    expect(body.s11[0]).toHaveProperty('projectName', 'Project Beta');
+    expect(body.s11[0]).toHaveProperty('role', 'Developer');
   });
 
-  it('PP line: peoplePartnerLine true with ReadWrite s1/s2 -> both sections present', async () => {
+  it('PP line: peoplePartnerLine true with ReadWrite s1/s2 and Read s10/s11 -> all four sections present with full field data', async () => {
     const { subject } = await seedSubject();
     currentViewerId = 'viewer-pp-line';
     resolveMock.mockResolvedValue({
@@ -213,6 +273,8 @@ describe('Profile (e2e)', () => {
       peoplePartnerSectionAccess: {
         s1: { level: 'ReadWrite' },
         s2: { level: 'ReadWrite' },
+        s10: { level: 'Read' },
+        s11: { level: 'Read' },
       },
     });
 
@@ -220,9 +282,22 @@ describe('Profile (e2e)', () => {
       .get(`/people/${subject.id}/profile`)
       .expect(200);
 
-    const body = res.body as { s1: { manager: unknown }; s2: unknown };
-    expect(Object.keys(res.body as object).sort()).toEqual(['s1', 's2']);
+    const body = res.body as {
+      s1: { manager: unknown };
+      s2: unknown;
+      s10: Array<Record<string, unknown>>;
+      s11: Array<Record<string, unknown>>;
+    };
+    expect(Object.keys(res.body as object).sort()).toEqual([
+      's1',
+      's10',
+      's11',
+      's2',
+    ]);
     expect(body.s1.manager).toMatchObject({ fullName: 'Manager Testenko' });
+    // PP sees full S10/S11 data (isColleague: false)
+    expect(body.s10[0]).toHaveProperty('leaveType', 'vacation');
+    expect(body.s11[0]).toHaveProperty('role', 'Developer');
   });
 
   it('Narrowed Project line + PP line together: PP is the only line granting S2, must not be dropped by checking Manager first', async () => {
@@ -235,10 +310,14 @@ describe('Profile (e2e)', () => {
       managerSectionAccess: {
         s1: { level: 'ReadWrite' },
         s2: { level: 'None' },
+        s10: { level: 'Read' },
+        s11: { level: 'Read' },
       },
       peoplePartnerSectionAccess: {
         s1: { level: 'ReadWrite' },
         s2: { level: 'ReadWrite' },
+        s10: { level: 'Read' },
+        s11: { level: 'Read' },
       },
     });
 
@@ -246,10 +325,15 @@ describe('Profile (e2e)', () => {
       .get(`/people/${subject.id}/profile`)
       .expect(200);
 
-    expect(Object.keys(res.body as object).sort()).toEqual(['s1', 's2']);
+    expect(Object.keys(res.body as object).sort()).toEqual([
+      's1',
+      's10',
+      's11',
+      's2',
+    ]);
   });
 
-  it('Project line only, narrowed: s2 key absent (not null) from the actual JSON', async () => {
+  it('Project line only, narrowed: s2 key absent (not null) from the actual JSON, s10/s11 present with full field data', async () => {
     const { subject } = await seedSubject();
     currentViewerId = 'viewer-project-line';
     resolveMock.mockResolvedValue({
@@ -258,6 +342,8 @@ describe('Profile (e2e)', () => {
       managerSectionAccess: {
         s1: { level: 'ReadWrite' },
         s2: { level: 'None' },
+        s10: { level: 'Read' },
+        s11: { level: 'Read' },
       },
     });
 
@@ -265,10 +351,21 @@ describe('Profile (e2e)', () => {
       .get(`/people/${subject.id}/profile`)
       .expect(200);
 
-    expect(Object.keys(res.body as object)).toEqual(['s1']);
+    const body = res.body as {
+      s10: Array<Record<string, unknown>>;
+      s11: Array<Record<string, unknown>>;
+    };
+    expect(Object.keys(res.body as object).sort()).toEqual([
+      's1',
+      's10',
+      's11',
+    ]);
+    // Project-line is NOT a Colleague (isColleague: false) -- gets full S10/S11 data
+    expect(body.s10[0]).toHaveProperty('leaveType', 'vacation');
+    expect(body.s11[0]).toHaveProperty('role', 'Developer');
   });
 
-  it('Colleague: neither line qualifies -> s2 key absent (not null) from the actual JSON', async () => {
+  it('Colleague: neither line qualifies -> exactly s1+s10+s11 (whitelist); s2 absent, leaveType stripped, role/dates stripped', async () => {
     const { subject } = await seedSubject();
     currentViewerId = 'viewer-colleague';
     resolveMock.mockResolvedValue({
@@ -281,10 +378,57 @@ describe('Profile (e2e)', () => {
       .get(`/people/${subject.id}/profile`)
       .expect(200);
 
-    expect(Object.keys(res.body as object)).toEqual(['s1']);
+    // Key-set assertion: exactly s1, s10, s11
+    expect(Object.keys(res.body as object).sort()).toEqual([
+      's1',
+      's10',
+      's11',
+    ]);
+
+    const body = res.body as {
+      s10: Array<Record<string, unknown>>;
+      s11: Array<Record<string, unknown>>;
+    };
+    // S10: dates present, leaveType absent
+    expect(body.s10).toHaveLength(1);
+    expect(body.s10[0]).toHaveProperty('startDate');
+    expect(body.s10[0]).toHaveProperty('endDate');
+    expect(body.s10[0]).not.toHaveProperty('leaveType');
+    // S11: projectName present, role/startDate/endDate absent
+    expect(body.s11).toHaveLength(1);
+    expect(body.s11[0]).toHaveProperty('projectName', 'Project Beta');
+    expect(body.s11[0]).not.toHaveProperty('role');
+    expect(body.s11[0]).not.toHaveProperty('startDate');
+    expect(body.s11[0]).not.toHaveProperty('endDate');
   });
 
-  it('Resolver unreachable: resolver rejects/fails closed -> still 200, Colleague, S1-only, not a 5xx', async () => {
+  it('EMPTY_RECORDS: subject with no leaves and no project assignments -> s10:[] and s11:[] both present as empty arrays for Colleague', async () => {
+    const { subject } = await seedSubject({}, { seedRecords: false });
+    currentViewerId = 'viewer-colleague-empty';
+    resolveMock.mockResolvedValue({
+      reportingLine: false,
+      projectLine: false,
+      managerSectionAccess: null,
+    });
+
+    const res = await request(app.getHttpServer())
+      .get(`/people/${subject.id}/profile`)
+      .expect(200);
+
+    expect(Object.keys(res.body as object).sort()).toEqual([
+      's1',
+      's10',
+      's11',
+    ]);
+    const body = res.body as {
+      s10: unknown[];
+      s11: unknown[];
+    };
+    expect(body.s10).toEqual([]);
+    expect(body.s11).toEqual([]);
+  });
+
+  it('Resolver unreachable: resolver rejects/fails closed -> still 200, Colleague whitelist s1+s10+s11, not a 5xx', async () => {
     const { subject } = await seedSubject();
     currentViewerId = 'viewer-resolver-down';
     // Matches what HttpAccessRoleResolutionAdapter itself returns after catching a network
@@ -299,7 +443,11 @@ describe('Profile (e2e)', () => {
       .get(`/people/${subject.id}/profile`)
       .expect(200);
 
-    expect(Object.keys(res.body as object)).toEqual(['s1']);
+    expect(Object.keys(res.body as object).sort()).toEqual([
+      's1',
+      's10',
+      's11',
+    ]);
   });
 
   it('Unknown subjectPersonId: 404 NotFoundException', async () => {

@@ -310,6 +310,12 @@
   summary: Add a cross-realm "wrong issuer" and "wrong audience" test once a second Keycloak realm/client fixture exists — today's e2e suite only has one realm/client, so a correctly-signed token from a genuinely different issuer or audience is unverified in practice (only proven correct by the strategy's own config, not by a test that could fail).
   evidence: Code review of story-1-11b (identity-access-engineer + blind-hunter) found this gap; disproportionate effort to fix now (would need a second realm fixture) relative to the current single-client reality.
 
+## Deferred from: code review of story-1-8 (2026-09-02)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-8-colleague-view-field-whitelist.md`
+  summary: Add pagination (`take`/`skip`) to `people-service`'s Prisma `leaves` and `personProjectAssignments` selects in `ProfileService.getProfile` before real org-scale data exists, to avoid unbounded memory loading for subjects with large leave/assignment histories.
+  evidence: Edge-case-hunter review of story-1-8 found no pagination on either relation select. Ordering is now implemented (`orderBy: { startDate: 'asc' }`); pagination is deferred because no page-size or API shape for S10/S11 is spec'd yet — revisit when UX pagination requirements are defined.
+
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-11b-bff-jwt-validation.md`
   summary: Override `JwtAuthGuard.handleRequest` to distinguish a JWKS-fetch failure (Keycloak/network outage) from an actually-invalid/expired token, and log the distinction — both currently surface as an indistinguishable bare 401, which will make a real Keycloak outage look identical to normal bad-token traffic in monitoring/on-call triage.
   evidence: Code review of story-1-11b (blind-hunter) found this; correct fail-closed security posture either way, so this is an observability improvement, not a security gap.
