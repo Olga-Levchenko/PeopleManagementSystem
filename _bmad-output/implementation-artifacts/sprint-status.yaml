@@ -142,3 +142,256 @@ development_status:
   16-1-employment-status-as-a-time-bounded-fact: backlog
   16-2-departure-recording-and-effects: backlog
   epic-16-retrospective: optional
+
+# Bulk-imported 09-02-2026 from a systematic audit of deferred-work.md's ~64 unowned entries
+# (items no existing story's AC covers). Full rationale/evidence for each lives in
+# _bmad-output/implementation-artifacts/deferred-work.md; also tracked as Jira tasks under O4-9.
+action_items:
+  - epic: 1
+    action: "Strip directAccessGrantsEnabled from bff-confidential client in realm-export.json before non-local import (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Pin Keycloak KC_HOSTNAME/KC_HOSTNAME_URL before any multi-hostname deployment (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Make back/front-channel logout an explicit AC of the login/logout story (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Design guardrail: Keycloak token claims must never carry role/permission data (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Template bff-confidential client secret + seeded test user password in realm-export.json (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Add a docker-compose smoke test proving Keycloak realm auto-provisioning actually works (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Establish a shared .NET style/analyzer baseline (.editorconfig, dotnet format check) (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Add explicit timeout to access-control-service's Postgres health check (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Decide CORS AllowCredentials() need once the BFF actually calls access-control-service (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Reconcile access-control-service's CORS wiring with its own browser-only claim, given Swagger dev usage (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Add CORS_ORIGIN URI validation and correlation-id header length/control-char limits (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Extract a shared .NET service-scaffold library once authentication-service exists (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Scope and implement ADR-001's independent periodic reconciliation sweep (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Replace access-control-service's fixture-only relationship data with a real sync from people-service (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Decide explicit handling for an unknown person/department id in EfRelationshipRepository (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Share one Testcontainers Postgres across EfRelationshipRepositoryTests' test methods (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Decide whether one person can hold both DM and PM on the same project (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Add a Project table/validation so ProjectAssignment.ProjectId can't reference a nonexistent project (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Add concurrency protection around ProjectAssignmentEventProcessor's watermark read-then-write (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Extend ProjectAssignmentEventOutcome to distinguish DB constraint failures from other exceptions (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Share one Testcontainers Postgres across ProjectAssignmentEventProcessorTests' test methods (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Decide behavior when an AggregateId's valid event claims a different (ProjectId, PersonId) pair (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Add FK constraint from ProjectAssignmentEventWatermark.OwnedPersonId to Person (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Add jitter/growth cap to RabbitMQ reconnect backoff and a mid-run reconnect integration test (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Wire RabbitMQ consumer connectivity/liveness into /health (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Add DLQ depth monitoring/alerting, TLS/credential hardening, and a DLQ TTL/max-length bound (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Add a consumer-lag / time-since-last-processed metric for the 15-min project-access-revocation guarantee (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Revisit RabbitMQ consumer's retry-tagging republish/ack atomicity gap (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Add a test proving Swagger is unreachable outside Development in access-control-service (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Document or decide access-control-service's HTTPS posture (no UseHttpsRedirection) (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Extend CI path filters to cover infra/postgres-init, .gitattributes, .gitignore (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Decide whether one person can manage more than one department (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Add a graceful skip for AccessControlService.Infrastructure.Tests when Docker is unavailable locally (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Add a DB CHECK constraint against a self-referential Person.ManagerId/Department.ParentDepartmentId (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Extend Project-line resolution to everyone transitively above the qualifying DM/PM (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Add FK constraint from ProjectAssignmentEventWatermark's owned-project/person columns to Person (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Decide behavior for a redelivered event with the same EventId but a different AggregateVersion (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Decide person-existence check ordering for revoke vs. grant events in ProjectAssignmentEventProcessor (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Fix RabbitMQ consumer's republish-then-ack sequence not being atomic (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Document that x-dead-letter-reason only reflects the first rejection reason, not the one that exhausted retries (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Harden RabbitMQ connection config: configurable reconnect/retry, VirtualHost, TLS/AMQPS support (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Add max-length/TTL bound to the main quorum queue and its dead-letter queue (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Decide whether FakeProjectAssignmentEventProducer should move out of the production assembly (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Add a test forcing a RabbitMQ connection/channel loss mid-run to prove the consumer reconnects and resumes (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Distinguish a permanent PRECONDITION_FAILED topology mismatch from a transient RabbitMQ failure in logs (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Support multiple comma-separated CORS_ORIGIN values in access-control-service (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Add a test forcing a Kestrel port-bind conflict to verify the descriptive-error wrapping fires (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Formalize the organisational-relationship event contract into its own frozen spec (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Build People/Organization's transactional-outbox write path and publisher for org-relationship changes (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Build access-control-service's RabbitMQ consumer for organisational-relationship events (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Decide libs/contracts' cross-language (.NET/Node) schema-artifact format and tooling (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Decide whether Story 1.10's custom-field-visibility decision point lives in People or Access Control (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Add a Department-management grant-direction test mirroring the existing revoke test (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Add a Project-line revoke test using the ProjectManager role, not just DeliveryManager (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Add a cross-realm wrong-issuer/wrong-audience test for both BFF and people-service once a second Keycloak fixture exists (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Distinguish a JWKS-fetch failure from an actually-invalid/expired token in JwtAuthGuard (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Add a contract test asserting Issuer/JwksUri derivation matches across authentication-service, bff, and people-service (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Decide and implement a cross-system identity mapping so Keycloak sub can resolve to a real Person.id (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Add a real contract test for people-service's adapter against access-control-service's actual resolve-endpoint JSON shape (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Decide the per-hop token-exchange/downscoped-credential story as more services adopt the shared-audience JWT pattern (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Extract bff and people-service's duplicated auth modules into a shared libs/auth (deferred-work.md)"
+    owner: unassigned
+    status: open
+  - epic: 1
+    action: "Fix UnavailableRelationshipPermissionAdapter to reject with 403 (ForbiddenException) instead of 401, matching its port contract (deferred-work.md)"
+    owner: unassigned
+    status: open
