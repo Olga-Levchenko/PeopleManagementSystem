@@ -1,6 +1,6 @@
 # ADR-004: Epic 2 open decisions — batch access-role resolution and upload storage
 
-- **Status:** Proposed (outlined for decision, not yet accepted)
+- **Status:** Accepted (see 2026-09-02 addendum below — both decisions made)
 - **Date:** 2026-09-02
 
 ## Context
@@ -105,10 +105,30 @@ docker-compose-based dev environment. Flagged as open — not settled.
 
 ## Scope
 
-This ADR only outlines the decisions and their options, per an explicit instruction not to resolve
-them unilaterally — unlike ADR-003's `projectRoles` addendum, nothing here is accepted. A human
-(or whoever owns Story 2.1/2.6) should pick an option, or override with a different one, before
-either story's spec is written.
+This ADR originally only outlined the decisions and their options — see the 2026-09-02 addendum
+below for the choices actually made.
+
+## Addendum (2026-09-02): both decisions accepted
+
+**Decision 1 — accepted: option 1, batch HTTP endpoint.** Matches this ADR's own
+recommendation. `access-control-service` gets a new batch-shaped endpoint (proposed shape:
+`POST /api/v1/access-roles/resolve-batch`, one `viewerPersonId` plus a list of
+`subjectPersonId`s, returning the same per-subject `{reportingLine, projectLine,
+managerSectionAccess}` shape `GET /resolve` already returns, per-subject) rather than a cached
+projection or query push-down. Tracked as a new prerequisite story, parented under Epic 1 (same
+pattern as O4-89 for Story 1.7): **O4-90**, linked as blocking Story 2.1 (O4-35). Implementing the
+endpoint's own internal round-trip-per-subject cost (the recursive-CTE optimization
+`deferred-work.md` already tracks) is in scope for O4-90; wiring Story 2.1's actual list query to
+call it is not — that remains Story 2.1's own work.
+
+**Decision 2 — accepted: option 1, local-disk/volume storage, *not* this ADR's recommended
+option 2 (MinIO).** Uploaded photos/certificates will be stored on a Docker-mounted volume owned
+by People/Organization, matching the project's current everything-runs-locally stance, rather
+than adding an S3-compatible object-storage container. This overrides the ADR's own
+recommendation deliberately — MinIO remains available as a later migration if a real deployment
+target ever requires it, but is not being built now. No separate prerequisite story is needed:
+the volume mount is small enough to fold into Story 2.6's own implementation (O4-40) rather than
+scaffold ahead of it.
 
 ## Related
 
