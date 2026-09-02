@@ -5,7 +5,7 @@ namespace AccessControlService.Api.Controllers;
 
 /// <summary>
 /// Exposes <see cref="AccessRoleResolver"/> over HTTP -- the gap ADR-003 identified as blocking
-/// four of Epic 1's remaining stories -- and, on top of it, resolves the Manager audience's
+/// four of Epic 1's remaining stories -- and, on top of it, resolves the Manager and PP audiences'
 /// per-section access via <see cref="ManagerSectionAccessPolicy"/> in the same response. Thin
 /// wrapper only: no new domain logic lives here, per AD-1/AD-2 (Domain owns the decisions, Api owns
 /// transport).
@@ -23,10 +23,11 @@ public sealed class AccessRolesController : ControllerBase
 
     /// <summary>
     /// Resolves <paramref name="viewerPersonId"/>'s access role toward
-    /// <paramref name="subjectPersonId"/>, plus the Manager audience's per-section access derived
-    /// from it. <c>managerSectionAccess</c> is <c>null</c> whenever neither Reporting-line nor
-    /// Project-line qualifies -- this endpoint never guesses at Self/PP/Colleague access, which
-    /// neither <see cref="AccessRoleResolver"/> nor <see cref="ManagerSectionAccessPolicy"/>
+    /// <paramref name="subjectPersonId"/>, plus the Manager and PP audiences' per-section access
+    /// derived from it. <c>managerSectionAccess</c> is <c>null</c> whenever neither Reporting-line
+    /// nor Project-line qualifies; <c>peoplePartnerSectionAccess</c> is <c>null</c> whenever
+    /// People-Partner-line doesn't qualify -- this endpoint never guesses at Self/Colleague access,
+    /// which neither <see cref="AccessRoleResolver"/> nor <see cref="ManagerSectionAccessPolicy"/>
     /// computes. An <see cref="Guid"/> query parameter present but not parseable as a GUID fails
     /// ASP.NET Core's built-in model binding, which -- via <see cref="ApiControllerAttribute"/>'s
     /// automatic model-state validation -- returns the framework's default 400 validation problem
@@ -49,11 +50,23 @@ public sealed class AccessRolesController : ControllerBase
             ? ToResponse(ManagerSectionAccessPolicy.Resolve(accessRole))
             : null;
 
+        // PP is never narrowed (unlike Project line) and matches the unnarrowed Reporting-line
+        // view for most sections, but genuinely diverges for S2/S3/S5 (PP = ReadWrite, Reporting
+        // line = Read even unnarrowed) -- see ManagerSectionAccessPolicy.ResolveForPeoplePartner's
+        // doc comment for the matrix citations. Do not compute this via Resolve(new AccessRole
+        // { ReportingLine = true }) -- that silently reproduces the wrong (Read-only) S2/S3/S5
+        // levels for PP.
+        var peoplePartnerSectionAccess = accessRole.PeoplePartnerLine
+            ? ToResponse(ManagerSectionAccessPolicy.ResolveForPeoplePartner())
+            : null;
+
         return Ok(new AccessRoleResolveResponse
         {
             ReportingLine = accessRole.ReportingLine,
             ProjectLine = accessRole.ProjectLine,
+            PeoplePartnerLine = accessRole.PeoplePartnerLine,
             ManagerSectionAccess = managerSectionAccess,
+            PeoplePartnerSectionAccess = peoplePartnerSectionAccess,
         });
     }
 
@@ -94,12 +107,22 @@ public sealed record AccessRoleResolveResponse
 
     public required bool ProjectLine { get; init; }
 
+    public required bool PeoplePartnerLine { get; init; }
+
     /// <summary>
     /// The Manager audience's resolved per-section access, or <c>null</c> when neither
     /// <see cref="ReportingLine"/> nor <see cref="ProjectLine"/> qualifies (no Manager access at
     /// all toward this subject).
     /// </summary>
     public required ManagerSectionAccessResponse? ManagerSectionAccess { get; init; }
+
+    /// <summary>
+    /// The PP audience's resolved per-section access, per
+    /// <c>docs/access-control/section-matrix.md</c>'s PP column -- matches the unnarrowed
+    /// Reporting-line view except S2/S3/S5, where PP is ReadWrite -- or <c>null</c> when
+    /// <see cref="PeoplePartnerLine"/> is <c>false</c> (no PP access at all toward this subject).
+    /// </summary>
+    public required ManagerSectionAccessResponse? PeoplePartnerSectionAccess { get; init; }
 }
 
 /// <summary>The Manager audience's resolved access to every profile section (S1-S16).</summary>

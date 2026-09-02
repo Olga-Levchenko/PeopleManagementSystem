@@ -158,4 +158,52 @@ public class ManagerSectionAccessPolicyTests
         "S16" => access.S16,
         _ => throw new ArgumentOutOfRangeException(nameof(sectionName)),
     };
+
+    // -- spec-1-6b: ResolveForPeoplePartner, per docs/access-control/section-matrix.md's PP
+    // column. Matches the unnarrowed Reporting-line view for every section except S2/S3/S5, where
+    // PP is ReadWrite while even an unnarrowed Reporting-line viewer is only Read -- confirmed
+    // against docs/requirements/project-requirements.md's §3.2 matrix, unamended for these three
+    // PP cells by Spec_Changelog_v1.2_to_v1.5.md.
+    [Theory]
+    [InlineData(SectionAccessLevel.ReadWrite, "S1")]
+    [InlineData(SectionAccessLevel.ReadWrite, "S2")]
+    [InlineData(SectionAccessLevel.ReadWrite, "S3")]
+    [InlineData(SectionAccessLevel.ReadWrite, "S4")]
+    [InlineData(SectionAccessLevel.ReadWrite, "S5")]
+    [InlineData(SectionAccessLevel.ReadWrite, "S6")]
+    [InlineData(SectionAccessLevel.ReadWrite, "S7")]
+    [InlineData(SectionAccessLevel.ReadWrite, "S8")]
+    [InlineData(SectionAccessLevel.ReadWrite, "S9")]
+    [InlineData(SectionAccessLevel.Read, "S10")]
+    [InlineData(SectionAccessLevel.Read, "S11")]
+    [InlineData(SectionAccessLevel.ReadWrite, "S12")]
+    [InlineData(SectionAccessLevel.ReadWrite, "S13")]
+    [InlineData(SectionAccessLevel.ReadWrite, "S14")]
+    [InlineData(SectionAccessLevel.Read, "S15")]
+    [InlineData(SectionAccessLevel.ReadWrite, "S16")]
+    public void ResolveForPeoplePartner_EachSectionMatchesTheDocumentedPpColumnLevel(
+        SectionAccessLevel expectedLevel,
+        string sectionName)
+    {
+        var result = ManagerSectionAccessPolicy.ResolveForPeoplePartner();
+        var actual = GetSection(result, sectionName);
+
+        Assert.Equal(expectedLevel, actual.Level);
+    }
+
+    [Fact]
+    public void ResolveForPeoplePartner_S2S3S5DivergeFromUnnarrowedReportingLine()
+    {
+        // The exact regression this test guards: PP must not be computed by calling Resolve with
+        // a synthetic ReportingLine=true role, which would silently give PP the wrong (Read-only)
+        // level for these three sections.
+        var result = ManagerSectionAccessPolicy.ResolveForPeoplePartner();
+
+        Assert.Equal(SectionAccessLevel.ReadWrite, result.S2.Level);
+        Assert.Equal(SectionAccessLevel.ReadWrite, result.S3.Level);
+        Assert.Equal(SectionAccessLevel.ReadWrite, result.S5.Level);
+        Assert.NotEqual(Unnarrowed.S2, result.S2);
+        Assert.NotEqual(Unnarrowed.S3, result.S3);
+        Assert.NotEqual(Unnarrowed.S5, result.S5);
+    }
 }

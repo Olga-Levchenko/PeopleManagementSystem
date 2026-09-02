@@ -20,6 +20,14 @@ public interface IRelationshipRepository
     Task<Guid?> GetManagerIdAsync(Guid personId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// The id of <paramref name="personId"/>'s assigned people partner, or <c>null</c> if the
+    /// person has no PP on file, or the id itself isn't a known person -- these two cases are
+    /// deliberately indistinguishable at this layer, same as <see cref="GetManagerIdAsync"/> (see
+    /// this service's CLAUDE.md Gotchas).
+    /// </summary>
+    Task<Guid?> GetPeoplePartnerIdAsync(Guid personId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// The department <paramref name="personId"/> currently belongs to, or <c>null</c> if the
     /// person has no department on file, or the id isn't a known person.
     /// </summary>

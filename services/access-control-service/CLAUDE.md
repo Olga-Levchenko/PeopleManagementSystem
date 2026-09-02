@@ -46,7 +46,21 @@ via `ProjectLine` alone gets S2/S3 dropped to `None` and S5 narrowed to Read/CV+
 Revocation and the full section-gated *profile* response (real field data) are not deferred-work
 carve-offs — they're already-planned Epic 1 stories (1.2 and 1.6 respectively), tracked in
 `_bmad-output/planning-artifacts/epics.md` and
-`_bmad-output/implementation-artifacts/sprint-status.yaml`.
+`_bmad-output/implementation-artifacts/sprint-status.yaml`. Story 1.6b
+(`spec-1-6b-pp-access-role-resolution.md`) added `AccessRole.PeoplePartnerLine`: true when the
+viewer is the subject's assigned people partner, OR is transitively above that PP in the PP's own
+reports-to chain (the "HR line" — the PP's manager chain, never the subject's) — resolved
+unconditionally and independently of `ReportingLine`/`ProjectLine`. It reuses
+`AccessRoleResolver`'s existing transitive reports-to walk (generalized to accept any starting
+person id, not just the subject) rather than a second copy, and a new
+`IRelationshipRepository.GetPeoplePartnerIdAsync`/`Person.PeoplePartnerId` column
+(`AddPeoplePartnerToPerson` migration) backs it. `GET /api/v1/access-roles/resolve` now also
+returns `peoplePartnerLine`/`peoplePartnerSectionAccess`, the latter computed by
+`ManagerSectionAccessPolicy.ResolveForPeoplePartner()` — PP matches the unnarrowed Reporting-line
+view for most sections but is ReadWrite on S2/S3/S5 (Reporting-line is only Read there even
+unnarrowed), so this is a dedicated mapping, not a reuse of `Resolve` with a synthetic role — an
+earlier draft of spec-1-6b assumed the two were cell-for-cell identical; they aren't, per the
+section matrix's PP column, corrected during that spec's review.
 
 ## Tech Stack
 
@@ -68,15 +82,19 @@ carve-offs — they're already-planned Epic 1 stories (1.2 and 1.6 respectively)
     Story 1.9's real, DI-composed, migrated-Postgres HTTP tests for
     `GET /api/v1/access-roles/resolve` — Reporting-line-only, Project-line-only (narrowed),
     both-lines-qualify (most-permissive-path-wins), neither-line-qualifies (`null`
-    `managerSectionAccess`), and the missing/invalid-`Guid`-query-param 400 cases
+    `managerSectionAccess`), and the missing/invalid-`Guid`-query-param 400 cases, plus
+    (spec-1-6b) `peoplePartnerLine`/`peoplePartnerSectionAccess` cases: direct-PP-match,
+    transitive-HR-line-match, isolation from Reporting-line, and subject-has-no-PP
   - `tests/AccessControlService.Domain.Tests/` — `AccessRoleResolver` unit tests against a
-    hand-written fake `IRelationshipRepository` (no EF Core, no database); `ManagerSectionAccessPolicyTests`
-    covers all 16 sections for the narrowed (Project-line-only), unnarrowed (Reporting-line-only),
-    and combined-lines cases
+    hand-written fake `IRelationshipRepository` (no EF Core, no database), including spec-1-6b's
+    PP-line/HR-line I/O-matrix cases (`FakeRelationshipRepository.SetPeoplePartner`);
+    `ManagerSectionAccessPolicyTests` covers all 16 sections for the narrowed (Project-line-only),
+    unnarrowed (Reporting-line-only), and combined-lines cases
   - `tests/AccessControlService.Infrastructure.Tests/` — `EfRelationshipRepository` integration
     tests against a real, ephemeral Postgres started via `Testcontainers.PostgreSql` (requires
     Docker), with the actual EF Core migration applied — the only tests that exercise real EF Core
-    query translation and prove the fixture seed data is actually queryable. Also
+    query translation and prove the fixture seed data is actually queryable, including
+    `GetPeoplePartnerIdAsync` (spec-1-6b). Also
     `ProjectAssignmentEventProcessorTests` (same Testcontainers pattern) covering every I/O-matrix
     scenario plus the cross-aggregate-conflict/validation cases, a container-free
     `ProjectAssignmentEventProcessorSignatureTests` asserting the processor's constructor only takes
@@ -108,18 +126,23 @@ carve-offs — they're already-planned Epic 1 stories (1.2 and 1.6 respectively)
 
 - `AccessControlService.sln` — solution file at the service root (CI-glob-compatible)
 - `src/AccessControlService.Domain/` — pure resolution logic, zero external dependencies:
-  `AccessRole.cs` (result type — `ReportingLine` and `ProjectLine`, two independent flags, never
-  collapsed), `IRelationshipRepository.cs` (the port Infrastructure implements),
-  `AccessRoleResolver.cs` (the transitive reports-to/department-management walk with a bounded
-  cycle guard, plus the direct, non-transitive project-assignment intersection check),
-  `ManagerSectionAccessPolicy.cs` (Story 1.9: `SectionAccessLevel` enum — `None`/`Read`/
-  `ReadWrite` — plus `SectionAccess`/`ManagerSectionAccess` records and
-  `ManagerSectionAccessPolicy.Resolve(AccessRole)`, the pure most-permissive-path-wins mapping from
-  a resolved `AccessRole` to the Manager audience's 16 named section properties, S1–S16)
+  `AccessRole.cs` (result type — `ReportingLine`, `ProjectLine`, and `PeoplePartnerLine` (spec-1-6b),
+  three independent flags, never collapsed), `IRelationshipRepository.cs` (the port Infrastructure
+  implements, including `GetPeoplePartnerIdAsync`), `AccessRoleResolver.cs` (the transitive
+  reports-to/department-management walk with a bounded cycle guard — its private
+  `IsTransitiveManagerAsync` is generalized over its starting person id so the same walk resolves
+  both Reporting-line and the PP's own "HR line" — plus the direct, non-transitive
+  project-assignment intersection check), `ManagerSectionAccessPolicy.cs` (Story 1.9:
+  `SectionAccessLevel` enum — `None`/`Read`/`ReadWrite` — plus `SectionAccess`/`ManagerSectionAccess`
+  records and `ManagerSectionAccessPolicy.Resolve(AccessRole)`, the pure most-permissive-path-wins
+  mapping from a resolved `AccessRole` to the Manager audience's 16 named section properties,
+  S1–S16; spec-1-6b reuses this same method with a synthetic `AccessRole { ReportingLine = true }`
+  for the PP audience rather than adding a second mapping)
 - `src/AccessControlService.Infrastructure/Persistence/` — `AccessControlDbContext.cs` (EF Core,
   Npgsql provider), `Person.cs`/`Department.cs`/`ProjectAssignment.cs`/`ProjectAssignmentRole.cs`
   (fixture-only entities, stubbed pending a real synced relationship/project-assignment projection
-  from `people-service`/the timetracker integration — see deferred-work.md),
+  from `people-service`/the timetracker integration — see deferred-work.md; `Person.PeoplePartnerId`
+  added by spec-1-6b's `AddPeoplePartnerToPerson` migration),
   `ProjectAssignmentEventWatermark.cs` (per-aggregate last-applied-version/event-id, plus the
   `(ProjectId, PersonId)` pair that aggregate currently owns — see Messaging below),
   `EfRelationshipRepository.cs` (the `IRelationshipRepository` implementation),
@@ -151,7 +174,10 @@ carve-offs — they're already-planned Epic 1 stories (1.2 and 1.6 respectively)
   rendered as a PascalCase string (`Level.ToString()`), matching
   `HealthCheckResponseWriter`'s existing `report.Status.ToString()` convention. A missing/invalid
   `Guid` query parameter falls through to ASP.NET Core's own `[ApiController]` model-validation
-  400, with no custom handling needed.
+  400, with no custom handling needed. Spec-1-6b added `peoplePartnerLine`/
+  `peoplePartnerSectionAccess` alongside the above — the latter `null` whenever
+  `peoplePartnerLine` is `false`, computed via the same `ManagerSectionAccessResponse` shape reused
+  for the PP audience.
 - `src/AccessControlService.Api/Configuration/AppConfig.cs` — fail-fast startup config validation
   (`PORT`, `CORS_ORIGIN`, `ConnectionStrings:Postgres`, `RABBITMQ_HOST`/`RABBITMQ_PORT`/
   `RABBITMQ_USER`/`RABBITMQ_PASSWORD` — values only, not actual broker reachability, so the app
@@ -219,8 +245,9 @@ carve-offs — they're already-planned Epic 1 stories (1.2 and 1.6 respectively)
   with Postgres down" contract `RealServerBindingTests`/`HealthEndpointTests` rely on (the health
   check reports Unhealthy, the app doesn't crash). Apply migrations explicitly — see Commands.
 - **An unknown person/department id is indistinguishable from "genuinely has no
-  manager/department"** — `EfRelationshipRepository`'s four lookup methods return `null` for both
-  an id that matches no seeded row and a known row whose FK column is legitimately null. This fails
+  manager/department/PP"** — `EfRelationshipRepository`'s scalar lookup methods (including
+  spec-1-6b's `GetPeoplePartnerIdAsync`) return `null` for both an id that matches no seeded row
+  and a known row whose FK column is legitimately null. This fails
   in the safe (access-denying) direction. **No longer purely theoretical as of Story 1.9**: `GET
   /api/v1/access-roles/resolve` is now a real HTTP consumer that accepts arbitrary
   `viewerPersonId`/`subjectPersonId` values from any caller, including ids that don't correspond to

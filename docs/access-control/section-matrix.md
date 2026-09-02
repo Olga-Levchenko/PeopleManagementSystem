@@ -66,15 +66,26 @@ DM reached via project assignment still gets full RW on S7 like reporting line/P
 the **two** documented exceptions to "Manager sees everything" as of v1.5 (the other is the
 Project line's narrowed S2/S3/S5 above) — see Rules below.
 
-**Test coverage note (Story 1.9):** every row's `partial` status above reflects
-`ManagerSectionAccessPolicyTests` and the `/api/v1/access-roles/resolve` HTTP composition tests
-(`AccessRoleResolverCompositionTests`) — positive and negative section-access-level coverage for
-the **Reporting line and Project line columns only**, across all 16 sections, including the
-Reporting-line-only, Project-line-only, and both-lines-qualify (most-permissive-path-wins) cases.
-It does **not** cover Self/PP/Colleague/Shared-link (still `not started` in substance, tracked
-under the `partial` label until those audiences get their own rows of coverage), nor any actual
-profile field data or the S1 write-restriction/S7 PM-flag/S16 per-field nuances footnoted above —
-those remain Story 1.6/1.7/1.10's jobs respectively.
+**Test coverage note (Story 1.9, extended by spec-1-6b):** every row's `partial` status above
+reflects `ManagerSectionAccessPolicyTests` and the `/api/v1/access-roles/resolve` HTTP composition
+tests (`AccessRoleResolverCompositionTests`) — positive and negative section-access-level coverage
+for the **Reporting line, Project line, and PP columns**, across all 16 sections, including the
+Reporting-line-only, Project-line-only, both-Manager-lines-qualify (most-permissive-path-wins)
+cases, plus (spec-1-6b) direct-PP-match, transitive-HR-line-match, PP-line-absent-when-subject-has-
+no-PP, and PP-line-isolated-from-Reporting-line (no cross-contamination either direction) cases —
+`AccessRoleResolverTests` (Domain, fake repository), `EfRelationshipRepositoryTests`
+(Infrastructure, real Postgres `GetPeoplePartnerIdAsync`), and `AccessRoleResolverCompositionTests`
+(Api, real DI-composed HTTP endpoint against the `HrDirectorId`/`HrPartnerId` fixture chain). PP's
+per-section access (`peoplePartnerSectionAccess`, computed by a dedicated
+`ManagerSectionAccessPolicy.ResolveForPeoplePartner()`) is asserted against all 16 sections
+individually — it matches the unnarrowed Reporting-line view for 13 sections but is ReadWrite on
+S2/S3/S5, where even an unnarrowed Reporting-line viewer is only Read (this matrix's own PP column,
+above); an earlier draft of spec-1-6b assumed the two were cell-for-cell identical and was
+corrected during review — see that spec's Change Log.
+It does **not** cover Self/Colleague/Shared-link (still `not started` in substance, tracked under
+the `partial` label until those audiences get their own rows of coverage), nor any actual profile
+field data or the S1 write-restriction/S7 PM-flag/S16 per-field nuances footnoted above — those
+remain Story 1.6/1.7/1.10's jobs respectively.
 
 ## Rules that follow from the matrix (3.3 — full text is normative, this is a recap)
 

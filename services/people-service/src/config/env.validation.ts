@@ -28,4 +28,8 @@ export const envValidationSchema = Joi.object({
   KEYCLOAK_REALM: Joi.string()
     .pattern(/^[A-Za-z0-9_-]+$/)
     .required(),
+  // No .default(...), same reasoning as KEYCLOAK_BASE_URL: ProfileService's audience resolution
+  // fails closed to Colleague when this call fails, but a missing base URL must still fail fast
+  // at startup rather than silently resolving every non-Self profile request as Colleague forever.
+  ACCESS_CONTROL_SERVICE_BASE_URL: Joi.string().uri().required(),
 });

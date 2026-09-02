@@ -600,6 +600,151 @@ public class AccessRoleResolverTests
             entry => entry.Level == LogLevel.Warning && entry.Message.Contains("Reports-to walk"));
     }
 
+    // -- spec-1-6b: PP/HR-line resolution -- I/O & Edge-Case Matrix coverage below. --
+
+    [Fact]
+    public async Task ResolveAsync_ViewerIsSubjectsAssignedPp_PeoplePartnerLineQualifies()
+    {
+        var pp = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+
+        var repository = new FakeRelationshipRepository()
+            .SetPeoplePartner(subject, pp);
+
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+
+        var result = await resolver.ResolveAsync(pp, subject);
+
+        Assert.True(result.PeoplePartnerLine);
+        Assert.False(result.ReportingLine);
+        Assert.False(result.ProjectLine);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ViewerIsTransitivelyAboveThePpInThePpsOwnReportsToChain_PeoplePartnerLineQualifies()
+    {
+        // subject's PP reports to ppManager, who reports to viewer -- the "HR line", the PP's own
+        // manager chain, not the subject's.
+        var viewer = Guid.NewGuid();
+        var ppManager = Guid.NewGuid();
+        var pp = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+
+        var repository = new FakeRelationshipRepository()
+            .SetPeoplePartner(subject, pp)
+            .SetManager(pp, ppManager)
+            .SetManager(ppManager, viewer);
+
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+
+        var result = await resolver.ResolveAsync(viewer, subject);
+
+        Assert.True(result.PeoplePartnerLine);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ReportingLineViewerIsolatedFromSubjectsPpsOwnManagerChain_ReportingLineTrueAndPeoplePartnerLineFalse()
+    {
+        // Viewer is the subject's own reports-to manager -- a genuine Reporting-line qualifier --
+        // but has no relation at all to the subject's PP or that PP's own manager chain. The two
+        // lines must not leak into each other.
+        var viewer = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+        var pp = Guid.NewGuid();
+        var ppManager = Guid.NewGuid();
+
+        var repository = new FakeRelationshipRepository()
+            .SetManager(subject, viewer)
+            .SetPeoplePartner(subject, pp)
+            .SetManager(pp, ppManager);
+            // ppManager has no manager set -- viewer is never reachable from pp's own chain.
+
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+
+        var result = await resolver.ResolveAsync(viewer, subject);
+
+        Assert.True(result.ReportingLine);
+        Assert.False(result.PeoplePartnerLine);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_SubjectHasNoAssignedPp_PeoplePartnerLineDoesNotQualifyAndDoesNotThrow()
+    {
+        var viewer = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+
+        // No SetPeoplePartner call at all -- subject.peoplePartnerId is null on file.
+        var repository = new FakeRelationshipRepository();
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+
+        var result = await resolver.ResolveAsync(viewer, subject);
+
+        Assert.False(result.PeoplePartnerLine);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ViewerEqualsSubject_PeoplePartnerLineFalseHandledByExistingEarlyReturn()
+    {
+        // Self is handled by the existing early-return before any repository lookup happens --
+        // even when the person is genuinely (artificially) set up as their own PP.
+        var personId = Guid.NewGuid();
+        var repository = new FakeRelationshipRepository()
+            .SetPeoplePartner(personId, personId);
+
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+
+        var result = await resolver.ResolveAsync(personId, personId);
+
+        Assert.Equal(AccessRole.None, result);
+        Assert.False(result.PeoplePartnerLine);
+        Assert.Equal(0, repository.PeoplePartnerLookupCount);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ProjectLineViewerUnrelatedToSubjectsPp_ProjectLineTrueAndPeoplePartnerLineFalse()
+    {
+        // Independent-lines proof from the other direction: a Project-line-only viewer, with no
+        // relation to the subject's PP chain at all.
+        var viewer = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+        var project = Guid.NewGuid();
+        var pp = Guid.NewGuid();
+
+        var repository = new FakeRelationshipRepository()
+            .SetProjectsManagedAsDmOrPm(viewer, project)
+            .SetAssignedProjects(subject, project)
+            .SetPeoplePartner(subject, pp);
+
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+
+        var result = await resolver.ResolveAsync(viewer, subject);
+
+        Assert.True(result.ProjectLine);
+        Assert.False(result.PeoplePartnerLine);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_AllThreeLinesQualifySimultaneously_AllThreeFlagsTrue()
+    {
+        var viewer = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+        var project = Guid.NewGuid();
+
+        var repository = new FakeRelationshipRepository()
+            .SetManager(subject, viewer)
+            .SetProjectsManagedAsDmOrPm(viewer, project)
+            .SetAssignedProjects(subject, project)
+            .SetPeoplePartner(subject, viewer);
+
+        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+
+        var result = await resolver.ResolveAsync(viewer, subject);
+
+        Assert.True(result.ReportingLine);
+        Assert.True(result.ProjectLine);
+        Assert.True(result.PeoplePartnerLine);
+    }
+
     [Fact]
     public async Task ResolveAsync_DepartmentAncestorChainLongerThanMaxHopsWithNoCycle_TruncatesAndLogsWarning()
     {

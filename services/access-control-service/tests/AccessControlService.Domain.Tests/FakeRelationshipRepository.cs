@@ -20,6 +20,7 @@ public sealed class FakeRelationshipRepository : IRelationshipRepository
     private const int MaxCallsBeforeThrow = 1_000;
 
     private readonly Dictionary<Guid, Guid?> _managerByPerson = new();
+    private readonly Dictionary<Guid, Guid?> _peoplePartnerByPerson = new();
     private readonly Dictionary<Guid, Guid?> _departmentByPerson = new();
     private readonly Dictionary<Guid, Guid?> _managerByDepartment = new();
     private readonly Dictionary<Guid, Guid?> _parentByDepartment = new();
@@ -27,6 +28,7 @@ public sealed class FakeRelationshipRepository : IRelationshipRepository
     private readonly Dictionary<Guid, HashSet<Guid>> _assignedProjectIdsByPerson = new();
 
     public int ManagerLookupCount { get; private set; }
+    public int PeoplePartnerLookupCount { get; private set; }
     public int DepartmentLookupCount { get; private set; }
     public int DepartmentManagerLookupCount { get; private set; }
     public int ParentDepartmentLookupCount { get; private set; }
@@ -36,6 +38,12 @@ public sealed class FakeRelationshipRepository : IRelationshipRepository
     public FakeRelationshipRepository SetManager(Guid personId, Guid? managerId)
     {
         _managerByPerson[personId] = managerId;
+        return this;
+    }
+
+    public FakeRelationshipRepository SetPeoplePartner(Guid personId, Guid? peoplePartnerId)
+    {
+        _peoplePartnerByPerson[personId] = peoplePartnerId;
         return this;
     }
 
@@ -76,6 +84,13 @@ public sealed class FakeRelationshipRepository : IRelationshipRepository
         ManagerLookupCount++;
         ThrowIfRunaway(ManagerLookupCount);
         return Task.FromResult(_managerByPerson.GetValueOrDefault(personId));
+    }
+
+    public Task<Guid?> GetPeoplePartnerIdAsync(Guid personId, CancellationToken cancellationToken = default)
+    {
+        PeoplePartnerLookupCount++;
+        ThrowIfRunaway(PeoplePartnerLookupCount);
+        return Task.FromResult(_peoplePartnerByPerson.GetValueOrDefault(personId));
     }
 
     public Task<Guid?> GetDepartmentIdAsync(Guid personId, CancellationToken cancellationToken = default)
