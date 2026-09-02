@@ -37,6 +37,18 @@ export class FunctionalRolesService {
     );
   }
 
+  getRolePermissions(
+    roleKey: string,
+    context: ProxyContext,
+  ): Promise<UpstreamResponse> {
+    return this.request(
+      `/functional-roles/${encodeURIComponent(roleKey)}/permissions`,
+      'GET',
+      undefined,
+      context,
+    );
+  }
+
   createRole(body: unknown, context: ProxyContext): Promise<UpstreamResponse> {
     return this.request('/functional-roles', 'POST', body, context);
   }

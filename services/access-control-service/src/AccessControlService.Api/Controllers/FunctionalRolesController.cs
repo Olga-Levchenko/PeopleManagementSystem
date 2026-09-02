@@ -79,6 +79,28 @@ public sealed class FunctionalRolesController : ControllerBase
         }
     }
 
+    [HttpGet("functional-roles/{roleKey}/permissions")]
+    public async Task<ActionResult<FunctionalRolePermissionListResponse>> GetRolePermissions(
+        string roleKey,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            Guid actor = await ResolveActorAsync(cancellationToken);
+            await service.EnsureAdministratorAsync(actor, cancellationToken);
+            IReadOnlyList<FunctionalRolePermissionView> grants =
+                await service.GetRolePermissionsAsync(roleKey, cancellationToken);
+            return Ok(new FunctionalRolePermissionListResponse(
+                grants.Select(grant =>
+                    new FunctionalRolePermissionResponse(grant.Id, roleKey, grant.PermissionKey, grant.Scope))
+                    .ToArray()));
+        }
+        catch (Exception exception) when (TryMap(exception, out ActionResult? result))
+        {
+            return result!;
+        }
+    }
+
     [HttpPost("functional-roles")]
     public async Task<ActionResult<FunctionalRoleResponse>> CreateRole(
         CreateFunctionalRoleRequest request,
@@ -351,6 +373,8 @@ public sealed record PermissionResponse(string PermissionKey, bool RequiresScope
 public sealed record FunctionalRoleListResponse(IReadOnlyList<FunctionalRoleResponse> Roles);
 public sealed record FunctionalRoleResponse(Guid Id, string RoleKey, string DisplayName, bool IsSeeded, bool IsActive);
 public sealed record FunctionalRolePermissionResponse(Guid Id, string RoleKey, string PermissionKey, string? Scope);
+public sealed record FunctionalRolePermissionListResponse(
+    IReadOnlyList<FunctionalRolePermissionResponse> Grants);
 public sealed record AssignmentResponse(Guid Id, Guid PersonId, string RoleKey, bool IsActive);
 public sealed record FunctionalRoleAssignmentListResponse(IReadOnlyList<AssignmentResponse> Assignments);
 public sealed record PermissionCheckResponse(bool Granted);

@@ -52,6 +52,15 @@ public sealed class FunctionalRolesControllerTests : IClassFixture<WebApplicatio
     }
 
     [Fact]
+    public async Task RolePermissions_WithoutVerifiedPrincipal_ReturnsUnauthorized()
+    {
+        using HttpResponseMessage response = await client.GetAsync(
+            "/api/v1/functional-roles/hr-admin/permissions");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
     public async Task PermissionCheck_WithoutTrustedServicePrincipal_ReturnsServiceUnavailable()
     {
         using HttpResponseMessage response = await client.PostAsync(

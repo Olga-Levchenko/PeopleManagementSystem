@@ -46,6 +46,45 @@ public sealed class FunctionalRoleAdministrationService
             .SingleOrDefaultAsync(role => role.RoleKey == roleKey && role.IsActive, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<FunctionalRolePermissionView>> GetRolePermissionsAsync(
+        string roleKey,
+        CancellationToken cancellationToken)
+    {
+        ValidateRoleKey(roleKey);
+
+        FunctionalRole? role = await dbContext.FunctionalRoles
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                candidate => candidate.RoleKey == roleKey && candidate.IsActive,
+                cancellationToken);
+        if (role is null)
+        {
+            throw new NotFoundException("The functional role was not found.");
+        }
+
+        var storedGrants = await (
+            from grant in dbContext.FunctionalRolePermissionGrants.AsNoTracking()
+            join permission in dbContext.Permissions.AsNoTracking()
+                on grant.PermissionId equals permission.Id
+            where grant.FunctionalRoleId == role.Id &&
+                  permission.IsActive
+            orderby permission.Key, grant.Scope, grant.Id
+            select new
+            {
+                grant.Id,
+                permission.Key,
+                grant.Scope,
+            })
+            .ToListAsync(cancellationToken);
+
+        return storedGrants
+            .Select(grant => new FunctionalRolePermissionView(
+                grant.Id,
+                grant.Key,
+                NormalizeStoredScope(grant.Scope)))
+            .ToArray();
+    }
+
     public async Task<FunctionalRole> CreateRoleAsync(
         Guid actorPersonId,
         string roleKey,
@@ -754,6 +793,17 @@ public sealed class FunctionalRoleAdministrationService
     private static string SerializeGrant(FunctionalRolePermissionGrant grant, string permissionKey) =>
         JsonSerializer.Serialize(new { grant.Id, grant.FunctionalRoleId, permissionKey, grant.Scope });
 
+    private static string? NormalizeStoredScope(string? scope)
+    {
+        if (scope is null)
+        {
+            return null;
+        }
+
+        using JsonDocument document = JsonDocument.Parse(scope);
+        return JsonSerializer.Serialize(document.RootElement);
+    }
+
     private static string SerializeAssignment(PersonFunctionalRoleAssignment assignment) =>
         JsonSerializer.Serialize(new { assignment.Id, assignment.PersonId, assignment.FunctionalRoleId, assignment.IsActive });
 }
@@ -765,3 +815,4 @@ public sealed class RoleConflictException(string message) : Exception(message);
 public sealed class IdempotencyConflictException(string message) : Exception(message);
 public sealed record AssignmentOperationResult(PersonFunctionalRoleAssignment Assignment, bool Created);
 public sealed record AssignmentView(PersonFunctionalRoleAssignment Assignment, string RoleKey);
+public sealed record FunctionalRolePermissionView(Guid Id, string PermissionKey, string? Scope);

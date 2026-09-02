@@ -27,11 +27,15 @@ test.describe('App', () => {
     await expect(page.getByRole('heading', { name: 'Organisational relationships' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Change manager' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Change People Partner' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Change department', exact: true })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Change department', exact: true })
+    ).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Change department manager' })).toBeVisible()
   })
 
-  test('should submit all relationship changes through their dedicated endpoints', async ({ page }) => {
+  test('should submit all relationship changes through their dedicated endpoints', async ({
+    page,
+  }) => {
     const requests: Array<{ url: string; body: unknown }> = []
     await page.route('**/api/v1/organisational-relationships/**', async route => {
       requests.push({
@@ -86,7 +90,7 @@ test.describe('App', () => {
       changes.map(change => ({
         url: `http://localhost:3001/api/v1/organisational-relationships${change.path}`,
         body: change.body,
-      })),
+      }))
     )
   })
 
@@ -102,7 +106,7 @@ test.describe('App', () => {
     ]
 
     await page.route('**/api/v1/organisational-relationships/**', route =>
-      route.fulfill({ status: 400, contentType: 'application/json', body: '{"message":"secret"}' }),
+      route.fulfill({ status: 400, contentType: 'application/json', body: '{"message":"secret"}' })
     )
     await page.goto('/organisational-relationships')
 
@@ -113,12 +117,312 @@ test.describe('App', () => {
           status: failure.status,
           contentType: 'application/json',
           body: '{"message":"secret"}',
-        }),
+        })
       )
 
       await relationshipForm(page, 'Change manager').getByRole('button').click()
       await expect(page.getByRole('status')).toHaveText(failure.message)
       await expect(page.getByRole('status')).not.toContainText('secret')
     }
+  })
+
+  test('should manage roles, scoped permissions, and assignments through accessible controls', async ({
+    page,
+  }) => {
+    const roles = [
+      {
+        id: 'role-custom',
+        roleKey: 'security-owner',
+        displayName: 'Security Owner',
+        isSeeded: false,
+        isActive: true,
+      },
+      {
+        id: 'role-seeded',
+        roleKey: 'hr-admin',
+        displayName: 'HR Admin',
+        isSeeded: true,
+        isActive: true,
+      },
+    ]
+    const requests: Array<{ method: string; url: string; body: unknown }> = []
+    let rolePermissionReads = 0
+
+    await page.on('dialog', dialog => dialog.accept())
+    await page.route('**/api/v1/permissions/catalogue', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          permissions: [
+            { permissionKey: 'view-dashboard', requiresScope: true },
+            { permissionKey: 'create-action-items', requiresScope: false },
+          ],
+        }),
+      })
+    )
+    await page.route('**/api/v1/functional-roles/*/permissions', async route => {
+      rolePermissionReads += 1
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          grants:
+            rolePermissionReads > 2
+              ? []
+              : [
+                  {
+                    id: 'grant-1',
+                    roleKey: 'security-owner',
+                    permissionKey: 'view-dashboard',
+                    scope: '{"dashboardType":"unit-manager"}',
+                  },
+                ],
+        }),
+      })
+    })
+    await page.route('**/api/v1/functional-roles**', async route => {
+      const request = route.request()
+      const url = new URL(request.url())
+      const path = url.pathname.replace('/api/v1', '')
+      requests.push({
+        method: request.method(),
+        url: path,
+        body: request.postData() ? request.postDataJSON() : undefined,
+      })
+
+      if (request.method() === 'GET' && path.endsWith('/permissions')) {
+        rolePermissionReads += 1
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            grants:
+              rolePermissionReads > 2
+                ? []
+                : [
+                    {
+                      id: 'grant-1',
+                      roleKey: 'security-owner',
+                      permissionKey: 'view-dashboard',
+                      scope: '{"dashboardType":"unit-manager"}',
+                    },
+                  ],
+          }),
+        })
+        return
+      }
+      if (request.method() === 'GET' && path === '/functional-roles') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ roles }),
+        })
+        return
+      }
+      if (request.method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(roles[0]),
+        })
+        return
+      }
+      if (request.method() === 'POST' && path === '/functional-roles') {
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({ ...roles[0], roleKey: 'new-owner', displayName: 'New Owner' }),
+        })
+        return
+      }
+      if (request.method() === 'PATCH') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ ...roles[0], displayName: 'Updated Owner' }),
+        })
+        return
+      }
+      if (request.method() === 'PUT') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            id: 'grant-1',
+            roleKey: 'security-owner',
+            permissionKey: 'view-dashboard',
+            scope: { dashboardType: 'unit-manager' },
+          }),
+        })
+        return
+      }
+      await route.fulfill({ status: 204 })
+    })
+    await page.route('**/api/v1/people/**', async route => {
+      const request = route.request()
+      const path = new URL(request.url()).pathname.replace('/api/v1', '')
+      requests.push({
+        method: request.method(),
+        url: path,
+        body: request.postData() ? request.postDataJSON() : undefined,
+      })
+      if (request.method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            assignments: [
+              {
+                id: 'assignment-1',
+                personId: '22222222-2222-4222-8222-222222222222',
+                roleKey: 'security-owner',
+                isActive: true,
+              },
+            ],
+          }),
+        })
+        return
+      }
+      if (request.method() === 'POST') {
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            id: 'assignment-1',
+            personId: '22222222-2222-4222-8222-222222222222',
+            roleKey: 'security-owner',
+            isActive: true,
+          }),
+        })
+        return
+      }
+      await route.fulfill({ status: 204 })
+    })
+
+    await page.goto('/administration/functional-roles')
+    await expect(page.getByTestId('administration-page')).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Functional role administration' })
+    ).toBeVisible()
+
+    await page.getByLabel('Role key').first().fill('new-owner')
+    await page.getByLabel('Display name').first().fill('New Owner')
+    await page.getByRole('button', { name: 'Create role' }).click()
+
+    await page.getByLabel('Display name').last().fill('Updated Owner')
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    await expect(page.getByText('view-dashboard (unit-manager)')).toBeVisible()
+    await page.getByRole('combobox', { name: 'Permission' }).selectOption('view-dashboard')
+    await page.getByRole('combobox', { name: 'Dashboard type' }).selectOption('unit-manager')
+    await page.getByRole('button', { name: 'Grant permission' }).click()
+    await expect(page.getByText('view-dashboard (unit-manager)')).toBeVisible()
+    await page.getByRole('button', { name: 'Revoke' }).first().click()
+    await expect(page.getByText('view-dashboard (unit-manager)')).toHaveCount(0)
+
+    await page.getByLabel('Person ID').fill('22222222-2222-4222-8222-222222222222')
+    await page.getByRole('combobox', { name: 'Role to assign' }).selectOption('security-owner')
+    await page.getByRole('button', { name: 'Assign role' }).click()
+    await page.getByRole('button', { name: 'Load active assignments' }).click()
+    await expect(
+      page
+        .getByRole('list', { name: 'Active functional-role assignments' })
+        .getByText('security-owner')
+    ).toBeVisible()
+    await page.getByRole('button', { name: 'Revoke' }).last().click()
+
+    expect(
+      requests.some(
+        request => request.url.includes('/permissions/view-dashboard') && request.method === 'PUT'
+      )
+    ).toBeTruthy()
+    expect(
+      requests.some(
+        request => request.url.includes('/functional-roles') && request.method === 'PATCH'
+      )
+    ).toBeTruthy()
+    expect(
+      requests.some(
+        request => request.url.includes('/functional-roles') && request.method === 'POST'
+      )
+    ).toBeTruthy()
+  })
+
+  test('should protect seeded roles', async ({ page }) => {
+    await page.route('**/api/v1/permissions/catalogue', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ permissions: [] }),
+      })
+    )
+    await page.route('**/api/v1/functional-roles/*/permissions', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ grants: [] }),
+      })
+    )
+    await page.route('**/api/v1/functional-roles**', async route => {
+      const path = new URL(route.request().url()).pathname.replace('/api/v1', '')
+      const role = {
+        id: 'seeded',
+        roleKey: 'hr-admin',
+        displayName: 'HR Admin',
+        isSeeded: true,
+        isActive: true,
+      }
+      if (path.endsWith('/permissions')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ grants: [] }),
+        })
+        return
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(path === '/functional-roles' ? { roles: [role] } : role),
+      })
+    })
+
+    await page.goto('/administration/functional-roles')
+    await expect(page.getByRole('button', { name: /HR Admin/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Save changes' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Deactivate role' })).toBeDisabled()
+  })
+
+  test('should render safe localized API errors', async ({ page }) => {
+    await page.route('**/api/v1/permissions/catalogue', route =>
+      route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: '{"message":"upstream secret"}',
+      })
+    )
+    await page.route('**/api/v1/functional-roles**', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          roles: [
+            {
+              id: 'seeded',
+              roleKey: 'hr-admin',
+              displayName: 'HR Admin',
+              isSeeded: true,
+              isActive: true,
+            },
+          ],
+        }),
+      })
+    )
+
+    await page.goto('/administration/functional-roles')
+    await expect(page.getByRole('alert')).toHaveText(
+      'The administration service is temporarily unavailable. Try again later.'
+    )
+    await expect(page.getByRole('alert')).not.toContainText('upstream secret')
   })
 })

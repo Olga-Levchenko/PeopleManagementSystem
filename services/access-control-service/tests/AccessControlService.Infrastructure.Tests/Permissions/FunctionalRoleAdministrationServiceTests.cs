@@ -226,4 +226,66 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
                 "correlation-1",
                 CancellationToken.None));
     }
+
+    [Fact]
+    public async Task GetRolePermissions_ReturnsOnlyActiveStoredGrantsInDeterministicOrder()
+    {
+        FunctionalRole role = await service.CreateRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            "grant-reader",
+            "Grant Reader",
+            "correlation-1",
+            null,
+            CancellationToken.None);
+
+        await service.GrantPermissionAsync(
+            FixtureSeedData.ExecutiveId,
+            role.RoleKey,
+            PermissionCatalogue.VIEW_DASHBOARD,
+            """{ "dashboardType": "unit-manager" }""",
+            "correlation-2",
+            null,
+            CancellationToken.None);
+        await service.GrantPermissionAsync(
+            FixtureSeedData.ExecutiveId,
+            role.RoleKey,
+            PermissionCatalogue.CREATE_ACTION_ITEMS,
+            null,
+            "correlation-3",
+            null,
+            CancellationToken.None);
+
+        IReadOnlyList<FunctionalRolePermissionView> grants =
+            await service.GetRolePermissionsAsync(role.RoleKey, CancellationToken.None);
+
+        Assert.Collection(
+            grants,
+            grant =>
+            {
+                Assert.Equal(PermissionCatalogue.CREATE_ACTION_ITEMS, grant.PermissionKey);
+                Assert.Null(grant.Scope);
+            },
+            grant =>
+            {
+                Assert.Equal(PermissionCatalogue.VIEW_DASHBOARD, grant.PermissionKey);
+                Assert.Equal("""{"dashboardType":"unit-manager"}""", grant.Scope);
+            });
+    }
+
+    [Fact]
+    public async Task GetRolePermissions_ForRoleWithoutGrants_ReturnsEmptyList()
+    {
+        FunctionalRole role = await service.CreateRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            "empty-grant-reader",
+            "Empty Grant Reader",
+            "correlation-1",
+            null,
+            CancellationToken.None);
+
+        IReadOnlyList<FunctionalRolePermissionView> grants =
+            await service.GetRolePermissionsAsync(role.RoleKey, CancellationToken.None);
+
+        Assert.Empty(grants);
+    }
 }

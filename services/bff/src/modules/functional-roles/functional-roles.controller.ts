@@ -67,6 +67,18 @@ export class FunctionalRolesController {
     );
   }
 
+  @Get('functional-roles/:roleKey/permissions')
+  getRolePermissions(
+    @Param() params: RoleKeyParamsDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return this.forward(
+      response,
+      this.service.getRolePermissions(params.roleKey, this.context(request)),
+    );
+  }
+
   @Post('functional-roles')
   createRole(
     @Body() body: CreateFunctionalRoleDto,

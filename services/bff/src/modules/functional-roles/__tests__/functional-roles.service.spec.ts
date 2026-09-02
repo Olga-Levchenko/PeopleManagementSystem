@@ -46,6 +46,12 @@ describe('FunctionalRolesService', () => {
       '/functional-roles/security-owner',
     ],
     [
+      'role permissions',
+      () => service.getRolePermissions('security-owner', context),
+      'GET',
+      '/functional-roles/security-owner/permissions',
+    ],
+    [
       'create',
       () => service.createRole({ roleKey: 'security-owner' }, context),
       'POST',

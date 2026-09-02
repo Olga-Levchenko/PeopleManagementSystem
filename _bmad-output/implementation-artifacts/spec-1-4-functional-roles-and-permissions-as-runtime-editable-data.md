@@ -123,6 +123,7 @@ field, query parameter, or arbitrary header.
 | `GET /permissions/catalogue` | none | `PermissionCatalogueResponse` / 200 | `manage-functional-roles-and-permissions` | Active catalogue only; 401/403/503 |
 | `GET /functional-roles` | none | `FunctionalRoleListResponse` / 200 | `manage-functional-roles-and-permissions` | 401/403/503 |
 | `GET /functional-roles/{roleKey}` | none | `FunctionalRoleResponse` / 200 | `manage-functional-roles-and-permissions` | Key format; 400/401/403/404/503 |
+| `GET /functional-roles/{roleKey}/permissions` | none | `FunctionalRolePermissionListResponse` / 200 | `manage-functional-roles-and-permissions` | Current effective stored grants only; deterministic `permissionKey`, normalized `scope`, then stable grant identifier ordering; 401/403/404/503 |
 | `POST /functional-roles` | `CreateFunctionalRoleRequest { roleKey, displayName }` | `FunctionalRoleResponse` / 201 | `manage-functional-roles-and-permissions` | Unique key/name; 400/401/403/409/503; replayed idempotency key returns original 201 |
 | `PATCH /functional-roles/{roleKey}` | `UpdateFunctionalRoleRequest { displayName }` | `FunctionalRoleResponse` / 200 | `manage-functional-roles-and-permissions` | Seeded roles cannot be re-keyed; 400/401/403/404/409/503; same values are a 200 no-op |
 | `POST /functional-roles/{roleKey}/deactivate` | `DeactivateFunctionalRoleRequest { reason }` | `FunctionalRoleResponse` / 200 | `manage-functional-roles-and-permissions` | Destructive delete forbidden; seeded roles/active assignments return 409; repeat is 200; 400/401/403/404/409/503 |
@@ -140,6 +141,13 @@ check returns 200 for either decision, derives the actor from the validated trus
 resolves the principal-to-PersonId port, and never accepts an actor ID in a body, query, or
 arbitrary header. People Service calls it through its existing `RelationshipPermissionPort`,
 supplying the platform-established actor context. `409` is reserved for concurrent conflicts.
+
+`GET /functional-roles/{roleKey}/permissions` returns current effective stored grants for the
+active role, joining active permissions only. Each record contains the stable grant identifier,
+permission key, and scope as `null` or canonical normalized JSON. It requires verified
+authentication and the stored `manage-functional-roles-and-permissions` permission, uses no
+role-name authorization, returns no inferred or session-only grants, and orders records
+deterministically by permission key, canonical scope, then grant identifier.
 
 ## Bootstrap and audit
 
@@ -174,7 +182,9 @@ Add a BFF module that forwards these operations without owning policy, and an Ad
 for role creation/editing/deactivation, permission selection with scope validation, and person
 assignment. It must use i18n and expose no profile-data access through HR Admin.
 
-Test the complete API matrix above: every 200/201/204/400/401/403/404/409/503 path, invalid keys
+Test the complete API matrix above: every 200/201/204/400/401/403/404/409/503 path, including the
+functional-role permission-grant read route and its empty, normalized, unauthorized, forbidden,
+not-found, and unavailable cases, invalid keys
 and scopes, role-only grants, immediate revocation, seeded-role behavior, self-modification,
 deactivation, concurrent final-administrator removal, audit atomicity, idempotent seed/bootstrap,
 scoped dashboards, and active-assignment listing. Include negative tests proving a PM-named
@@ -229,6 +239,10 @@ Frontend: `src/api/functionalRoles.ts`, `src/pages/AdministrationPage/`, `src/ro
 - Given test principals or mocked adapters, when tests pass, then they are not treated as evidence of production authorization; Story 1.4 remains incomplete until trusted service-to-service authentication, identity mapping, and the real Story 1.3 integration are verified.
 
 ## Spec Change Log
+
+- 2026-09-03: Added the approved `GET /api/v1/functional-roles/{roleKey}/permissions` contract
+  for deterministic authoritative reads of current stored role grants across Access Control,
+  BFF, frontend, and focused tests.
 
 ## Verification
 
