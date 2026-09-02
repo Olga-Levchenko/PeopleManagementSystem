@@ -65,7 +65,7 @@ export interface ProfileResponse {
 type LeaveRow = {
   startDate: Date;
   endDate: Date;
-  leaveType: string | null;
+  leaveType: string;
 };
 
 type ProjectAssignmentRow = {
@@ -127,6 +127,7 @@ export class ProfileService {
         department: { select: { id: true, name: true } },
         leaves: {
           select: { startDate: true, endDate: true, leaveType: true },
+          orderBy: { startDate: 'asc' },
         },
         personProjectAssignments: {
           select: {
@@ -135,6 +136,7 @@ export class ProfileService {
             startDate: true,
             endDate: true,
           },
+          orderBy: { startDate: 'asc' },
         },
       },
     });

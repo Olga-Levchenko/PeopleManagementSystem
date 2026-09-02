@@ -123,7 +123,7 @@ model Leave {
   personId   String   @db.Uuid
   startDate  DateTime
   endDate    DateTime
-  leaveType  String?
+  leaveType  String
   person     Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@map("leaves")

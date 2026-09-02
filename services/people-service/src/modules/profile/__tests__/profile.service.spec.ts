@@ -1,6 +1,9 @@
 import { NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { NEITHER_LINE_RESOLUTION } from '../profile.ports';
+import {
+  NEITHER_LINE_RESOLUTION,
+  parseAccessRoleResolution,
+} from '../profile.ports';
 import type { AccessRoleResolutionPort } from '../profile.ports';
 import { ProfileService } from '../profile.service';
 
@@ -189,14 +192,14 @@ describe('ProfileService', () => {
     expect(result.s11).toEqual([]);
   });
 
-  it('toS10 full mapper: leaveType null -> key omitted (not present as null) for non-colleague viewer', async () => {
-    const rowWithNullLeaveType = {
+  it('toS10 full mapper: leaveType empty string -> key omitted (empty string is not a valid type value) for non-colleague viewer', async () => {
+    const rowWithEmptyLeaveType = {
       ...FULL_PERSON_ROW,
       leaves: [
         {
           startDate: new Date('2024-07-01T00:00:00.000Z'),
           endDate: new Date('2024-07-14T00:00:00.000Z'),
-          leaveType: null,
+          leaveType: '',
         },
       ],
     };
@@ -212,7 +215,7 @@ describe('ProfileService', () => {
       },
       peoplePartnerSectionAccess: null,
     });
-    const { service } = createService({ resolve }, rowWithNullLeaveType);
+    const { service } = createService({ resolve }, rowWithEmptyLeaveType);
 
     const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
 
@@ -436,5 +439,82 @@ describe('ProfileService', () => {
 
     expect(Object.keys(result).sort()).toEqual(['s1', 's10', 's11']);
     expect(result.s2).toBeUndefined();
+  });
+});
+
+describe('parseAccessRoleResolution', () => {
+  it('non-object input -> NEITHER_LINE_RESOLUTION (fail closed)', () => {
+    expect(parseAccessRoleResolution(null)).toEqual(NEITHER_LINE_RESOLUTION);
+    expect(parseAccessRoleResolution('string')).toEqual(
+      NEITHER_LINE_RESOLUTION,
+    );
+    expect(parseAccessRoleResolution(42)).toEqual(NEITHER_LINE_RESOLUTION);
+  });
+
+  it('boolean flags require strict === true (truthy non-boolean treated as false)', () => {
+    const result = parseAccessRoleResolution({
+      reportingLine: 1,
+      projectLine: 'yes',
+      peoplePartnerLine: {},
+      managerSectionAccess: null,
+      peoplePartnerSectionAccess: null,
+    });
+    expect(result.reportingLine).toBe(false);
+    expect(result.projectLine).toBe(false);
+    expect(result.peoplePartnerLine).toBe(false);
+  });
+
+  it('unrecognized level string -> coerced to None (allowlist)', () => {
+    const result = parseAccessRoleResolution({
+      reportingLine: true,
+      projectLine: false,
+      peoplePartnerLine: false,
+      managerSectionAccess: {
+        s1: { level: 'SuperAdmin' },
+        s2: { level: 'Read' },
+        s10: { level: 'ReadWrite' },
+        s11: { level: null },
+      },
+      peoplePartnerSectionAccess: null,
+    });
+    expect(result.managerSectionAccess?.s1.level).toBe('None');
+    expect(result.managerSectionAccess?.s2.level).toBe('Read');
+    expect(result.managerSectionAccess?.s10.level).toBe('ReadWrite');
+    expect(result.managerSectionAccess?.s11.level).toBe('None');
+  });
+
+  it('valid full payload parses correctly', () => {
+    const result = parseAccessRoleResolution({
+      reportingLine: true,
+      projectLine: false,
+      peoplePartnerLine: true,
+      managerSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'Read' },
+        s10: { level: 'Read' },
+        s11: { level: 'None' },
+      },
+      peoplePartnerSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'ReadWrite' },
+        s10: { level: 'Read' },
+        s11: { level: 'Read' },
+      },
+    });
+    expect(result.reportingLine).toBe(true);
+    expect(result.peoplePartnerLine).toBe(true);
+    expect(result.managerSectionAccess?.s1.level).toBe('ReadWrite');
+    expect(result.peoplePartnerSectionAccess?.s2.level).toBe('ReadWrite');
+  });
+
+  it('section access group that is not an object -> null', () => {
+    const result = parseAccessRoleResolution({
+      reportingLine: true,
+      projectLine: false,
+      peoplePartnerLine: false,
+      managerSectionAccess: 'broken',
+      peoplePartnerSectionAccess: null,
+    });
+    expect(result.managerSectionAccess).toBeNull();
   });
 });

@@ -41,6 +41,56 @@ export const NEITHER_LINE_RESOLUTION: AccessRoleResolution = {
   peoplePartnerSectionAccess: null,
 };
 
+/**
+ * Parses and validates an `unknown` JSON value into `AccessRoleResolution`. Returns
+ * `NEITHER_LINE_RESOLUTION` for any top-level structural failure (not an object, missing).
+ * Per-section level values that are not one of the three recognized strings are coerced to
+ * `'None'` (allowlist, not a denylist). Boolean line flags require strict `=== true` — any
+ * other truthy value is treated as `false` so a future wire-shape change (e.g. a string `"true"`)
+ * fails closed rather than granting access.
+ */
+export function parseAccessRoleResolution(raw: unknown): AccessRoleResolution {
+  if (typeof raw !== 'object' || raw === null) return NEITHER_LINE_RESOLUTION;
+  const r = raw as Record<string, unknown>;
+
+  const parseSectionAccess = (obj: unknown): SectionAccess => {
+    if (typeof obj !== 'object' || obj === null) return { level: 'None' };
+    const o = obj as Record<string, unknown>;
+    const level = o['level'];
+    if (level !== 'None' && level !== 'Read' && level !== 'ReadWrite')
+      return { level: 'None' };
+    return {
+      level,
+      restriction:
+        typeof o['restriction'] === 'string' ? o['restriction'] : null,
+    };
+  };
+
+  const parseSectionAccessGroup = (
+    obj: unknown,
+  ): AccessRoleResolution['managerSectionAccess'] => {
+    if (obj === null || obj === undefined) return null;
+    if (typeof obj !== 'object') return null;
+    const o = obj as Record<string, unknown>;
+    return {
+      s1: parseSectionAccess(o['s1']),
+      s2: parseSectionAccess(o['s2']),
+      s10: parseSectionAccess(o['s10']),
+      s11: parseSectionAccess(o['s11']),
+    };
+  };
+
+  return {
+    reportingLine: r['reportingLine'] === true,
+    projectLine: r['projectLine'] === true,
+    peoplePartnerLine: r['peoplePartnerLine'] === true,
+    managerSectionAccess: parseSectionAccessGroup(r['managerSectionAccess']),
+    peoplePartnerSectionAccess: parseSectionAccessGroup(
+      r['peoplePartnerSectionAccess'],
+    ),
+  };
+}
+
 export interface AccessRoleResolutionPort {
   resolve(
     viewerPersonId: string,
@@ -81,7 +131,7 @@ export class HttpAccessRoleResolutionAdapter implements AccessRoleResolutionPort
         );
         return NEITHER_LINE_RESOLUTION;
       }
-      return (await response.json()) as AccessRoleResolution;
+      return parseAccessRoleResolution(await response.json());
     } catch (error) {
       this.logger.warn(
         `access-control-service unreachable resolving ${viewerPersonId} -> ${subjectPersonId}; failing closed to Colleague: ${(error as Error).message}`,
