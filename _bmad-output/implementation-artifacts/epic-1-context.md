@@ -10,10 +10,12 @@ never from a stored role flag. This epic builds the access-role-resolution engin
 functional-role/permission administration model, the Full-profile-access grant, and the
 server-assembled section-gated profile response that every later epic depends on. It also
 establishes that organisational-relationship changes (manager/PP/department/department-manager)
-are a dedicated, journaled operation, never a side effect of an ordinary profile edit. Nothing
-else in the platform is considered safe to build until this epic's automated coverage proves every
-section-matrix cell it governs, because every other epic inherits whatever access-model gaps
-remain here.
+are a dedicated, journaled operation, never a side effect of an ordinary profile edit, and — newly
+added as Story 1.11 — that every request carries a verified Keycloak identity, since every
+access-role and permission decision elsewhere in the platform depends on trusting who is actually
+asking. Nothing else in the platform is considered safe to build until this epic's automated
+coverage proves every section-matrix cell it governs, because every other epic inherits whatever
+access-model gaps remain here.
 
 ## Stories
 
@@ -27,6 +29,7 @@ remain here.
 - Story 1.8: Colleague view field whitelist
 - Story 1.9: Project line narrowing vs. Reporting line
 - Story 1.10: Custom field visibility enforcement
+- Story 1.11: Platform authentication via Keycloak
 
 ## Requirements & Constraints
 
@@ -62,6 +65,14 @@ remain here.
   every `—` cell, S7 unflagged cases, narrowed Project-line cells, colleague whitelist) need an
   automated test asserting actual API response shape — a test that only checks UI hiding does not
   count.
+- Every request must carry a verified Keycloak identity, checked at the edge: a missing, expired,
+  malformed, or signature/issuer-invalid bearer token is rejected before reaching any domain
+  service, never forwarded with a best-effort or default identity. Domain services (Access
+  Control, People/Organization, Work Management, Resourcing) must receive a platform-established
+  identity, never a caller-supplied `actorId`/`personId` from a request body, query string, or
+  client-controlled header. A background job or service-to-service call with no browser-originated
+  request must still carry a trusted service-to-service identity, not an unauthenticated one. A
+  revoked or expired session must be rejected the same way a never-authenticated request would be.
 
 ## Technical Decisions
 
@@ -124,6 +135,16 @@ remain here.
   audience/relationship-path combination, every `—` cell, S7 flag-gating, the colleague whitelist,
   and custom-field visibility, failing the build on any uncovered cell — the exit bar (SM-1) above
   is enforced mechanically, not by review discipline alone.
+- Per the architecture's dependency diagram, React talks only to the BFF; the BFF validates
+  identity via `authentication-service` (the Keycloak integration boundary), then calls Access
+  Control/People/Work/Resourcing with that platform-established identity. The BFF is the browser
+  boundary, not a domain owner — it must not own authorization policy itself; restricted sections
+  are omitted server-side before reaching React (same AD-5 rule Story 1.6 relies on).
+- Current build state Story 1.11 starts from: `services/authentication-service/` contains only a
+  `.gitkeep` placeholder — no Keycloak integration code exists yet. `infra/docker-compose.yml`
+  only has Keycloak as an infrastructure placeholder (image `quay.io/keycloak/keycloak:26.0`), and
+  per the architecture spine's own stack table, that version is not yet verified or pinned — it
+  must be confirmed before implementation, not assumed correct as committed.
 
 ## UX & Interaction Patterns
 
@@ -159,3 +180,8 @@ remain here.
 - Epic 1 is a hard gate for the rest of the platform: Epics 2 through 16 all build directly or
   indirectly on this access model, so an unverified section-matrix cell here is inherited by every
   one of them, not just the next epic in sequence.
+- Story 1.11 is a cross-cutting prerequisite for every other story in this epic and beyond: access-
+  role and permission resolution only makes sense once a caller's identity is verified platform-
+  wide, but 1.11 has no code dependency on 1.1–1.10 and can be built in parallel — its own
+  dependencies (`authentication-service`, Keycloak) are both currently unimplemented/unpinned, so
+  it is not blocked by anything in this epic, only by its own from-scratch scaffolding work.

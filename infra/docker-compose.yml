@@ -26,16 +26,25 @@ services:
   # Identity provider for authentication-service. Dev-mode only (ephemeral storage, no TLS) —
   # realm/client configuration is owned by authentication-service, not this compose file.
   keycloak:
-    # Version placeholder: architecture spine marks Keycloak's deployment version as
-    # "must be verified and pinned before implementation" — pin for real once authentication-service lands.
+    # Pinned per Story 1.11 (authentication-service's own Testcontainers integration test
+    # exercises this exact tag against services/authentication-service/keycloak/realm-export.json).
     image: quay.io/keycloak/keycloak:26.0
     restart: unless-stopped
-    command: start-dev
+    # --import-realm provisions the realm/client/test user from realm-export.json — no manual
+    # Admin Console step needed. Note: Keycloak's dir import uses an "ignore existing" strategy by
+    # default, so it will NOT re-import over an already-existing realm on a plain container restart
+    # that keeps the same storage; this container has no persistent volume, so in practice every
+    # `docker compose down`/`up` (or any recreate) starts from empty storage and re-imports for
+    # real. If a realm-export.json edit doesn't seem to take effect, the container was restarted
+    # rather than recreated — recreate it (or otherwise clear its storage) to force a fresh import.
+    command: start-dev --import-realm
     environment:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
     ports:
       - '${KEYCLOAK_PORT:-8080}:8080'
+    volumes:
+      - ../services/authentication-service/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
 
   # Cross-service messaging (AD-6): relationship-change propagation, domain events.
   # Note: no service's /health endpoint checks this broker yet — deferred until a service

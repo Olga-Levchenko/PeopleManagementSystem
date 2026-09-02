@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "http": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "launchUrl": "swagger",
+      "applicationUrl": "http://localhost:3008",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "PORT": "3008",
+        "CORS_ORIGIN": "http://localhost:4200",
+        "KEYCLOAK_BASE_URL": "http://localhost:8080",
+        "KEYCLOAK_REALM": "people-management"
+      }
+    }
+  }
+}

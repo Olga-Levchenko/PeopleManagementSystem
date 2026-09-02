@@ -3,7 +3,7 @@
   "realm": "people-management",
   "displayName": "People Management Platform",
   "enabled": true,
-  "sslRequired": "external",
+  "sslRequired": "none",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
@@ -24,7 +24,8 @@
       "serviceAccountsEnabled": false,
       "redirectUris": ["http://localhost:4200/*", "http://localhost:3001/*"],
       "webOrigins": ["http://localhost:4200"],
-      "fullScopeAllowed": true
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["web-origins", "acr", "profile", "email", "basic"]
     }
   ],
   "users": [

@@ -2,6 +2,38 @@
 
 <!-- Append-only. Each entry is a goal carved off a spec during planning's token-budget split. -->
 
+- source_spec: none
+  summary: Add JWT validation middleware/guard to the BFF that validates a bearer token against Keycloak's JWKS and populates a verified `request.user` (`sub` claim), rejecting missing/expired/malformed/signature-invalid tokens before any domain call.
+  evidence: Split from Story 1.11's multi-goal intent (`_bmad-output/planning-artifacts/epics.md`, Epic 1) at bmad-build's step-01 multi-goal check — user chose to scope the first spec to authentication-service + Keycloak realm/token issuance only, since Story 1.11 as a whole spans building a new service, real Keycloak provisioning, BFF wiring, and downstream propagation, well beyond one spec's token budget. This is Story 1.11's second slice, target filename when written: `spec-1-11b-bff-jwt-validation.md`.
+
+- source_spec: none
+  summary: Propagate the BFF's verified identity to downstream domain services (Access Control, People/Organization, Work Management, Resourcing) as a platform-established identity, never a caller-supplied `actorId`/`personId`; also establish trusted service-to-service identity for non-browser-originated calls (background jobs, service-to-service).
+  evidence: Split from Story 1.11's multi-goal intent at the same step-01 multi-goal check as the entry above; depends on the BFF JWT validation slice landing first. Target filename when written: `spec-1-11c-verified-identity-propagation.md`.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11-platform-authentication-via-keycloak.md`
+  summary: Strip or reconsider `directAccessGrantsEnabled: true` on the `bff-confidential` client in `keycloak/realm-export.json` before this exact realm file is ever imported into anything but local dev/CI.
+  evidence: Code review of story-1-11 found this is a durable capability of the checked-in realm file, not something that turns off after this story's own integration test runs — anyone importing this file into a shared/staging Keycloak inherits Resource Owner Password Credentials grant on the client with no code change.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11-platform-authentication-via-keycloak.md`
+  summary: Pin Keycloak's `KC_HOSTNAME`/`KC_HOSTNAME_URL` to a single canonical value before any token-validation logic depends on `AppConfig.Issuer` matching Keycloak's real `iss` claim in a multi-hostname (containerized/deployed) topology.
+  evidence: Code review of story-1-11 found that Keycloak (no `KC_HOSTNAME`/`KC_HOSTNAME_URL` set) resolves its real `iss` claim from the request's Host header, while `AppConfig.Issuer` is a static string derived from `KEYCLOAK_BASE_URL`. Harmless today (no token validation happens yet — this story only proves the realm/token issuance are reachable), but becomes load-bearing the moment `spec-1-11b-bff-jwt-validation.md` validates `iss` against a value sourced from this service's `/api/v1/auth/config` endpoint.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11-platform-authentication-via-keycloak.md`
+  summary: Make back-channel/front-channel logout an explicit acceptance criterion of whichever future spec implements login/logout — real logout must invalidate tokens server-side (OIDC back-channel logout), not just clear a BFF session cookie.
+  evidence: Code review of story-1-11 found no logout configuration exists on the `bff-confidential` client (correctly out of scope for this story, since no login/logout flow exists yet), and no currently-tracked spec names this requirement explicitly.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11-platform-authentication-via-keycloak.md`
+  summary: Design guardrail for `spec-1-11b`/`spec-1-11c`: token claims added to the realm later must stay limited to stable identity facts (`sub`, `email`, employee id if one exists) and never a role/permission claim — access roles and functional-role permissions must keep being resolved by `access-control-service`, never sourced from Keycloak claims.
+  evidence: Code review of story-1-11 flagged this as the reason `fullScopeAllowed` was set to `false` with an explicit `defaultClientScopes` list excluding `roles` — the guardrail should stay explicit for whoever builds the next slices, not just implicit in today's empty-realm-roles state.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11-platform-authentication-via-keycloak.md`
+  summary: Template the `bff-confidential` client secret and seeded test user's password in `keycloak/realm-export.json` (e.g. `${BFF_CLIENT_SECRET}` substituted at import time) before this exact file is ever imported into a shared/non-local environment.
+  evidence: Code review of story-1-11 found both are hardcoded in plaintext — acceptable for an ephemeral local-dev/CI-only Keycloak with no persistent storage, but must never be reused if this file is imported anywhere else.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11-platform-authentication-via-keycloak.md`
+  summary: Add a docker-compose smoke test (or equivalent) proving `infra/docker-compose.yml`'s realm auto-provisioning path (bind-mount + `--import-realm`) actually works, as a repo-wide CI infrastructure decision.
+  evidence: Code review of story-1-11 found `KeycloakIntegrationTests` provisions Keycloak through `Testcontainers.Keycloak`'s own independent code path (`KeycloakBuilder.WithRealm(...)`), never touching `infra/docker-compose.yml`, and no CI workflow in this repo runs `docker compose` at all. A broken mount path or a dropped `--import-realm` flag would silently regress local dev provisioning with `dotnet test` still green.
+
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1-two-dimensional-access-role-resolution.md`
   summary: Implement the access-role resolution engine (reports-to/department-management transitive closure, project-assignment DM/PM lookup, fixture seed data, stubbed RabbitMQ project-assignment event contract) on top of the scaffolded access-control-service. Target filename when written: `spec-1-1b-access-role-resolution-engine.md`.
   evidence: The combined scaffold+resolver spec estimated ~2,200-2,300 tokens, over the 1,600 target. Scaffolding (new .NET 8 project, /health, correlation-id, CLAUDE.md, CI activation, Postgres DB) is independently shippable/reviewable on its own, so it was kept as the narrowed current spec; the resolver logic is deferred to a follow-up spec once the scaffold lands.
