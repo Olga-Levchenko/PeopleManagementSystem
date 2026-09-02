@@ -166,4 +166,77 @@ describe('ProfileService', () => {
 
     expect(Object.keys(result)).toEqual([]);
   });
+
+  it('PP line: peoplePartnerLine true, neither Manager line qualifying -> unnarrowed s1+s2 from peoplePartnerSectionAccess', async () => {
+    const resolve = jest.fn().mockResolvedValue({
+      reportingLine: false,
+      projectLine: false,
+      peoplePartnerLine: true,
+      managerSectionAccess: null,
+      peoplePartnerSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'ReadWrite' },
+      },
+    });
+    const { service } = createService({ resolve });
+
+    const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
+
+    expect(resolve).toHaveBeenCalledWith(VIEWER_ID, SUBJECT_ID);
+    expect(Object.keys(result).sort()).toEqual(['s1', 's2']);
+    expect(result.s1?.manager).toEqual(FULL_PERSON_ROW.manager);
+    expect(result.s1?.peoplePartner).toEqual(FULL_PERSON_ROW.peoplePartner);
+  });
+
+  it('PP line and Reporting line both qualify: Manager check takes priority (S2 differs between the two -- Reporting line Read, PP ReadWrite -- so this proves which one actually wins)', async () => {
+    const resolve = jest.fn().mockResolvedValue({
+      reportingLine: true,
+      projectLine: false,
+      peoplePartnerLine: true,
+      managerSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'Read' },
+      },
+      peoplePartnerSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'ReadWrite' },
+      },
+    });
+    const { service } = createService({ resolve });
+
+    const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
+
+    expect(Object.keys(result).sort()).toEqual(['s1', 's2']);
+  });
+
+  it('PP line qualifies but peoplePartnerSectionAccess missing falls back to Colleague (defensive, malformed response)', async () => {
+    const resolve = jest.fn().mockResolvedValue({
+      reportingLine: false,
+      projectLine: false,
+      peoplePartnerLine: true,
+      managerSectionAccess: null,
+      peoplePartnerSectionAccess: null,
+    });
+    const { service } = createService({ resolve });
+
+    const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
+
+    expect(Object.keys(result)).toEqual(['s1']);
+  });
+
+  it('No line qualifies (including PP): Colleague whitelist, only s1 present', async () => {
+    const resolve = jest.fn().mockResolvedValue({
+      reportingLine: false,
+      projectLine: false,
+      peoplePartnerLine: false,
+      managerSectionAccess: null,
+      peoplePartnerSectionAccess: null,
+    });
+    const { service } = createService({ resolve });
+
+    const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
+
+    expect(Object.keys(result)).toEqual(['s1']);
+    expect(result.s2).toBeUndefined();
+  });
 });

@@ -62,6 +62,13 @@ public sealed class AccessControlDbContext : DbContext
                 .HasForeignKey(p => p.ManagerId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // Self-referencing PP-assignment FK -- same no-navigation-property rationale as the
+            // reports-to self-reference above.
+            person.HasOne<Person>()
+                .WithMany()
+                .HasForeignKey(p => p.PeoplePartnerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             person.HasOne<Department>()
                 .WithMany()
                 .HasForeignKey(p => p.DepartmentId)
@@ -82,6 +89,7 @@ public sealed class AccessControlDbContext : DbContext
                 Id = p.Id,
                 Label = p.Label,
                 ManagerId = p.ManagerId,
+                PeoplePartnerId = p.PeoplePartnerId,
                 DepartmentId = p.DepartmentId,
                 ManagesDepartmentId = p.ManagesDepartmentId,
             }));

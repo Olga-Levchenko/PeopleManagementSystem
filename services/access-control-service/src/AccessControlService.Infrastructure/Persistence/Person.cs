@@ -17,6 +17,9 @@ public sealed class Person
     /// <summary>Direct (one-hop) reports-to manager, or <c>null</c> if none on file.</summary>
     public Guid? ManagerId { get; set; }
 
+    /// <summary>Assigned people partner, or <c>null</c> if none on file.</summary>
+    public Guid? PeoplePartnerId { get; set; }
+
     /// <summary>Department this person currently belongs to, or <c>null</c> if none on file.</summary>
     public Guid? DepartmentId { get; set; }
 

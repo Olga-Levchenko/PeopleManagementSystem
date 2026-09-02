@@ -2,8 +2,8 @@
 title: 'Story 1.6b: PP ("People Partner"/HR line) access-role resolution'
 type: 'feature'
 created: '2026-09-02'
-status: 'in-progress'
-review_loop_iteration: 0
+status: 'in-review'
+review_loop_iteration: 1
 baseline_commit: '4980fd94c4c7088a69d04471a33cd275f5444d79'
 context:
   - '{project-root}/.claude/rules/access-control-invariants.md'
@@ -20,7 +20,7 @@ context:
 ## Boundaries & Constraints
 
 **Always:**
-- PP's per-section access is cell-for-cell identical to the *unnarrowed* Reporting-line view (`docs/access-control/section-matrix.md` — PP is never narrowed, unlike Project line). Compute `peoplePartnerSectionAccess` by calling the existing `ManagerSectionAccessPolicy.Resolve` with `new AccessRole { ReportingLine = true }` — do not write a second, duplicate section mapping that could drift from the matrix.
+- PP is never narrowed, unlike Project line, and matches the *unnarrowed* Reporting-line view for most sections — but genuinely diverges for S2, S3, and S5, where PP is ReadWrite while even an unnarrowed Reporting-line viewer is only Read (`docs/access-control/section-matrix.md`'s PP column, unamended for these three cells by the v1.5 changelog). Compute `peoplePartnerSectionAccess` via a dedicated `ManagerSectionAccessPolicy.ResolveForPeoplePartner()` method, not by reusing `Resolve(new AccessRole { ReportingLine = true })` — see Spec Change Log.
 - The HR-line walk reuses the exact same transitive-manager algorithm already proven for Reporting-line (same cycle guard, same `MaxHops`, same "truncated" warning) — generalize the existing private method's starting-point parameter, don't write a second copy.
 - `PeoplePartnerLine` is independent of `ReportingLine`/`ProjectLine` — resolve it unconditionally, don't short-circuit on the other two.
 
@@ -65,23 +65,23 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `services/access-control-service/src/AccessControlService.Domain/AccessRole.cs` -- add `PeoplePartnerLine` -- new flag
-- [ ] `services/access-control-service/src/AccessControlService.Domain/IRelationshipRepository.cs` -- add `GetPeoplePartnerIdAsync` -- new port method
-- [ ] `services/access-control-service/src/AccessControlService.Domain/AccessRoleResolver.cs` -- generalize the transitive walk + PP-line resolution -- core logic
-- [ ] `services/access-control-service/src/AccessControlService.Infrastructure/Persistence/Person.cs` -- add `PeoplePartnerId` -- backing data
-- [ ] `services/access-control-service/src/AccessControlService.Infrastructure/Persistence/EfRelationshipRepository.cs` -- implement the new port method
-- [ ] `services/access-control-service/src/AccessControlService.Infrastructure/Persistence/FixtureSeedData.cs` -- add isolated HR-chain fixture people
-- [ ] EF Core migration -- `dotnet ef migrations add AddPeoplePartnerToPerson` -- schema + reseed
-- [ ] `services/access-control-service/src/AccessControlService.Api/Controllers/AccessRolesController.cs` -- extend response
-- [ ] `services/access-control-service/tests/AccessControlService.Domain.Tests/` -- I/O matrix cases, fake repository
-- [ ] `services/access-control-service/tests/AccessControlService.Infrastructure.Tests/` -- real-Postgres `GetPeoplePartnerIdAsync` case
-- [ ] `services/access-control-service/tests/AccessControlService.Api.Tests/AccessRoleResolverCompositionTests.cs` -- HTTP-level PP-line scenarios
-- [ ] `services/people-service/src/modules/profile/profile.ports.ts` -- extend the TS contract
-- [ ] `services/people-service/src/modules/profile/profile.service.ts` -- treat PP line as a third qualifying line
-- [ ] `services/people-service/src/modules/profile/__tests__/profile.service.spec.ts` -- new PP-line unit case
-- [ ] `services/people-service/test/profile.e2e-spec.ts` -- new PP-line e2e case
-- [ ] `docs/access-control/section-matrix.md` -- update Test coverage note
-- [ ] `services/access-control-service/CLAUDE.md`, `services/people-service/CLAUDE.md` -- document
+- [x] `services/access-control-service/src/AccessControlService.Domain/AccessRole.cs` -- add `PeoplePartnerLine` -- new flag
+- [x] `services/access-control-service/src/AccessControlService.Domain/IRelationshipRepository.cs` -- add `GetPeoplePartnerIdAsync` -- new port method
+- [x] `services/access-control-service/src/AccessControlService.Domain/AccessRoleResolver.cs` -- generalize the transitive walk + PP-line resolution -- core logic
+- [x] `services/access-control-service/src/AccessControlService.Infrastructure/Persistence/Person.cs` -- add `PeoplePartnerId` -- backing data
+- [x] `services/access-control-service/src/AccessControlService.Infrastructure/Persistence/EfRelationshipRepository.cs` -- implement the new port method
+- [x] `services/access-control-service/src/AccessControlService.Infrastructure/Persistence/FixtureSeedData.cs` -- add isolated HR-chain fixture people
+- [x] EF Core migration -- `dotnet ef migrations add AddPeoplePartnerToPerson` -- schema + reseed
+- [x] `services/access-control-service/src/AccessControlService.Api/Controllers/AccessRolesController.cs` -- extend response
+- [x] `services/access-control-service/tests/AccessControlService.Domain.Tests/` -- I/O matrix cases, fake repository
+- [x] `services/access-control-service/tests/AccessControlService.Infrastructure.Tests/` -- real-Postgres `GetPeoplePartnerIdAsync` case
+- [x] `services/access-control-service/tests/AccessControlService.Api.Tests/AccessRoleResolverCompositionTests.cs` -- HTTP-level PP-line scenarios
+- [x] `services/people-service/src/modules/profile/profile.ports.ts` -- extend the TS contract
+- [x] `services/people-service/src/modules/profile/profile.service.ts` -- treat PP line as a third qualifying line
+- [x] `services/people-service/src/modules/profile/__tests__/profile.service.spec.ts` -- new PP-line unit case
+- [x] `services/people-service/test/profile.e2e-spec.ts` -- new PP-line e2e case
+- [x] `docs/access-control/section-matrix.md` -- update Test coverage note
+- [x] `services/access-control-service/CLAUDE.md`, `services/people-service/CLAUDE.md` -- document
 
 **Acceptance Criteria:**
 - Given a viewer who is the subject's assigned PP, when they request the subject's profile, then they get the full unnarrowed section view (same as an unnarrowed Reporting-line viewer)
@@ -91,7 +91,11 @@ context:
 
 ## Design Notes
 
-`peoplePartnerSectionAccess` is deliberately computed by calling `ManagerSectionAccessPolicy.Resolve` with a synthetic `AccessRole { ReportingLine = true }` rather than adding a new, separate PP policy class — this is not a hack: the section matrix's PP column is cell-for-cell identical to the unnarrowed Reporting-line column today, so a second mapping would be a literal duplicate that could silently drift from the matrix if either changes independently. If a future amendment ever makes PP diverge from Reporting-line for any section, this reuse must be revisited then, not defended past that point.
+`peoplePartnerSectionAccess` is computed by a dedicated `ManagerSectionAccessPolicy.ResolveForPeoplePartner()` method — a second, explicit 16-property mapping in the same file/class as `Resolve`, not a call to `Resolve` with a synthetic role. This spec originally assumed the two were cell-for-cell identical (see Spec Change Log); they are not, for S2/S3/S5.
+
+## Spec Change Log
+
+- [Review][Patch] The frozen block's original premise — "PP's per-section access is cell-for-cell identical to the unnarrowed Reporting-line view" — is factually wrong for S2 (Personal contacts), S3 (Emergency contacts), and S5 (Documents): `docs/access-control/section-matrix.md`'s PP column is ReadWrite for all three, while even an unnarrowed Reporting-line viewer is only Read. Cross-checked against `docs/requirements/project-requirements.md` §3.2's raw matrix and `docs/requirements/Spec_Changelog_v1.2_to_v1.5.md` (confirms no PP-column amendment for these three cells — v1.2's PP=RW stands unamended). All other 13 sections do match. Amended the "Always" bullet and Design Notes above; replaced the `Resolve(new AccessRole{ReportingLine=true})` reuse with a dedicated `ManagerSectionAccessPolicy.ResolveForPeoplePartner()` method, fixed the controller call site, and corrected three test files that had hard-coded the wrong `Read` expectation for PP's S2 (`AccessRoleResolverCompositionTests.cs`, `profile.service.spec.ts`, `profile.e2e-spec.ts`) — none of these caused a real access leak (no live write endpoint reads this field yet), but a future write path gating on it would have incorrectly denied PP users a right the matrix grants them. Found by the mandatory access-control-reviewer pass, which cross-checked the claim against the normative matrix directly; a parallel general-purpose adversarial review did not catch it, confirming the value of the specialized reviewer for matrix-fidelity questions specifically.
 
 ## Verification
 

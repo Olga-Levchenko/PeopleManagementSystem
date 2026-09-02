@@ -17,17 +17,24 @@ export interface SectionAccess {
 export interface AccessRoleResolution {
   reportingLine: boolean;
   projectLine: boolean;
+  peoplePartnerLine: boolean;
   managerSectionAccess: {
+    s1: SectionAccess;
+    s2: SectionAccess;
+  } | null;
+  peoplePartnerSectionAccess: {
     s1: SectionAccess;
     s2: SectionAccess;
   } | null;
 }
 
-/** The fail-closed shape: neither line qualifies, matching a Colleague-audience resolution. */
+/** The fail-closed shape: no line qualifies, matching a Colleague-audience resolution. */
 export const NEITHER_LINE_RESOLUTION: AccessRoleResolution = {
   reportingLine: false,
   projectLine: false,
+  peoplePartnerLine: false,
   managerSectionAccess: null,
+  peoplePartnerSectionAccess: null,
 };
 
 export interface AccessRoleResolutionPort {

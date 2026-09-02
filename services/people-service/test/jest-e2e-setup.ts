@@ -37,7 +37,8 @@ if (!process.env.ACCESS_CONTROL_SERVICE_BASE_URL) {
 // failed outright until this was added (Config validation error: "DATABASE_URL" is required.
 // "RABBITMQ_URL" is required, thrown from AppModule's ConfigModule.forRoot before any test ran).
 if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = 'postgresql://placeholder:placeholder@localhost:5432/placeholder';
+  process.env.DATABASE_URL =
+    'postgresql://placeholder:placeholder@localhost:5432/placeholder';
 }
 if (!process.env.RABBITMQ_URL) {
   process.env.RABBITMQ_URL = 'amqp://placeholder:placeholder@localhost:5672';

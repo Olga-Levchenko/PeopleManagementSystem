@@ -55,6 +55,25 @@ public sealed class EfRelationshipRepository : IRelationshipRepository
         return row.ManagerId;
     }
 
+    public async Task<Guid?> GetPeoplePartnerIdAsync(Guid personId, CancellationToken cancellationToken = default)
+    {
+        // Same wrapper-select pattern as GetManagerIdAsync above, for the same reason: tells a
+        // missing row apart from a known row whose PeoplePartnerId column is legitimately null.
+        var row = await _dbContext.People
+            .AsNoTracking()
+            .Where(p => p.Id == personId)
+            .Select(p => new { p.PeoplePartnerId })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (row is null)
+        {
+            LogUnknownId(nameof(GetPeoplePartnerIdAsync), "person", personId);
+            return null;
+        }
+
+        return row.PeoplePartnerId;
+    }
+
     public async Task<Guid?> GetDepartmentIdAsync(Guid personId, CancellationToken cancellationToken = default)
     {
         var row = await _dbContext.People

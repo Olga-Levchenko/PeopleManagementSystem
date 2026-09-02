@@ -199,6 +199,32 @@ describe('Profile (e2e)', () => {
     expect(body.s1.manager).toMatchObject({ fullName: 'Manager Testenko' });
   });
 
+  it('PP line: peoplePartnerLine true with ReadWrite s1/s2 -> both sections present', async () => {
+    const { subject } = await seedSubject();
+    currentViewerId = 'viewer-pp-line';
+    resolveMock.mockResolvedValue({
+      reportingLine: false,
+      projectLine: false,
+      peoplePartnerLine: true,
+      managerSectionAccess: null,
+      // PP is ReadWrite on S2 even though an unnarrowed Reporting-line viewer is only Read --
+      // docs/access-control/section-matrix.md's PP column, confirmed by
+      // ManagerSectionAccessPolicy.ResolveForPeoplePartner.
+      peoplePartnerSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'ReadWrite' },
+      },
+    });
+
+    const res = await request(app.getHttpServer())
+      .get(`/people/${subject.id}/profile`)
+      .expect(200);
+
+    const body = res.body as { s1: { manager: unknown }; s2: unknown };
+    expect(Object.keys(res.body as object).sort()).toEqual(['s1', 's2']);
+    expect(body.s1.manager).toMatchObject({ fullName: 'Manager Testenko' });
+  });
+
   it('Project line only, narrowed: s2 key absent (not null) from the actual JSON', async () => {
     const { subject } = await seedSubject();
     currentViewerId = 'viewer-project-line';

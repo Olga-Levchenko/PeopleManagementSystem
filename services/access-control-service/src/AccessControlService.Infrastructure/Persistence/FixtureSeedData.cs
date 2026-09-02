@@ -43,6 +43,18 @@ namespace AccessControlService.Infrastructure.Persistence;
 /// project with no assignee overlap, a person who qualifies via both lines simultaneously, and a
 /// person who is DM on two separate projects.
 /// </remarks>
+/// <remarks>
+/// PP/HR-line fixture (spec-1-6b), isolated from the reports-to/department chain above:
+/// <code>
+/// Engineer.peoplePartnerId = HrPartner
+/// HrPartner --reports to--&gt; HrDirector (a separate, self-contained 2-hop chain -- HrDirector has
+///                                         no manager of their own)
+/// </code>
+/// This lets a test resolve PP-line via a direct PP match (viewer == HrPartner) or via the HR line
+/// (viewer == HrDirector, transitively above the PP), while proving isolation from Reporting-line:
+/// a viewer who is Engineer's Reporting-line manager (e.g. PlatformLead) has no relation at all to
+/// HrPartner/HrDirector's chain, and vice versa.
+/// </remarks>
 public static class FixtureSeedData
 {
     public static readonly Guid HeadquartersDepartmentId = Guid.Parse("11111111-0000-0000-0000-000000000001");
@@ -64,6 +76,12 @@ public static class FixtureSeedData
     public static readonly Guid ProjectPhoenixId = Guid.Parse("33333333-0000-0000-0000-000000000001");
     public static readonly Guid ProjectOrionId = Guid.Parse("33333333-0000-0000-0000-000000000002");
     public static readonly Guid ProjectZephyrId = Guid.Parse("33333333-0000-0000-0000-000000000003");
+
+    // -- spec-1-6b: PP/HR-line fixture people, isolated from the reports-to chain above (a
+    //    separate, self-contained 2-hop chain: HrPartnerId reports to HrDirectorId) so PP-line
+    //    and Reporting-line tests don't accidentally aid each other. --
+    public static readonly Guid HrDirectorId = Guid.Parse("22222222-0000-0000-0000-000000000009");
+    public static readonly Guid HrPartnerId = Guid.Parse("22222222-0000-0000-0000-00000000000a");
 
     public static IReadOnlyList<Department> Departments { get; } = new[]
     {
@@ -94,6 +112,7 @@ public static class FixtureSeedData
             Id = ExecutiveId,
             Label = "Fixture Person: Executive",
             ManagerId = null,
+            PeoplePartnerId = null,
             DepartmentId = HeadquartersDepartmentId,
             ManagesDepartmentId = HeadquartersDepartmentId,
         },
@@ -102,6 +121,7 @@ public static class FixtureSeedData
             Id = DirectorId,
             Label = "Fixture Person: Director",
             ManagerId = ExecutiveId,
+            PeoplePartnerId = null,
             DepartmentId = EngineeringDepartmentId,
             ManagesDepartmentId = EngineeringDepartmentId,
         },
@@ -110,6 +130,7 @@ public static class FixtureSeedData
             Id = PlatformLeadId,
             Label = "Fixture Person: Platform Lead",
             ManagerId = DirectorId,
+            PeoplePartnerId = null,
             DepartmentId = PlatformDepartmentId,
             ManagesDepartmentId = PlatformDepartmentId,
         },
@@ -118,6 +139,10 @@ public static class FixtureSeedData
             Id = EngineerId,
             Label = "Fixture Person: Engineer",
             ManagerId = PlatformLeadId,
+            // spec-1-6b: Engineer's assigned PP is HrPartnerId, whose own reports-to chain
+            // (HrPartnerId -> HrDirectorId) is deliberately isolated from Engineer's own
+            // reports-to/department chain above -- see the HR-line fixture people below.
+            PeoplePartnerId = HrPartnerId,
             DepartmentId = PlatformDepartmentId,
             ManagesDepartmentId = null,
         },
@@ -130,6 +155,7 @@ public static class FixtureSeedData
             Id = DeliveryManagerOnlyId,
             Label = "Fixture Person: Delivery Manager (Project Phoenix)",
             ManagerId = null,
+            PeoplePartnerId = null,
             DepartmentId = null,
             ManagesDepartmentId = null,
         },
@@ -138,6 +164,7 @@ public static class FixtureSeedData
             Id = ProjectManagerOnlyId,
             Label = "Fixture Person: Project Manager (Project Phoenix)",
             ManagerId = null,
+            PeoplePartnerId = null,
             DepartmentId = null,
             ManagesDepartmentId = null,
         },
@@ -146,6 +173,7 @@ public static class FixtureSeedData
             Id = ProjectAssigneeId,
             Label = "Fixture Person: Project Assignee (Project Phoenix)",
             ManagerId = null,
+            PeoplePartnerId = null,
             DepartmentId = null,
             ManagesDepartmentId = null,
         },
@@ -154,6 +182,30 @@ public static class FixtureSeedData
             Id = UnrelatedProjectDmId,
             Label = "Fixture Person: Delivery Manager (Project Orion, unrelated to Phoenix)",
             ManagerId = null,
+            PeoplePartnerId = null,
+            DepartmentId = null,
+            ManagesDepartmentId = null,
+        },
+
+        // -- spec-1-6b: PP/HR-line fixture people. No department on file, and their reports-to
+        //    link (HrPartnerId -> HrDirectorId) is a self-contained 2-hop chain, deliberately
+        //    isolated from the Executive/Director/PlatformLead/Engineer chain above -- so a
+        //    PP-line/HR-line test can't accidentally also pass via Reporting-line, or vice versa. --
+        new Person
+        {
+            Id = HrDirectorId,
+            Label = "Fixture Person: HR Director",
+            ManagerId = null,
+            PeoplePartnerId = null,
+            DepartmentId = null,
+            ManagesDepartmentId = null,
+        },
+        new Person
+        {
+            Id = HrPartnerId,
+            Label = "Fixture Person: HR Partner (Engineer's assigned PP)",
+            ManagerId = HrDirectorId,
+            PeoplePartnerId = null,
             DepartmentId = null,
             ManagesDepartmentId = null,
         },

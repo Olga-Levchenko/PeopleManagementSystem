@@ -78,6 +78,33 @@ public sealed class EfRelationshipRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetPeoplePartnerIdAsync_KnownPersonWithAssignedPp_ReturnsSeededPeoplePartnerId()
+    {
+        // spec-1-6b: Engineer's assigned PP is HrPartnerId, per FixtureSeedData's own doc comment.
+        var peoplePartnerId = await _repository.GetPeoplePartnerIdAsync(FixtureSeedData.EngineerId);
+
+        Assert.Equal(FixtureSeedData.HrPartnerId, peoplePartnerId);
+    }
+
+    [Fact]
+    public async Task GetPeoplePartnerIdAsync_KnownPersonWithGenuinelyNoPp_ReturnsNull()
+    {
+        var peoplePartnerId = await _repository.GetPeoplePartnerIdAsync(FixtureSeedData.ExecutiveId);
+
+        Assert.Null(peoplePartnerId);
+    }
+
+    [Fact]
+    public async Task GetPeoplePartnerIdAsync_UnknownPersonId_ReturnsNull()
+    {
+        // Same documented, tracked ambiguity as GetManagerIdAsync_UnknownPersonId_ReturnsNull above
+        // -- not a crash.
+        var peoplePartnerId = await _repository.GetPeoplePartnerIdAsync(Guid.NewGuid());
+
+        Assert.Null(peoplePartnerId);
+    }
+
+    [Fact]
     public async Task GetDepartmentIdAsync_KnownPerson_ReturnsSeededDepartmentId()
     {
         var departmentId = await _repository.GetDepartmentIdAsync(FixtureSeedData.EngineerId);

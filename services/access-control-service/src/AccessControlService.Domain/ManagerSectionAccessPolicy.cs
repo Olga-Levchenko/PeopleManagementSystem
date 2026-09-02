@@ -150,4 +150,36 @@ public static class ManagerSectionAccessPolicy
             S16 = SectionAccess.ReadWrite,
         };
     }
+
+    /// <summary>
+    /// The PP audience's per-section access, per <c>docs/access-control/section-matrix.md</c>'s PP
+    /// column. PP is never narrowed (unlike Project line) and matches the unnarrowed
+    /// Reporting-line view for every section <b>except</b> S2, S3, and S5, where PP is
+    /// <see cref="SectionAccessLevel.ReadWrite"/> while even an unnarrowed Reporting-line viewer is
+    /// only <see cref="SectionAccessLevel.Read"/> -- confirmed against
+    /// <c>docs/requirements/project-requirements.md</c>'s §3.2 matrix (unamended by
+    /// <c>Spec_Changelog_v1.2_to_v1.5.md</c> for these three PP cells) and the living
+    /// <c>section-matrix.md</c>. Not a call to <see cref="Resolve"/> with a synthetic role -- that
+    /// would silently reproduce the wrong (Read-only) S2/S3/S5 levels for PP, which spec-1-6b's
+    /// original "cell-for-cell identical to unnarrowed Reporting-line" premise incorrectly assumed.
+    /// </summary>
+    public static ManagerSectionAccess ResolveForPeoplePartner() => new()
+    {
+        S1 = SectionAccess.ReadWrite,
+        S2 = SectionAccess.ReadWrite,
+        S3 = SectionAccess.ReadWrite,
+        S4 = SectionAccess.ReadWrite,
+        S5 = SectionAccess.ReadWrite,
+        S6 = SectionAccess.ReadWrite,
+        S7 = SectionAccess.ReadWrite,
+        S8 = SectionAccess.ReadWrite,
+        S9 = SectionAccess.ReadWrite,
+        S10 = SectionAccess.Read,
+        S11 = SectionAccess.Read,
+        S12 = SectionAccess.ReadWrite,
+        S13 = SectionAccess.ReadWrite,
+        S14 = SectionAccess.ReadWrite,
+        S15 = SectionAccess.Read,
+        S16 = SectionAccess.ReadWrite,
+    };
 }

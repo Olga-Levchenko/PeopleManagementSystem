@@ -65,7 +65,9 @@ describe('HttpAccessRoleResolutionAdapter', () => {
     expect(result).toEqual({
       reportingLine: false,
       projectLine: false,
+      peoplePartnerLine: false,
       managerSectionAccess: null,
+      peoplePartnerSectionAccess: null,
     });
   });
 
@@ -78,7 +80,9 @@ describe('HttpAccessRoleResolutionAdapter', () => {
     expect(result).toEqual({
       reportingLine: false,
       projectLine: false,
+      peoplePartnerLine: false,
       managerSectionAccess: null,
+      peoplePartnerSectionAccess: null,
     });
   });
 });

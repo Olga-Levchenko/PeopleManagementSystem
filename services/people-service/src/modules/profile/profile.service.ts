@@ -128,9 +128,12 @@ export class ProfileService {
    * Self short-circuits before ever calling the resolver -- never call
    * `AccessRoleResolutionPort.resolve` for a person against themselves. Otherwise, Reporting-line
    * or Project-line qualifying (with a non-null `managerSectionAccess`) gates on the resolved
-   * per-section levels; anything else -- neither line, or the resolver having already failed
-   * closed to the "neither line" shape -- resolves to the Colleague whitelist (S1 read-only, no
-   * S2).
+   * per-section levels; PP-line qualifying (with a non-null `peoplePartnerSectionAccess`) is
+   * checked as a third, independent qualifying line -- the Manager check stays first and takes
+   * priority when both qualify (the matrix cells are identical either way, per spec-1-6b, so
+   * order has no visible effect, but Manager was already there first). Anything else -- no line
+   * qualifies, or the resolver having already failed closed to the "no line" shape -- resolves to
+   * the Colleague whitelist (S1 read-only, no S2).
    */
   private async resolveAudience(
     viewerPersonId: string,
@@ -152,6 +155,13 @@ export class ProfileService {
       return {
         s1: resolution.managerSectionAccess.s1.level,
         s2: resolution.managerSectionAccess.s2.level,
+      };
+    }
+
+    if (resolution.peoplePartnerLine && resolution.peoplePartnerSectionAccess) {
+      return {
+        s1: resolution.peoplePartnerSectionAccess.s1.level,
+        s2: resolution.peoplePartnerSectionAccess.s2.level,
       };
     }
 

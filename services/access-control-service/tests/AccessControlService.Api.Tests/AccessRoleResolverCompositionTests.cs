@@ -629,6 +629,107 @@ public sealed class AccessRoleResolverCompositionTests : IAsyncLifetime
         Assert.Equal(JsonValueKind.Null, root.GetProperty("managerSectionAccess").ValueKind);
     }
 
+    // -- spec-1-6b: real end-to-end HTTP tests for PeoplePartnerLine/peoplePartnerSectionAccess,
+    // against this same real, DI-composed, migrated-Postgres stack and the same FixtureSeedData
+    // HR-line fixture (HrPartnerId reports to HrDirectorId, Engineer.peoplePartnerId = HrPartnerId).
+
+    [Fact]
+    public async Task ResolveEndpoint_DirectPp_ReturnsPeoplePartnerLineTrueWithUnnarrowedSectionAccess()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        // HrPartnerId is Engineer's directly assigned PP, per FixtureSeedData's own doc comment.
+        using var response = await client.GetAsync(
+            $"/api/v1/access-roles/resolve?viewerPersonId={FixtureSeedData.HrPartnerId}&subjectPersonId={FixtureSeedData.EngineerId}");
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+
+        Assert.False(root.GetProperty("reportingLine").GetBoolean());
+        Assert.False(root.GetProperty("projectLine").GetBoolean());
+        Assert.True(root.GetProperty("peoplePartnerLine").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("managerSectionAccess").ValueKind);
+
+        var peoplePartnerSectionAccess = root.GetProperty("peoplePartnerSectionAccess");
+        Assert.Equal(JsonValueKind.Object, peoplePartnerSectionAccess.ValueKind);
+        // PP is never narrowed like Project line, and matches the unnarrowed Reporting-line view
+        // for most sections -- but PP is ReadWrite on S2/S3/S5, where even an unnarrowed
+        // Reporting-line viewer is only Read (section-matrix.md's PP column).
+        AssertSection(peoplePartnerSectionAccess, "s1", "ReadWrite", null);
+        AssertSection(peoplePartnerSectionAccess, "s2", "ReadWrite", null);
+        AssertSection(peoplePartnerSectionAccess, "s3", "ReadWrite", null);
+        AssertSection(peoplePartnerSectionAccess, "s4", "ReadWrite", null);
+        AssertSection(peoplePartnerSectionAccess, "s5", "ReadWrite", null);
+        AssertSection(peoplePartnerSectionAccess, "s6", "ReadWrite", null);
+        AssertSection(peoplePartnerSectionAccess, "s7", "ReadWrite", null);
+        AssertSection(peoplePartnerSectionAccess, "s8", "ReadWrite", null);
+        AssertSection(peoplePartnerSectionAccess, "s9", "ReadWrite", null);
+        AssertSection(peoplePartnerSectionAccess, "s10", "Read", null);
+        AssertSection(peoplePartnerSectionAccess, "s11", "Read", null);
+        AssertSection(peoplePartnerSectionAccess, "s12", "ReadWrite", null);
+        AssertSection(peoplePartnerSectionAccess, "s13", "ReadWrite", null);
+        AssertSection(peoplePartnerSectionAccess, "s14", "ReadWrite", null);
+        AssertSection(peoplePartnerSectionAccess, "s15", "Read", null);
+        AssertSection(peoplePartnerSectionAccess, "s16", "ReadWrite", null);
+    }
+
+    [Fact]
+    public async Task ResolveEndpoint_HrLineTransitive_ReturnsPeoplePartnerLineTrue()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        // HrDirectorId is HrPartnerId's own reports-to manager -- transitively above Engineer's
+        // assigned PP in the PP's own reports-to chain (the "HR line"), per FixtureSeedData.
+        using var response = await client.GetAsync(
+            $"/api/v1/access-roles/resolve?viewerPersonId={FixtureSeedData.HrDirectorId}&subjectPersonId={FixtureSeedData.EngineerId}");
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+
+        Assert.False(root.GetProperty("reportingLine").GetBoolean());
+        Assert.True(root.GetProperty("peoplePartnerLine").GetBoolean());
+        Assert.Equal(JsonValueKind.Object, root.GetProperty("peoplePartnerSectionAccess").ValueKind);
+    }
+
+    [Fact]
+    public async Task ResolveEndpoint_ReportingLineViewerIsolatedFromSubjectsPpChain_PeoplePartnerLineFalseNoCrossContamination()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        // PlatformLead is Engineer's real Reporting-line manager, per FixtureSeedData, with no
+        // relation at all to Engineer's PP (HrPartnerId) or that PP's own manager (HrDirectorId) --
+        // proves the two lines don't leak into each other.
+        using var response = await client.GetAsync(
+            $"/api/v1/access-roles/resolve?viewerPersonId={FixtureSeedData.PlatformLeadId}&subjectPersonId={FixtureSeedData.EngineerId}");
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+
+        Assert.True(root.GetProperty("reportingLine").GetBoolean());
+        Assert.False(root.GetProperty("peoplePartnerLine").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("peoplePartnerSectionAccess").ValueKind);
+    }
+
+    [Fact]
+    public async Task ResolveEndpoint_SubjectHasNoAssignedPp_ReturnsPeoplePartnerLineFalse()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        // DirectorId has no peoplePartnerId on file, per FixtureSeedData.
+        using var response = await client.GetAsync(
+            $"/api/v1/access-roles/resolve?viewerPersonId={FixtureSeedData.HrPartnerId}&subjectPersonId={FixtureSeedData.DirectorId}");
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+
+        Assert.False(root.GetProperty("peoplePartnerLine").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("peoplePartnerSectionAccess").ValueKind);
+    }
+
     [Fact]
     public async Task ResolveEndpoint_InvalidGuidQueryParam_ReturnsBadRequestValidationProblem()
     {

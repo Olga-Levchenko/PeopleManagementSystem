@@ -3,12 +3,13 @@ namespace AccessControlService.Domain;
 /// <summary>
 /// Resolved access-role qualification for a single (viewer, subject) pair, for exactly the
 /// relationships this spec resolves. Exposes <see cref="ReportingLine"/> (transitive reports-to /
-/// department-management, per 2.1) and <see cref="ProjectLine"/> (project assignment to a subject
-/// managed by the viewer as DM or PM, per 2.1) as two independent, never-collapsed flags -- a
-/// viewer can qualify for either, both, or neither toward the same subject. Any later line
-/// (People Partner, Full profile access) can be added as a further additional property in a
-/// follow-up spec without changing what either existing flag means or breaking any existing
-/// caller. Do not replace this with an enum or a single "role" value -- see above.
+/// department-management, per 2.1), <see cref="ProjectLine"/> (project assignment to a subject
+/// managed by the viewer as DM or PM, per 2.1), and <see cref="PeoplePartnerLine"/> (the subject's
+/// assigned PP, or the HR line above that PP, per 2.1/spec-1-6b) as three independent,
+/// never-collapsed flags -- a viewer can qualify for any combination of these toward the same
+/// subject. Any later line (Full profile access) can be added as a further additional property in
+/// a follow-up spec without changing what any existing flag means or breaking any existing caller.
+/// Do not replace this with an enum or a single "role" value -- see above.
 /// </summary>
 public sealed record AccessRole
 {
@@ -42,6 +43,23 @@ public sealed record AccessRole
     /// records the qualification; it does not itself carry out the narrowing.
     /// </remarks>
     public bool ProjectLine { get; init; }
+
+    /// <summary>
+    /// True when the viewer qualifies for People-Partner-line access toward the subject: the
+    /// viewer is the subject's assigned people partner, or is transitively above that PP in the
+    /// PP's own reports-to chain (the "HR line" -- the PP's manager chain, never the subject's own
+    /// reporting line). Independent of <see cref="ReportingLine"/> and <see cref="ProjectLine"/> --
+    /// resolved unconditionally, never short-circuited by either. False when the subject has no
+    /// assigned PP on file, and false for a viewer resolving toward themselves (Self is a separate
+    /// access role the caller must check before consulting this resolver).
+    /// </summary>
+    /// <remarks>
+    /// Per <c>.claude/rules/access-control-invariants.md</c> and the section matrix
+    /// (<c>docs/access-control/section-matrix.md</c>), PP is never narrowed like the Project
+    /// line -- its per-section access is cell-for-cell identical to the unnarrowed Reporting-line
+    /// view. See <c>AccessRolesController</c> for how this flag is mapped to section access.
+    /// </remarks>
+    public bool PeoplePartnerLine { get; init; }
 
     /// <summary>Convenience instance for "qualifies for nothing this resolver computes."</summary>
     public static AccessRole None { get; } = new();

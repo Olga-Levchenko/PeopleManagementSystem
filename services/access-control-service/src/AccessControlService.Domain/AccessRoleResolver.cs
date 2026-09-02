@@ -3,11 +3,12 @@ using Microsoft.Extensions.Logging;
 namespace AccessControlService.Domain;
 
 /// <summary>
-/// Computes Reporting-line and Project-line access-role qualification for a single
-/// (viewer, subject) pair, from real reports-to / department-management / project-assignment
-/// relationship data via <see cref="IRelationshipRepository"/> -- never from a stored or cached
-/// role flag. Resolve per (viewer, subject) pair on every call; never cache a single
-/// "current user role" across subjects or requests.
+/// Computes Reporting-line, Project-line, and People-Partner-line access-role qualification for a
+/// single (viewer, subject) pair, from real reports-to / department-management /
+/// project-assignment / people-partner-assignment relationship data via
+/// <see cref="IRelationshipRepository"/> -- never from a stored or cached role flag. Resolve per
+/// (viewer, subject) pair on every call; never cache a single "current user role" across subjects
+/// or requests.
 /// </summary>
 public sealed class AccessRoleResolver
 {
@@ -29,15 +30,17 @@ public sealed class AccessRoleResolver
     }
 
     /// <summary>
-    /// Resolves whether <paramref name="viewerId"/> qualifies for Reporting-line and/or
-    /// Project-line access toward <paramref name="subjectId"/>. Reporting-line qualifies via
-    /// transitive reports-to at any depth, OR department-management of the subject's department or
-    /// any ancestor department. Project-line qualifies when the viewer is DM or PM of a project the
-    /// subject is assigned to. The two flags are resolved independently -- both, either, or neither
-    /// can be true in the same result; one qualifying does not short-circuit the other's check.
-    /// Returns <see cref="AccessRole.None"/> (both flags <c>false</c>) when
-    /// <paramref name="viewerId"/> equals <paramref name="subjectId"/> -- a person is never their
-    /// own manager or their own DM/PM; Self is a separate access role the caller must check before
+    /// Resolves whether <paramref name="viewerId"/> qualifies for Reporting-line, Project-line,
+    /// and/or People-Partner-line access toward <paramref name="subjectId"/>. Reporting-line
+    /// qualifies via transitive reports-to at any depth, OR department-management of the subject's
+    /// department or any ancestor department. Project-line qualifies when the viewer is DM or PM of
+    /// a project the subject is assigned to. People-Partner-line qualifies when the viewer is the
+    /// subject's assigned people partner, or transitively above that PP in the PP's own reports-to
+    /// chain (the "HR line"). All three flags are resolved independently -- any combination can be
+    /// true in the same result; one qualifying does not short-circuit any other's check. Returns
+    /// <see cref="AccessRole.None"/> (all flags <c>false</c>) when <paramref name="viewerId"/>
+    /// equals <paramref name="subjectId"/> -- a person is never their own manager, their own
+    /// DM/PM, or their own PP; Self is a separate access role the caller must check before
     /// consulting this resolver, not an unreviewed edge case here.
     /// </summary>
     /// <remarks>
@@ -63,26 +66,40 @@ public sealed class AccessRoleResolver
 
         var projectLine = await QualifiesViaProjectAssignmentAsync(viewerId, subjectId, cancellationToken);
 
-        if (!reportingLine && !projectLine)
+        var peoplePartnerId = await _repository.GetPeoplePartnerIdAsync(subjectId, cancellationToken);
+        var peoplePartnerLine =
+            peoplePartnerId is not null
+            && (peoplePartnerId == viewerId
+                || await IsTransitiveManagerAsync(viewerId, peoplePartnerId.Value, cancellationToken));
+
+        if (!reportingLine && !projectLine && !peoplePartnerLine)
         {
             return AccessRole.None;
         }
 
-        return new AccessRole { ReportingLine = reportingLine, ProjectLine = projectLine };
+        return new AccessRole
+        {
+            ReportingLine = reportingLine,
+            ProjectLine = projectLine,
+            PeoplePartnerLine = peoplePartnerLine,
+        };
     }
 
     /// <summary>
-    /// Walks the subject's reports-to chain upward, one hop at a time, looking for the viewer.
-    /// Stops (returns false) on reaching the top of the chain, revisiting an already-seen node
-    /// (cycle guard), or exceeding <see cref="MaxHops"/>.
+    /// Walks <paramref name="startId"/>'s reports-to chain upward, one hop at a time, looking for
+    /// the viewer. Stops (returns false) on reaching the top of the chain, revisiting an
+    /// already-seen node (cycle guard), or exceeding <see cref="MaxHops"/>. Generalized over its
+    /// starting point (not always the subject) so it can walk either the subject's own reports-to
+    /// chain (Reporting-line) or the subject's assigned PP's reports-to chain (the "HR line" for
+    /// PP-line, per spec-1-6b) -- the walking/cycle-guard logic is identical either way.
     /// </summary>
     private async Task<bool> IsTransitiveManagerAsync(
         Guid viewerId,
-        Guid subjectId,
+        Guid startId,
         CancellationToken cancellationToken)
     {
-        var visited = new HashSet<Guid> { subjectId };
-        var currentId = subjectId;
+        var visited = new HashSet<Guid> { startId };
+        var currentId = startId;
 
         for (var hop = 0; hop < MaxHops; hop++)
         {
@@ -114,11 +131,11 @@ public sealed class AccessRoleResolver
         // it could be a genuinely deep reporting chain exceeding MaxHops, or malformed data forming a
         // cycle longer than MaxHops distinct nodes.
         _logger.LogWarning(
-            "Reports-to walk from subject {SubjectId} toward viewer {ViewerId} was truncated after " +
+            "Reports-to walk from {StartId} toward viewer {ViewerId} was truncated after " +
             "{MaxHops} hops without finding a match or reaching the top of the chain. This may be a " +
             "genuinely deep reporting chain exceeding the cycle guard, or malformed data -- either way, " +
-            "Reporting-line access was not granted via this path and the result may be a false negative.",
-            subjectId,
+            "access was not granted via this path and the result may be a false negative.",
+            startId,
             viewerId,
             MaxHops);
 
