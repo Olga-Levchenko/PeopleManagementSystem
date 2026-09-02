@@ -64,6 +64,10 @@ model Person {
   personalEmail        String?
   residentialAddress   String?
 
+  // S10/S11 -- Leaves and project assignments (Story 1.8).
+  leaves                    Leave[]
+  personProjectAssignments  PersonProjectAssignment[]
+
   @@map("people")
 }
 
@@ -111,6 +115,33 @@ model OutboxEvent {
   @@index([aggregateId, aggregateVersion])
   @@unique([aggregateType, aggregateId, aggregateVersion])
   @@map("outbox_events")
+}
+
+// S10 -- Leaves and absences (Story 1.8).
+model Leave {
+  id         String   @id @default(uuid()) @db.Uuid
+  personId   String   @db.Uuid
+  startDate  DateTime
+  endDate    DateTime
+  leaveType  String?
+  person     Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@map("leaves")
+}
+
+// S11 -- Project assignments as seen from the profile (Story 1.8).
+// This is people-service's own read model -- separate from access-control-service's
+// ProjectAssignment projection which is used only for access-role resolution.
+model PersonProjectAssignment {
+  id          String    @id @default(uuid()) @db.Uuid
+  personId    String    @db.Uuid
+  projectName String
+  role        String?
+  startDate   DateTime?
+  endDate     DateTime?
+  person      Person    @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@map("person_project_assignments")
 }
 
 model RelationshipProjectionFreshness {

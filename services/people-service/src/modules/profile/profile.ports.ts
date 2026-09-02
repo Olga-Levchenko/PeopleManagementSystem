@@ -11,7 +11,7 @@ export interface SectionAccess {
 
 /**
  * The subset of access-control-service's `GET /api/v1/access-roles/resolve` response this slice
- * consumes -- only `s1`/`s2` are read today, but the wire shape carries S1-S16 (see
+ * consumes -- only `s1`/`s2`/`s10`/`s11` are read today, but the wire shape carries S1-S16 (see
  * `AccessRolesController.cs`); extra keys are simply ignored by JSON parsing.
  */
 export interface AccessRoleResolution {
@@ -21,10 +21,14 @@ export interface AccessRoleResolution {
   managerSectionAccess: {
     s1: SectionAccess;
     s2: SectionAccess;
+    s10: SectionAccess;
+    s11: SectionAccess;
   } | null;
   peoplePartnerSectionAccess: {
     s1: SectionAccess;
     s2: SectionAccess;
+    s10: SectionAccess;
+    s11: SectionAccess;
   } | null;
 }
 
