@@ -20,3 +20,6 @@ if (!process.env.KEYCLOAK_BASE_URL) {
 if (!process.env.KEYCLOAK_REALM) {
   process.env.KEYCLOAK_REALM = 'people-management';
 }
+if (!process.env.ACCESS_CONTROL_SERVICE_BASE_URL) {
+  process.env.ACCESS_CONTROL_SERVICE_BASE_URL = 'http://localhost:3007';
+}

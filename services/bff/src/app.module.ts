@@ -7,6 +7,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 import { HealthModule } from './modules/health/health.module';
 import { OrganisationalRelationshipsModule } from './modules/organisational-relationships/organisational-relationships.module';
+import { FunctionalRolesModule } from './modules/functional-roles/functional-roles.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { OrganisationalRelationshipsModule } from './modules/organisational-rela
     AuthModule,
     HealthModule,
     OrganisationalRelationshipsModule,
+    FunctionalRolesModule,
   ],
   providers: [
     {
