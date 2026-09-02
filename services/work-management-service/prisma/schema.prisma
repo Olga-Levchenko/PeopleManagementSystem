@@ -9,4 +9,20 @@ datasource db {
   provider = "postgresql"
 }
 
-// Domain models go here — none seeded yet.
+// Domain models go here.
+
+// S7 Management notes (Story 1.7 scaffold only — no service/controller yet; flag-gating
+// behavior, defaults enforcement, and PM-vs-DM read/write logic are Story 1.7's own spec,
+// pending the projectRoles decision in ADR-003's 2026-09-02 addendum.
+model ManagementNote {
+  id               String   @id @default(uuid())
+  subjectPersonId  String
+  authorPersonId   String
+  content          String
+  visibleForEmployee Boolean @default(false)
+  visibleForPm       Boolean @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("management_notes")
+}
