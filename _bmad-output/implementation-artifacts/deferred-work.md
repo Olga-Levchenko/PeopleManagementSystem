@@ -300,6 +300,28 @@
   summary: Decide and implement service-to-service authentication/authorization for access-control-service's domain HTTP endpoints (starting with `GET /api/v1/access-roles/resolve`) — today any caller reaching the service can ask "what can arbitrary viewer X see about arbitrary subject Y" for any two GUIDs, with no check that the caller is entitled to ask.
   evidence: Code review of story-1-9 found this gap on the service's first real business endpoint (previously only `/api/v1/health` existed, which needs no such check). Not unique to this story — no domain service in the repo has service-to-service auth wired in yet (Keycloak integration lives in `authentication-service`; the intended trust model between backend services was never decided) — so it's a platform-wide, pre-existing gap this endpoint happens to make concretely reachable for the first time, not a defect introduced by this story's own logic.
 
+## Deferred from: code review of story-1-11b (2026-09-02)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11b-bff-jwt-validation.md`
+  summary: The `KC_HOSTNAME`/`iss`-drift risk already logged from Story 1.11's first slice is no longer purely theoretical — `spec-1-11b` is the exact "the moment token validation depends on it" trigger condition that entry named, and this slice shipped without resolving it. It works today only because every environment (local dev, CI, the Testcontainers e2e fixture) reaches Keycloak via the same hostname the BFF is configured with; a real deployment with Keycloak behind a reverse proxy or a different internal-vs-external hostname would start silently rejecting valid tokens.
+  evidence: Code review of story-1-11b (identity-access-engineer + blind-hunter, independently) confirmed `infra/docker-compose.yml`'s `keycloak` service still sets no `KC_HOSTNAME`/`KC_HOSTNAME_URL`, and neither `authentication-service`'s nor the BFF's issuer derivation accounts for a Keycloak-observed `iss` that could differ from their own static `KEYCLOAK_BASE_URL` copies. Pin `KC_HOSTNAME_URL` (or move to a real reverse-proxy-aware hostname strategy) before any non-single-hostname deployment.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11b-bff-jwt-validation.md`
+  summary: Add a cross-realm "wrong issuer" and "wrong audience" test once a second Keycloak realm/client fixture exists — today's e2e suite only has one realm/client, so a correctly-signed token from a genuinely different issuer or audience is unverified in practice (only proven correct by the strategy's own config, not by a test that could fail).
+  evidence: Code review of story-1-11b (identity-access-engineer + blind-hunter) found this gap; disproportionate effort to fix now (would need a second realm fixture) relative to the current single-client reality.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11b-bff-jwt-validation.md`
+  summary: Override `JwtAuthGuard.handleRequest` to distinguish a JWKS-fetch failure (Keycloak/network outage) from an actually-invalid/expired token, and log the distinction — both currently surface as an indistinguishable bare 401, which will make a real Keycloak outage look identical to normal bad-token traffic in monitoring/on-call triage.
+  evidence: Code review of story-1-11b (blind-hunter) found this; correct fail-closed security posture either way, so this is an observability improvement, not a security gap.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11b-bff-jwt-validation.md`
+  summary: Add test coverage for a non-Bearer `Authorization` scheme (e.g. `Basic ...`) and an empty Bearer value — currently relies entirely on `passport-jwt`'s `ExtractJwt.fromAuthHeaderAsBearerToken()` built-in behavior, unverified by any test in this repo.
+  evidence: Code review of story-1-11b (blind-hunter) found this gap; low risk since the library's behavior here is well-established, but not asserted locally.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11b-bff-jwt-validation.md`
+  summary: Consider a shared fixture or contract test asserting `authentication-service`'s `AppConfig.Issuer`/`JwksUri` (.NET) and the BFF's `deriveIssuer`/`deriveJwksUri` (Node) derive identical values from the same `KEYCLOAK_BASE_URL`/`KEYCLOAK_REALM` inputs — today the same formula is hand-duplicated in two languages with nothing catching a future silent desync (e.g. a Keycloak version bump changing the certs path in one place but not the other).
+  evidence: Code review of story-1-11b (blind-hunter) found this gap; real but low-current-risk, and a cross-language contract test is nontrivial to set up cheaply.
+
 ## Corrections
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1-two-dimensional-access-role-resolution.md`
