@@ -169,8 +169,11 @@ access-model gaps remain here.
   read-side profile assembly can start as soon as the access-role-resolution HTTP endpoint exists.
 - Stories 1.8 and 1.9 follow directly from Story 1.6's endpoint/assembly layer — neither needs new
   work inside `access-control-service` itself.
-- Story 1.7 additionally depends on the not-yet-designed DM-vs-PM distinction above, and lives
-  partly in `work-management-service`, which is currently an empty scaffold.
+- Story 1.7's two structural blockers are now cleared: the DM-vs-PM distinction has a decided
+  shape (ADR-003's 2026-09-02 addendum — additive `projectRoles` field, not yet implemented), and
+  `work-management-service` has a bare `ManagementNote` model/module scaffold (O4-89, merged).
+  Story 1.7 itself — flag-gating logic, the PM-vs-DM read/write split, and the BFF route — is
+  unstarted and still needs its own spec via `bmad-build`.
 - Story 1.10 is blocked on people-service's custom-field model, which does not exist yet.
 - This epic closes the negative half of FR-15 (self can never read own S6); the other three FR-15
   sub-clauses (self-complete action item, self-complete IDP, self open-to-mentoring flag) are owned
