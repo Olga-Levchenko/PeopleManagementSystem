@@ -371,9 +371,15 @@ integration. No Access Control files should be changed in the Story 1-3 branch.
 
 ### Blocked by Story 1-4, Access Control follow-up, and authentication
 
-- [x] [Review][Defer] Verified principal/authentication middleware is not present, so
+- [x] [Review][Defer] ~~Verified principal/authentication middleware is not present, so
   `RequestActorContext` cannot obtain `request.user.sub`; this must remain blocked rather than
-  introducing trusted headers or temporary authentication. [services/people-service/src/modules/organisational-relationships/request-actor.context.ts:13-20]
+  introducing trusted headers or temporary authentication.~~ **RESOLVED (Story 1.11, 2026-09-02):**
+  `people-service` now runs a global Passport JWT guard (`src/modules/auth/`, PR #26) validating
+  bearer tokens against a real Keycloak realm (`authentication-service`, PR #24) — the same token
+  the BFF already validates at the edge (PR #25). `request.user.sub` is genuinely populated;
+  `RequestActorContext.actorId` no longer unconditionally throws. Only the second blocker below
+  (Story 1.4's permission-decision adapter) still keeps this story from `done`.
+  [services/people-service/src/modules/organisational-relationships/request-actor.context.ts:13-20]
 - [x] [Review][Defer] The real Story 1-4 permission-decision adapter, Access Control
   organisational-relationship consumer/post-commit projection endpoint, freshness observation,
   reconciliation, and fail-closed cross-service integration are unavailable. The current adapters
