@@ -111,12 +111,17 @@ Define `IPrincipalPersonResolver` at the Access Control application boundary. Pe
 the authoritative identity link; its adapter resolves a validated Keycloak `sub` to `PersonId`.
 The current JWT implementations validate signature, issuer, audience, algorithm, expiry, and
 nonblank `sub`, then expose only `{ sub }`; they do not expose role or permission claims.
-Production service-to-service credentials and this adapter are an external integration dependency.
+Production end-user JWT validation for Access Control administration routes, separately trusted
+service-to-service credentials for the permission-check route, and the principal-to-PersonId
+adapter are external integration dependencies. In their absence, both boundaries remain
+fail-closed and no caller-controlled identity is accepted.
 
 ## Administration API
 
-All routes are under `/api/v1`, require a verified trusted principal, and return `401` for missing
-or invalid identity. All administration mutations require the effective stored
+All administration routes under `/api/v1` are user-facing through the BFF. They require a
+cryptographically verified end-user JWT, derive `sub` only from the authenticated
+`ClaimsPrincipal`, resolve that `sub` to `PersonId`, and return `401` for missing or invalid
+identity. All administration mutations require the effective stored
 `manage-functional-roles-and-permissions` grant; failures return `403`. The actor is never a DTO
 field, query parameter, or arbitrary header.
 
@@ -134,15 +139,17 @@ field, query parameter, or arbitrary header.
 | `POST /people/{personId}/functional-roles` | `AssignFunctionalRoleRequest { roleKey }` | `AssignmentResponse` / 201 or 200 | `manage-functional-roles-and-permissions` | Existing person/active role; idempotent assignment returns 200; 400/401/403/404/409/503 |
 | `DELETE /people/{personId}/functional-roles/{roleKey}` | none | 204 | `manage-functional-roles-and-permissions` | Idempotent absent assignment; final-administrator check; 401/403/404/409/503 |
 | `GET /people/{personId}/functional-roles` | none | `FunctionalRoleAssignmentListResponse` / 200 | `manage-functional-roles-and-permissions` | Active assignments only; 400/401/403/404/503 |
-| `POST /permissions/check` | `PermissionCheckRequest { permissionKey, scope }` | `PermissionCheckResponse { granted }` / 200 | Trusted service principal, not a functional-role permission | Actor derived from verified principal; 400/401/403/409/503 |
+| `POST /permissions/check` | `PermissionCheckRequest { permissionKey, scope }` | `PermissionCheckResponse { granted }` / 200 | Separately trusted service principal, not a functional-role permission | Domain-to-domain only; an arbitrary end-user bearer token is not a trusted service identity; actor derived from the verified service principal context; 400/401/403/409/503 |
 
 The table routes are relative to `/api/v1`. All DTOs reject unknown fields, blank keys, malformed
 scope JSON, and invalid UUID path parameters. Mutation DTOs support an idempotency key where they
 create state; replay returns the original result and creates no second audit record. The permission
-check returns 200 for either decision, derives the actor from the validated trusted principal,
-resolves the principal-to-PersonId port, and never accepts an actor ID in a body, query, or
-arbitrary header. People Service calls it through its existing `RelationshipPermissionPort`,
-supplying the platform-established actor context. `409` is reserved for concurrent conflicts.
+check returns 200 for either decision, requires a separately trusted service principal, derives
+the actor from that platform-established trusted principal context, resolves the
+principal-to-PersonId port, and never accepts an actor ID in a body, query, arbitrary header, or
+an end-user bearer token treated as service identity. People Service calls it through its existing
+`RelationshipPermissionPort`, supplying the platform-established service context. `409` is
+reserved for concurrent conflicts.
 
 `GET /functional-roles/{roleKey}/permissions` returns current effective stored grants for the
 active role, joining active permissions only. Each record contains the stable grant identifier,

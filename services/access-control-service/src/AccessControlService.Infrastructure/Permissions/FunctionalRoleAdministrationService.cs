@@ -91,7 +91,6 @@ public sealed class FunctionalRoleAdministrationService
                 on grant.PermissionId equals permission.Id
             where grant.FunctionalRoleId == role.Id &&
                   permission.IsActive
-            orderby permission.Key, grant.Scope, grant.Id
             select new
             {
                 grant.Id,
@@ -105,6 +104,9 @@ public sealed class FunctionalRoleAdministrationService
                 grant.Id,
                 grant.Key,
                 NormalizeStoredScope(grant.Scope)))
+            .OrderBy(grant => grant.PermissionKey)
+            .ThenBy(grant => grant.Scope ?? string.Empty)
+            .ThenBy(grant => grant.Id)
             .ToArray();
     }
 
@@ -337,7 +339,8 @@ public sealed class FunctionalRoleAdministrationService
                 await dbContext.SaveChangesAsync(cancellationToken);
             },
             cancellationToken,
-            auditPermissionKey: permissionKey);
+            auditPermissionKey: permissionKey,
+            auditScope: normalizedScope);
 
         return grant;
     }
@@ -391,7 +394,8 @@ public sealed class FunctionalRoleAdministrationService
             },
             cancellationToken,
             lockAdministration: permissionKey == MANAGE_PERMISSION,
-            auditPermissionKey: permissionKey);
+            auditPermissionKey: permissionKey,
+            auditScope: normalizedScope);
     }
 
     public async Task<AssignmentOperationResult> AssignRoleAsync(
@@ -509,7 +513,7 @@ public sealed class FunctionalRoleAdministrationService
             "person-functional-role-assignment",
             assignment.Id,
             before,
-            SerializeAssignment(assignment),
+            null,
             correlationId,
             idempotencyKey: null,
             async () =>
@@ -527,7 +531,8 @@ public sealed class FunctionalRoleAdministrationService
                 await dbContext.SaveChangesAsync(cancellationToken);
             },
             cancellationToken,
-            lockAdministration: true);
+            lockAdministration: true,
+            afterFactory: () => SerializeAssignment(assignment));
     }
 
     public async Task<IReadOnlyList<AssignmentView>> GetAssignmentsAsync(
@@ -541,9 +546,17 @@ public sealed class FunctionalRoleAdministrationService
                 dbContext.FunctionalRoles.AsNoTracking(),
                 assignment => assignment.FunctionalRoleId,
                 role => role.Id,
-                (assignment, role) => new AssignmentView(assignment, role.RoleKey))
-            .Where(view => view.Assignment.PersonId == personId && view.Assignment.IsActive)
+                (assignment, role) => new
+                {
+                    Assignment = assignment,
+                    role.RoleKey,
+                    role.IsActive,
+                })
+            .Where(view => view.Assignment.PersonId == personId &&
+                           view.Assignment.IsActive &&
+                           view.IsActive)
             .OrderBy(view => view.Assignment.AssignedAtUtc)
+            .Select(view => new AssignmentView(view.Assignment, view.RoleKey))
             .ToListAsync(cancellationToken);
     }
 
@@ -632,6 +645,7 @@ public sealed class FunctionalRoleAdministrationService
                   role.IsActive &&
                   permission.IsActive &&
                   permission.Key == MANAGE_PERMISSION &&
+                  grant.Scope == null &&
                   (!excludedGrantId.HasValue || grant.Id != excludedGrantId.Value) &&
                   (!excludedAssignmentId.HasValue || assignment.Id != excludedAssignmentId.Value)
             select assignment.PersonId;
@@ -762,7 +776,9 @@ public sealed class FunctionalRoleAdministrationService
         Func<Task> mutation,
         CancellationToken cancellationToken,
         string? auditPermissionKey = null,
-        bool lockAdministration = false)
+        string? auditScope = null,
+        bool lockAdministration = false,
+        Func<string?>? afterFactory = null)
     {
         await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
             await dbContext.Database.BeginTransactionAsync(
@@ -783,8 +799,9 @@ public sealed class FunctionalRoleAdministrationService
             TargetId = targetId,
             ActorPersonId = actorPersonId,
             PermissionKey = auditPermissionKey,
+            Scope = auditScope,
             Before = before,
-            After = after,
+            After = afterFactory?.Invoke() ?? after,
             OccurredAtUtc = DateTime.UtcNow,
             CorrelationId = correlationId,
             IdempotencyKey = idempotencyKey,
@@ -823,12 +840,22 @@ public sealed class FunctionalRoleAdministrationService
             return null;
         }
 
-        using JsonDocument document = JsonDocument.Parse(scope);
-        return JsonSerializer.Serialize(document.RootElement);
+        Dictionary<string, string>? values =
+            JsonSerializer.Deserialize<Dictionary<string, string>>(scope);
+        return values is null
+            ? null
+            : JsonSerializer.Serialize(values);
     }
 
     private static string SerializeAssignment(PersonFunctionalRoleAssignment assignment) =>
-        JsonSerializer.Serialize(new { assignment.Id, assignment.PersonId, assignment.FunctionalRoleId, assignment.IsActive });
+        JsonSerializer.Serialize(new
+        {
+            assignment.Id,
+            assignment.PersonId,
+            assignment.FunctionalRoleId,
+            assignment.IsActive,
+            assignment.RevokedAtUtc,
+        });
 }
 
 public sealed class ValidationException(string message) : Exception(message);

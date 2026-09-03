@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AccessControlService.Domain.Identity;
 using AccessControlService.Domain.Permissions;
 using AccessControlService.Infrastructure.Identity;
@@ -188,6 +189,199 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
                 "correlation-3",
                 "assignment-key",
                 CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ScopedGrantAndRevoke_AuditRecordsContainNormalizedScope()
+    {
+        FunctionalRole role = await service.CreateRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            "scoped-audit-role",
+            "Scoped Audit Role",
+            "correlation-1",
+            null,
+            CancellationToken.None);
+
+        await service.GrantPermissionAsync(
+            FixtureSeedData.ExecutiveId,
+            role.RoleKey,
+            PermissionCatalogue.VIEW_DASHBOARD,
+            """{ "dashboardType": "unit-manager" }""",
+            "correlation-2",
+            null,
+            CancellationToken.None);
+
+        await service.RevokePermissionAsync(
+            FixtureSeedData.ExecutiveId,
+            role.RoleKey,
+            PermissionCatalogue.VIEW_DASHBOARD,
+            """{"dashboardType":"unit-manager"}""",
+            "correlation-3",
+            CancellationToken.None);
+
+        string grantScope = await dbContext.AuthorizationAdministrationAudits
+            .Where(audit => audit.Action == "permission-grant")
+            .Select(audit => audit.Scope)
+            .SingleAsync() ?? throw new InvalidOperationException("Grant scope was not audited.");
+        string revokeScope = await dbContext.AuthorizationAdministrationAudits
+            .Where(audit => audit.Action == "permission-revoke")
+            .Select(audit => audit.Scope)
+            .SingleAsync() ?? throw new InvalidOperationException("Revoke scope was not audited.");
+        using JsonDocument grantDocument = JsonDocument.Parse(grantScope);
+        using JsonDocument revokeDocument = JsonDocument.Parse(revokeScope);
+        Assert.Equal(
+            "unit-manager",
+            grantDocument.RootElement
+                .GetProperty("dashboardType")
+                .GetString());
+        Assert.Equal(
+            "unit-manager",
+            revokeDocument.RootElement
+                .GetProperty("dashboardType")
+                .GetString());
+    }
+
+    [Fact]
+    public async Task AssignmentRevoke_AuditContainsDistinctBeforeAndAfterStates()
+    {
+        FunctionalRole role = await service.CreateRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            "revoked-assignment-role",
+            "Revoked Assignment Role",
+            "correlation-1",
+            null,
+            CancellationToken.None);
+        await service.AssignRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            FixtureSeedData.EngineerId,
+            role.RoleKey,
+            "correlation-2",
+            null,
+            CancellationToken.None);
+
+        await service.RevokeRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            FixtureSeedData.EngineerId,
+            role.RoleKey,
+            "correlation-3",
+            CancellationToken.None);
+
+        AuthorizationAdministrationAudit audit =
+            await dbContext.AuthorizationAdministrationAudits
+                .SingleAsync(candidate => candidate.Action == "assignment-revoke");
+        Assert.NotNull(audit.Before);
+        Assert.NotNull(audit.After);
+        Assert.NotEqual(audit.Before, audit.After);
+        Assert.Contains(""""IsActive":true"""", audit.Before);
+        Assert.Contains(""""IsActive":false"""", audit.After);
+        Assert.Contains("RevokedAtUtc", audit.After);
+    }
+
+    [Fact]
+    public async Task ScopedAdministrationGrant_DoesNotProtectFinalAdministrator()
+    {
+        FunctionalRole role = await service.CreateRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            "scoped-administrator-role",
+            "Scoped Administrator Role",
+            "correlation-1",
+            null,
+            CancellationToken.None);
+        Permission administrationPermission = await dbContext.Permissions
+            .SingleAsync(permission =>
+                permission.Key == PermissionCatalogue.MANAGE_FUNCTIONAL_ROLES_AND_PERMISSIONS);
+        dbContext.FunctionalRolePermissionGrants.Add(new FunctionalRolePermissionGrant
+        {
+            Id = Guid.NewGuid(),
+            FunctionalRoleId = role.Id,
+            PermissionId = administrationPermission.Id,
+            Scope = """{"dashboardType":"unit-manager"}""",
+            GrantedAtUtc = DateTime.UtcNow,
+        });
+        await dbContext.SaveChangesAsync();
+        await service.AssignRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            FixtureSeedData.DirectorId,
+            role.RoleKey,
+            "correlation-2",
+            null,
+            CancellationToken.None);
+
+        await Assert.ThrowsAsync<RoleConflictException>(() =>
+            service.RevokeRoleAsync(
+                FixtureSeedData.ExecutiveId,
+                FixtureSeedData.ExecutiveId,
+                "hr-admin",
+                "correlation-3",
+                CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ActiveAssignmentForInactiveRole_IsNotReturned()
+    {
+        FunctionalRole role = await service.CreateRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            "inactive-assignment-role",
+            "Inactive Assignment Role",
+            "correlation-1",
+            null,
+            CancellationToken.None);
+        await service.AssignRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            FixtureSeedData.EngineerId,
+            role.RoleKey,
+            "correlation-2",
+            null,
+            CancellationToken.None);
+        FunctionalRole storedRole = await dbContext.FunctionalRoles
+            .SingleAsync(candidate => candidate.Id == role.Id);
+        storedRole.IsActive = false;
+        await dbContext.SaveChangesAsync();
+
+        IReadOnlyList<AssignmentView> assignments =
+            await service.GetAssignmentsAsync(FixtureSeedData.EngineerId, CancellationToken.None);
+
+        Assert.DoesNotContain(assignments, assignment => assignment.RoleKey == role.RoleKey);
+    }
+
+    [Fact]
+    public async Task RolePermissions_OrderByCanonicalNormalizedScope()
+    {
+        FunctionalRole role = await service.CreateRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            "ordered-scope-role",
+            "Ordered Scope Role",
+            "correlation-1",
+            null,
+            CancellationToken.None);
+        await service.GrantPermissionAsync(
+            FixtureSeedData.ExecutiveId,
+            role.RoleKey,
+            PermissionCatalogue.VIEW_DASHBOARD,
+            """{ "dashboardType": "project-manager" }""",
+            "correlation-2",
+            null,
+            CancellationToken.None);
+        await service.GrantPermissionAsync(
+            FixtureSeedData.ExecutiveId,
+            role.RoleKey,
+            PermissionCatalogue.VIEW_DASHBOARD,
+            """{"dashboardType":"delivery-manager"}""",
+            "correlation-3",
+            null,
+            CancellationToken.None);
+
+        IReadOnlyList<FunctionalRolePermissionView> grants =
+            await service.GetRolePermissionsAsync(role.RoleKey, CancellationToken.None);
+
+        Assert.Collection(
+            grants,
+            grant => Assert.Equal(
+                """{"dashboardType":"delivery-manager"}""",
+                grant.Scope),
+            grant => Assert.Equal(
+                """{"dashboardType":"project-manager"}""",
+                grant.Scope));
     }
 
     [Fact]
