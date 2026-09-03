@@ -1014,13 +1014,18 @@ the research-in-progress record of API specifics.
 
 ---
 
-### 4.16 PeopleForce Integration
-**Description:** `[v1.5, changed]` **Good-to-have, not required** — the timetracker is the only
+### 4.16 PeopleForce Integration `[DROPPED — ADR-005, 2026-09-03]`
+> **Dropped.** PeopleForce integration is not required (confirmed with course organizers,
+> 2026-09-03 standup). Epic 15 / Story 15.1 are cancelled. The external-link fallback remains
+> the only surface. Candidate ID persistence (FR-45 partial) moves to Epic 7 as a data-model
+> concern. See `docs/decisions/ADR-005-drop-peopleforce-integration.md`.
+
+~~**Description:** `[v1.5, changed]` **Good-to-have, not required** — the timetracker is the only
 required integration (§4.15). Reduced from a general candidate/vacancy sync to a single feature:
 a prefill-by-candidate-ID button on the resourcing candidate-proposal flow. **PeopleForce is no
 longer the source of truth for vacancies at all** — the vacancy/resourcing-request entity lives
 entirely in the platform (§4.8). See `docs/integrations/peopleforce.md` for the
-research-in-progress record.
+research-in-progress record.~~
 
 **Functional Requirements:**
 

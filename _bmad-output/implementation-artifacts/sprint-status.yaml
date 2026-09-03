@@ -134,9 +134,9 @@ development_status:
   14-3-fr-44-closing-verification-cross-epic: backlog
   epic-14-retrospective: optional
 
-  epic-15: backlog
-  15-1-candidate-prefill-by-id-for-resourcing: backlog
-  epic-15-retrospective: optional
+  epic-15: dropped  # ADR-005: PeopleForce integration not required (2026-09-03)
+  15-1-candidate-prefill-by-id-for-resourcing: dropped
+  epic-15-retrospective: dropped
 
   epic-16: backlog
   16-1-employment-status-as-a-time-bounded-fact: backlog
