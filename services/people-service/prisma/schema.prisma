@@ -68,6 +68,9 @@ model Person {
   leaves                    Leave[]
   personProjectAssignments  PersonProjectAssignment[]
 
+  // S16 -- Custom field values (Story 1.10).
+  customFieldValues         CustomFieldValue[]
+
   @@map("people")
 }
 
@@ -152,4 +155,33 @@ model RelationshipProjectionFreshness {
   lastConfirmedAtUtc DateTime?
 
   @@map("relationship_projection_freshness")
+}
+
+// S16 -- Custom fields (Story 1.10).
+enum CustomFieldVisibility {
+  MANAGEMENT
+  EMPLOYEE
+  COLLEAGUE
+}
+
+model CustomFieldDefinition {
+  id         String                 @id @default(uuid()) @db.Uuid
+  name       String
+  visibility CustomFieldVisibility  @default(MANAGEMENT)
+  isActive   Boolean                @default(true)
+  values     CustomFieldValue[]
+
+  @@map("custom_field_definitions")
+}
+
+model CustomFieldValue {
+  id           String                @id @default(uuid()) @db.Uuid
+  definitionId String                @db.Uuid
+  personId     String                @db.Uuid
+  value        String
+  definition   CustomFieldDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+  person       Person                @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([definitionId, personId])
+  @@map("custom_field_values")
 }

@@ -54,6 +54,7 @@ describe('HttpAccessRoleResolutionAdapter', () => {
         s2: { level: 'Read', restriction: null },
         s10: { level: 'None' },
         s11: { level: 'None' },
+        s16: { level: 'None' },
       },
       peoplePartnerSectionAccess: null,
     });

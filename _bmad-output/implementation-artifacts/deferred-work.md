@@ -455,6 +455,40 @@
   disproportionate effort to fix now (needs a second realm fixture) relative to the current
   single-client reality, same reasoning as the original entry.
 
+## Deferred from: code review of story-1-10 (2026-09-03)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-10-custom-field-visibility-enforcement.md`
+  summary: Add a `fieldType` column (`STRING`, `NUMBER`, `DATE`, `BOOLEAN`) to `CustomFieldDefinition` so values can be validated and coerced at write time and rendered correctly by the UI — currently `value` is a plain `String` with no schema-level type contract.
+  evidence: Blind-hunter review of story-1-10 noted the field is missing; spec explicitly defers type coercion ("value is stored as a plain String — type coercion is not in scope for this story"). Zero blast radius today since no write UI exists, but the omission will force a migration that renames/changes `value`'s interpretation once a type-aware UI or export lands.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-10-custom-field-visibility-enforcement.md`
+  summary: Add `createdAt` and `updatedAt` timestamp columns to both `CustomFieldDefinition` and `CustomFieldValue` models — currently neither table records when a definition was created/edited or when a person's field value was last written, which will be needed by any audit trail, export, or diff-view feature.
+  evidence: Blind-hunter review of story-1-10 noted the omission; out of scope for this story's read-only visibility enforcement (no write path exists yet), but worth adding before the first admin CRUD story or timeline/audit feature touches these tables.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-10-custom-field-visibility-enforcement.md`
+  summary: Add a `@@unique([name])` constraint on `CustomFieldDefinition` to prevent duplicate field names — currently two definitions with identical names can coexist, which would produce confusingly duplicated `name` values in the `s16` array and break any name-keyed lookup in filters or export columns.
+  evidence: Blind-hunter review of story-1-10 found no uniqueness guarantee on `name`; deferred because no write path exists yet (definitions are seeded in tests only), but must be added before any admin CRUD endpoint for definitions, to avoid a data-integrity gap in production data.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-10-custom-field-visibility-enforcement.md`
+  summary: The `CustomFieldValueRow` private type in `profile.service.ts` shapes how the Prisma select result is consumed; it should be the single authoritative definition shared by any Epic-2 surface (list engine, export) that also reads custom field values — currently each new consumer would need to duplicate or redeclare the same structure independently.
+  evidence: Edge-case-hunter review of story-1-10 noted `CustomFieldValueRow` is unexported and module-private; not a functional issue for this story's scope (only `profile.service.ts` reads it today), but worth extracting before a second service or module starts building its own Prisma select for `customFieldValues`.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-10-custom-field-visibility-enforcement.md`
+  summary: The `add_custom_field_definition_value` migration has no explicit down-migration (`-- DropTable`, `-- DropEnum`). If a rollback is ever attempted via a manual revert, the enum type and its two dependent tables must be dropped in dependency order — currently only the `migrate reset`/`db push --force-reset` paths handle this automatically.
+  evidence: Edge-case-hunter review of story-1-10 found no down-migration SQL; standard Prisma behavior (auto-generated migrations have no down script), but worth documenting before any shared-env rollback procedure assumes one exists.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-10-custom-field-visibility-enforcement.md`
+  summary: An empty-string `value` (`''`) is stored and returned to all audiences without any validation — currently indistinguishable from "field not filled in" by a UI consumer. Decide whether empty-string should be treated as absent (filtered out of `s16`) or as a valid value, and add a `@IsNotEmpty()` or equivalent constraint on any future write path.
+  evidence: Edge-case-hunter review of story-1-10 noted that `value: ''` passes all current filtering (isActive + canSeeCustomField) and would appear in the `s16` array; spec defers type coercion and write validation, so this is out of scope, but the current read path has no filtering for it either.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-10-custom-field-visibility-enforcement.md`
+  summary: `parseSectionAccessGroup` in `profile.ports.ts` now parses an `s16` section from the access-control-service response (`parseSectionAccess(o['s16'])`), but `access-control-service` never returns an `s16` section — the parsed `s16SectionAccess` value is always `undefined` (defaults to `None`) and `ProfileService` never reads it. This dead parse line could mislead a future developer into thinking S16 gating lives in the section-level response shape when it does not.
+  evidence: Verification-gap review of story-1-10 found this; the spec's Code Map entry for `profile.ports.ts` explicitly required parsing `s16`, keeping the interface symmetric with the section matrix, but the parsed value is genuinely unused at runtime. Remove or document once the design is stable.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-10-custom-field-visibility-enforcement.md`
+  summary: The narrowed Project-line e2e test asserts that the viewer sees `s16` with management-level fields (because they qualify via `managerSectionAccess`, receiving `customFieldAudienceLevel: 'management'`), but the test does not explicitly assert the `isColleague: false` path that makes the distinction — a future reader could confuse "project-line viewer gets management-level S16" with "only full Reporting-line viewers get management S16."
+  evidence: Verification-gap review of story-1-10 found this coverage gap; the existing narrowed-Project-line test (`it('Narrowed Project line...')`) already verifies the correct `s16` contents, but adding an inline comment or a dedicated `isColleague`-false assertion would make the intent unambiguous for a reader unfamiliar with the `resolveAudience` branching logic.
+
 ## Corrections
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1-two-dimensional-access-role-resolution.md`
