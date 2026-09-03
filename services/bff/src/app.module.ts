@@ -21,9 +21,10 @@ import { FunctionalRolesModule } from './modules/functional-roles/functional-rol
     FunctionalRolesModule,
   ],
   providers: [
+    JwtAuthGuard,
     {
       provide: APP_GUARD,
-      useClass: JwtAuthGuard,
+      useExisting: JwtAuthGuard,
     },
   ],
 })

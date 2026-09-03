@@ -348,6 +348,99 @@ test.describe('App', () => {
     ).toBeTruthy()
   })
 
+  test('should reconstruct normalized grants from the authoritative response after reload', async ({
+    page,
+  }) => {
+    const role = {
+      id: 'role-reload',
+      roleKey: 'reload-owner',
+      displayName: 'Reload Owner',
+      isSeeded: false,
+      isActive: true,
+    }
+    const catalogue = {
+      permissions: [{ permissionKey: 'view-dashboard', requiresScope: true }],
+    }
+    let grants: Array<{
+      id: string
+      roleKey: string
+      permissionKey: string
+      scope: string
+    }> = []
+    let permissionReads = 0
+
+    await page.on('dialog', dialog => dialog.accept())
+    await page.route('**/api/v1/permissions/catalogue', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(catalogue),
+      })
+    )
+    await page.route('**/api/v1/functional-roles**', async route => {
+      const request = route.request()
+      const path = new URL(request.url()).pathname.replace('/api/v1', '')
+
+      if (request.method() === 'GET' && path === '/functional-roles') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ roles: [role] }),
+        })
+        return
+      }
+
+      if (request.method() === 'GET' && path.endsWith('/permissions')) {
+        permissionReads += 1
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ grants }),
+        })
+        return
+      }
+
+      if (request.method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(role),
+        })
+        return
+      }
+
+      if (request.method() === 'PUT') {
+        grants = [
+          {
+            id: 'grant-reload',
+            roleKey: role.roleKey,
+            permissionKey: 'view-dashboard',
+            scope: '{"dashboardType":"unit-manager"}',
+          },
+        ]
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(grants[0]),
+        })
+        return
+      }
+
+      await route.fulfill({ status: 204 })
+    })
+
+    await page.goto('/administration/functional-roles')
+    await page.getByRole('combobox', { name: 'Permission' }).selectOption('view-dashboard')
+    await page.getByRole('combobox', { name: 'Dashboard type' }).selectOption('unit-manager')
+    await page.getByRole('button', { name: 'Grant permission' }).click()
+    await expect(page.getByText('view-dashboard (unit-manager)')).toBeVisible()
+
+    await page.reload()
+
+    await expect(page.getByText('view-dashboard (unit-manager)')).toBeVisible()
+    expect(permissionReads).toBeGreaterThan(1)
+  })
+
   test('should protect seeded roles', async ({ page }) => {
     await page.route('**/api/v1/permissions/catalogue', route =>
       route.fulfill({
