@@ -194,6 +194,151 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Assignment_RepeatedForSamePersonAndRole_RemainsIdempotent()
+    {
+        FunctionalRole role = await service.CreateRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            "repeated-assignment-role",
+            "Repeated Assignment Role",
+            "correlation-1",
+            null,
+            CancellationToken.None);
+
+        AssignmentOperationResult first = await service.AssignRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            FixtureSeedData.EngineerId,
+            role.RoleKey,
+            "correlation-2",
+            null,
+            CancellationToken.None);
+        AssignmentOperationResult second = await service.AssignRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            FixtureSeedData.EngineerId,
+            role.RoleKey,
+            "correlation-3",
+            null,
+            CancellationToken.None);
+
+        Assert.True(first.Created);
+        Assert.False(second.Created);
+        Assert.Equal(first.Assignment.Id, second.Assignment.Id);
+        Assert.Equal(
+            1,
+            await dbContext.PersonFunctionalRoleAssignments.CountAsync(
+                assignment => assignment.PersonId == FixtureSeedData.EngineerId &&
+                              assignment.FunctionalRoleId == role.Id &&
+                              assignment.IsActive));
+    }
+
+    [Fact]
+    public async Task AssignmentStartingWhileDeactivationIsInProgress_IsRejectedAfterRoleLock()
+    {
+        FunctionalRole role = await service.CreateRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            "deactivation-first-role",
+            "Deactivation First Role",
+            "correlation-1",
+            null,
+            CancellationToken.None);
+        await using AccessControlDbContext holder = new(dbOptions);
+        await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
+            await holder.Database.BeginTransactionAsync();
+        await holder.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT \"Id\" FROM functional_roles WHERE \"Id\" = {role.Id} FOR UPDATE");
+        FunctionalRole lockedRole = await holder.FunctionalRoles.SingleAsync(
+            candidate => candidate.Id == role.Id);
+        lockedRole.IsActive = false;
+        lockedRole.DeactivatedAtUtc = DateTime.UtcNow;
+        await holder.SaveChangesAsync();
+        int auditCountBefore = await dbContext.AuthorizationAdministrationAudits.CountAsync();
+        TaskCompletionSource<bool> operationStarted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        Task<Exception?> assignmentTask = CaptureExceptionAsync(async () =>
+        {
+            operationStarted.SetResult(true);
+            await Task.Yield();
+            await using AccessControlDbContext context = new(dbOptions);
+            FunctionalRoleAdministrationService concurrentService = new(
+                context,
+                new UnavailablePrincipalPersonResolver());
+            await concurrentService.AssignRoleAsync(
+                FixtureSeedData.ExecutiveId,
+                FixtureSeedData.EngineerId,
+                role.RoleKey,
+                "concurrent-assignment",
+                null,
+                CancellationToken.None);
+        });
+
+        await operationStarted.Task;
+        await transaction.CommitAsync();
+        Exception? exception = await assignmentTask;
+
+        Assert.IsType<NotFoundException>(exception);
+        await AssertValidAssignmentInvariantAsync();
+        Assert.Empty(await dbContext.PersonFunctionalRoleAssignments
+            .Where(assignment => assignment.FunctionalRoleId == role.Id && assignment.IsActive)
+            .ToListAsync());
+        Assert.Equal(auditCountBefore, await dbContext.AuthorizationAdministrationAudits.CountAsync());
+    }
+
+    [Fact]
+    public async Task DeactivationStartingWhileAssignmentIsInProgress_IsRejectedAfterRoleLock()
+    {
+        FunctionalRole role = await service.CreateRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            "assignment-first-role",
+            "Assignment First Role",
+            "correlation-1",
+            null,
+            CancellationToken.None);
+        await using AccessControlDbContext holder = new(dbOptions);
+        await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
+            await holder.Database.BeginTransactionAsync();
+        await holder.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT \"Id\" FROM functional_roles WHERE \"Id\" = {role.Id} FOR UPDATE");
+        holder.PersonFunctionalRoleAssignments.Add(new PersonFunctionalRoleAssignment
+        {
+            Id = Guid.NewGuid(),
+            PersonId = FixtureSeedData.EngineerId,
+            FunctionalRoleId = role.Id,
+            IsActive = true,
+            AssignedAtUtc = DateTime.UtcNow,
+        });
+        await holder.SaveChangesAsync();
+        int auditCountBefore = await dbContext.AuthorizationAdministrationAudits.CountAsync();
+        TaskCompletionSource<bool> operationStarted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        Task<Exception?> deactivationTask = CaptureExceptionAsync(async () =>
+        {
+            operationStarted.SetResult(true);
+            await Task.Yield();
+            await using AccessControlDbContext context = new(dbOptions);
+            FunctionalRoleAdministrationService concurrentService = new(
+                context,
+                new UnavailablePrincipalPersonResolver());
+            await concurrentService.DeactivateRoleAsync(
+                FixtureSeedData.ExecutiveId,
+                role.RoleKey,
+                "concurrent assignment is active",
+                "concurrent-deactivation",
+                CancellationToken.None);
+        });
+
+        await operationStarted.Task;
+        await transaction.CommitAsync();
+        Exception? exception = await deactivationTask;
+
+        Assert.IsType<RoleConflictException>(exception);
+        Assert.True(await dbContext.FunctionalRoles.AnyAsync(
+            candidate => candidate.Id == role.Id && candidate.IsActive));
+        await AssertValidAssignmentInvariantAsync();
+        Assert.Equal(auditCountBefore, await dbContext.AuthorizationAdministrationAudits.CountAsync());
+    }
+
+    [Fact]
     public async Task ScopedGrantAndRevoke_AuditRecordsContainNormalizedScope()
     {
         FunctionalRole role = await service.CreateRoleAsync(
@@ -779,6 +924,29 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
                           assignment.IsActive));
         Assert.Equal(1, await dbContext.AuthorizationAdministrationAudits.CountAsync(
             audit => audit.Action == "bootstrap"));
+    }
+
+    private async Task AssertValidAssignmentInvariantAsync()
+    {
+        Assert.False(await (
+            from assignment in dbContext.PersonFunctionalRoleAssignments
+            join role in dbContext.FunctionalRoles
+                on assignment.FunctionalRoleId equals role.Id
+            where assignment.IsActive && !role.IsActive
+            select assignment.Id).AnyAsync());
+    }
+
+    private static async Task<Exception?> CaptureExceptionAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+            return null;
+        }
+        catch (Exception exception)
+        {
+            return exception;
+        }
     }
 
     private FunctionalRoleBootstrapProvisioningService CreateProvisioning(

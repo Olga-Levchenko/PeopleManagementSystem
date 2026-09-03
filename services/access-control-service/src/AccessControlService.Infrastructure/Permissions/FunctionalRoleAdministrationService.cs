@@ -222,11 +222,18 @@ public sealed class FunctionalRoleAdministrationService
             throw new ValidationException("A deactivation reason is required.");
         }
 
+        await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
+            await BeginFunctionalRoleTransactionAsync(roleKey, cancellationToken);
         await EnsureAdministratorAsync(actorPersonId, cancellationToken);
-        FunctionalRole role = await GetRequiredRoleAsync(roleKey, cancellationToken);
+        FunctionalRole? role = await GetLockedRoleAsync(roleKey, cancellationToken);
+        if (role is null)
+        {
+            throw new NotFoundException("The functional role was not found.");
+        }
 
         if (!role.IsActive)
         {
+            await transaction.CommitAsync(cancellationToken);
             return role;
         }
 
@@ -245,19 +252,16 @@ public sealed class FunctionalRoleAdministrationService
         string before = SerializeRole(role);
         role.IsActive = false;
         role.DeactivatedAtUtc = DateTime.UtcNow;
-
-        await ExecuteMutationAsync(
+        AddAudit(
             actorPersonId,
             "role-deactivate",
             "functional-role",
             role.Id,
             before,
             SerializeRole(role),
-            correlationId,
-            idempotencyKey: null,
-            () => dbContext.SaveChangesAsync(cancellationToken),
-            cancellationToken);
-
+            correlationId);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return role;
     }
 
@@ -406,8 +410,16 @@ public sealed class FunctionalRoleAdministrationService
         string? idempotencyKey,
         CancellationToken cancellationToken)
     {
+        ValidateRoleKey(roleKey);
+        await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
+            await BeginFunctionalRoleTransactionAsync(roleKey, cancellationToken);
         await EnsureAdministratorAsync(actorPersonId, cancellationToken);
-        FunctionalRole role = await GetRequiredRoleAsync(roleKey, cancellationToken);
+        FunctionalRole? role = await GetLockedRoleAsync(roleKey, cancellationToken);
+        if (role is null)
+        {
+            throw new NotFoundException("The functional role was not found.");
+        }
+
         if (!role.IsActive)
         {
             throw new NotFoundException("The functional role was not found.");
@@ -434,6 +446,7 @@ public sealed class FunctionalRoleAdministrationService
                 role.Id,
                 cancellationToken,
                 personId);
+            await transaction.CommitAsync(cancellationToken);
             return new AssignmentOperationResult(existing, Created: false);
         }
 
@@ -452,6 +465,7 @@ public sealed class FunctionalRoleAdministrationService
                 await dbContext.PersonFunctionalRoleAssignments.SingleOrDefaultAsync(
                     assignment => assignment.Id == replayAudit.TargetId,
                     cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
             return replayAssignment is null
                 ? throw new IdempotencyConflictException("The idempotency key does not identify an existing assignment.")
                 : new AssignmentOperationResult(replayAssignment, Created: false);
@@ -466,7 +480,8 @@ public sealed class FunctionalRoleAdministrationService
             AssignedAtUtc = DateTime.UtcNow,
         };
 
-        await ExecuteMutationAsync(
+        dbContext.PersonFunctionalRoleAssignments.Add(assignment);
+        AddAudit(
             actorPersonId,
             "assignment-create",
             "person-functional-role-assignment",
@@ -474,13 +489,9 @@ public sealed class FunctionalRoleAdministrationService
             null,
             SerializeAssignment(assignment),
             correlationId,
-            idempotencyKey,
-            async () =>
-            {
-                dbContext.PersonFunctionalRoleAssignments.Add(assignment);
-                await dbContext.SaveChangesAsync(cancellationToken);
-            },
-            cancellationToken);
+            idempotencyKey);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return new AssignmentOperationResult(assignment, Created: true);
     }
@@ -808,6 +819,61 @@ public sealed class FunctionalRoleAdministrationService
         });
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    private async Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction>
+        BeginFunctionalRoleTransactionAsync(
+            string roleKey,
+            CancellationToken cancellationToken)
+    {
+        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
+            await dbContext.Database.BeginTransactionAsync(
+                IsolationLevel.ReadCommitted,
+                cancellationToken);
+        try
+        {
+            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT \"Id\" FROM functional_roles WHERE \"RoleKey\" = {roleKey} FOR UPDATE",
+                cancellationToken);
+            return transaction;
+        }
+        catch
+        {
+            await transaction.DisposeAsync();
+            throw;
+        }
+    }
+
+    private Task<FunctionalRole?> GetLockedRoleAsync(
+        string roleKey,
+        CancellationToken cancellationToken) =>
+        dbContext.FunctionalRoles.SingleOrDefaultAsync(
+            role => role.RoleKey == roleKey,
+            cancellationToken);
+
+    private void AddAudit(
+        Guid actorPersonId,
+        string action,
+        string targetType,
+        Guid targetId,
+        string? before,
+        string? after,
+        string correlationId,
+        string? idempotencyKey = null)
+    {
+        dbContext.AuthorizationAdministrationAudits.Add(new AuthorizationAdministrationAudit
+        {
+            AuditId = Guid.NewGuid(),
+            Action = action,
+            TargetType = targetType,
+            TargetId = targetId,
+            ActorPersonId = actorPersonId,
+            Before = before,
+            After = after,
+            OccurredAtUtc = DateTime.UtcNow,
+            CorrelationId = correlationId,
+            IdempotencyKey = idempotencyKey,
+        });
     }
 
     private static void ValidateRole(string roleKey, string displayName)
