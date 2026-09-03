@@ -764,6 +764,8 @@ test.describe('App', () => {
   })
 
   test('should protect seeded roles', async ({ page }) => {
+    const patchRequests: Array<{ url: string; body: unknown }> = []
+    const deactivationRequests: string[] = []
     await page.route('**/api/v1/permissions/catalogue', route =>
       route.fulfill({
         status: 200,
@@ -795,6 +797,24 @@ test.describe('App', () => {
         })
         return
       }
+      if (route.request().method() === 'PATCH') {
+        patchRequests.push({
+          url: path,
+          body: route.request().postDataJSON(),
+        })
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ...role,
+            displayName: 'Updated HR Admin',
+          }),
+        })
+        return
+      }
+      if (path.endsWith('/deactivate')) {
+        deactivationRequests.push(path)
+      }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -804,8 +824,20 @@ test.describe('App', () => {
 
     await page.goto('/administration/functional-roles')
     await expect(page.getByRole('button', { name: /HR Admin/ })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Save changes' })).toBeDisabled()
+    const displayName = page.getByLabel('Display name').last()
+    await expect(displayName).toBeEnabled()
+    await displayName.fill('Updated HR Admin')
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    await expect.poll(() => patchRequests.length).toBe(1)
+    expect(patchRequests).toEqual([
+      {
+        url: '/functional-roles/hr-admin',
+        body: { displayName: 'Updated HR Admin' },
+      },
+    ])
+    await expect(page.getByRole('button', { name: /HR Admin hr-admin/ })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Deactivate role' })).toBeDisabled()
+    expect(deactivationRequests).toEqual([])
   })
 
   test('should render safe localized API errors', async ({ page }) => {

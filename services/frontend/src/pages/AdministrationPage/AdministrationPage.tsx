@@ -208,13 +208,12 @@ export const AdministrationPage = () => {
                   className="w-full rounded-md border border-input bg-background px-3 py-2"
                   value={editDisplayName || selectedRole.displayName}
                   onChange={event => setEditDisplayName(event.target.value)}
-                  disabled={selectedRole.isSeeded}
                 />
               </label>
               <div className="flex flex-wrap gap-2">
                 <Button
                   onClick={() => void submitUpdate()}
-                  disabled={selectedRole.isSeeded || state.mutation.busy}
+                  disabled={state.mutation.busy}
                 >
                   {t('administration.actions.save')}
                 </Button>

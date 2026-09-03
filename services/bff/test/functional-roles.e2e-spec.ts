@@ -17,7 +17,7 @@ describe('Functional roles BFF HTTP contract (e2e)', () => {
   let upstream: jest.MockedFunction<typeof fetch>;
 
   beforeEach(async () => {
-    upstream = jest.fn<typeof fetch>();
+    upstream = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>();
     jest.spyOn(globalThis, 'fetch').mockImplementation(upstream);
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
