@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Net.Sockets;
 using AccessControlService.Api.Controllers;
 using AccessControlService.Infrastructure.Permissions;
@@ -27,22 +28,23 @@ public static class ApiExceptionMapper
                 409,
                 "Conflict",
                 "The operation conflicts with current state."),
-            DbUpdateException databaseException when IsUnavailable(databaseException) => new(
-                503,
-                "Service Unavailable",
-                "A required dependency is unavailable."),
             DbUpdateException databaseException when IsConstraintViolation(databaseException) => new(
                 409,
                 "Conflict",
                 "The operation conflicts with current state."),
+            DbUpdateException databaseException when IsUnavailable(databaseException) => new(
+                503,
+                "Service Unavailable",
+                "A required dependency is unavailable."),
             DbUpdateException => new(
                 500,
                 "Internal Server Error",
                 "An unexpected error occurred."),
-            PostgresException postgresException when
-                postgresException.SqlState?.StartsWith("23", StringComparison.Ordinal) == true =>
-                new(409, "Conflict", "The operation conflicts with current state."),
             ArgumentException => new(400, "Bad Request", "The request is invalid."),
+            _ when IsConstraintViolation(exception) => new(
+                409,
+                "Conflict",
+                "The operation conflicts with current state."),
             _ when IsUnavailable(exception) => new(
                 503,
                 "Service Unavailable",
@@ -62,8 +64,8 @@ public static class ApiExceptionMapper
                 return true;
             }
 
-            if (current is PostgresException postgresException &&
-                (postgresException.SqlState?.StartsWith("08", StringComparison.Ordinal) == true))
+            if (current is DbException databaseException &&
+                IsConnectivitySqlState(databaseException.SqlState))
             {
                 return true;
             }
@@ -81,8 +83,8 @@ public static class ApiExceptionMapper
     {
         for (Exception? current = exception; current is not null; current = current.InnerException)
         {
-            if (current is PostgresException postgresException &&
-                postgresException.SqlState?.StartsWith("23", StringComparison.Ordinal) == true)
+            if (current is DbException databaseException &&
+                databaseException.SqlState?.StartsWith("23", StringComparison.Ordinal) == true)
             {
                 return true;
             }
@@ -90,6 +92,10 @@ public static class ApiExceptionMapper
 
         return false;
     }
+
+    private static bool IsConnectivitySqlState(string? sqlState) =>
+        sqlState?.StartsWith("08", StringComparison.Ordinal) == true ||
+        sqlState is "57P01" or "57P02" or "57P03";
 
     public static ObjectResult ToProblemDetails(ApiError error) =>
         new(new ProblemDetails

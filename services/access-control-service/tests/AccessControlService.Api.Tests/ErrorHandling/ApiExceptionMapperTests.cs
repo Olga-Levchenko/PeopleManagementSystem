@@ -1,3 +1,4 @@
+using System.Data.Common;
 using AccessControlService.Api.Controllers;
 using AccessControlService.Api.ErrorHandling;
 using AccessControlService.Infrastructure.Permissions;
@@ -64,6 +65,45 @@ public sealed class ApiExceptionMapperTests
     }
 
     [Fact]
+    public void DbUpdateException_WithLinuxStyleConnectivityChain_MapsToUnavailable()
+    {
+        Exception exception = new DbUpdateException(
+            "database details",
+            new InvalidOperationException(
+                "provider details",
+                new LinuxStyleDbException(
+                    "connection details",
+                    "08001",
+                    new System.Net.Sockets.SocketException(111))));
+
+        ApiExceptionMapper.TryMap(exception, out ApiError error);
+
+        Assert.Equal(503, error.Status);
+        Assert.DoesNotContain("database details", error.Detail);
+        Assert.DoesNotContain("connection details", error.Detail);
+    }
+
+    [Fact]
+    public void DbUpdateException_WithPostgresShutdownState_MapsToUnavailable()
+    {
+        Exception exception = new DbUpdateException(
+            "database details",
+            new InvalidOperationException(
+                "provider details",
+                new PostgresException(
+                    "server shutdown",
+                    "ERROR",
+                    "ERROR",
+                    "57P01")));
+
+        ApiExceptionMapper.TryMap(exception, out ApiError error);
+
+        Assert.Equal(503, error.Status);
+        Assert.DoesNotContain("database details", error.Detail);
+        Assert.DoesNotContain("server shutdown", error.Detail);
+    }
+
+    [Fact]
     public void DbUpdateException_WithUnknownFailure_MapsToGenericServerError()
     {
         ApiExceptionMapper.TryMap(
@@ -107,5 +147,18 @@ public sealed class ApiExceptionMapperTests
         Assert.Equal(500, error.Status);
         Assert.Equal("Internal Server Error", error.Title);
         Assert.DoesNotContain("secret SQL and stack details", error.Detail);
+    }
+
+    private sealed class LinuxStyleDbException : DbException
+    {
+        private readonly string sqlState;
+
+        public LinuxStyleDbException(string message, string sqlState, Exception innerException)
+            : base(message, innerException)
+        {
+            this.sqlState = sqlState;
+        }
+
+        public override string SqlState => sqlState;
     }
 }
