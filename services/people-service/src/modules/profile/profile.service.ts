@@ -2,6 +2,7 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
   AccessRoleResolutionPort,
+  S16CustomField,
   SectionAccessLevel,
 } from './profile.ports';
 
@@ -54,12 +55,16 @@ export interface S11ProjectEntry {
 /**
  * A section absent from this object entirely means "no access" -- never `s2: null`, never an
  * empty `{}`. Callers must assert on `Object.keys`, not a null check, per the frozen I/O matrix.
+ * Exception: `s16` is always present (even as an empty array) because S16 uses per-field
+ * filtering rather than section-level gating -- an empty array signals "no visible fields" without
+ * revealing whether invisible fields exist.
  */
 export interface ProfileResponse {
   s1?: S1IdentityCard;
   s2?: S2PersonalContacts;
   s10?: S10Leave[];
   s11?: S11ProjectEntry[];
+  s16: S16CustomField[];
 }
 
 type LeaveRow = {
@@ -73,6 +78,25 @@ type ProjectAssignmentRow = {
   role: string | null;
   startDate: Date | null;
   endDate: Date | null;
+};
+
+/**
+ * Maps a viewer category to the custom-field visibility tier they can see.
+ * Self → `'employee'` (sees employee + colleague fields; management fields are not for the subject
+ * about themselves per the S16 matrix row).
+ * Manager/PP → `'management'` (sees all visibility tiers).
+ * Colleague → `'colleague'` (sees only colleague-visibility fields).
+ */
+type CustomFieldAudienceLevel = 'colleague' | 'employee' | 'management';
+
+type CustomFieldValueRow = {
+  value: string;
+  definition: {
+    id: string;
+    name: string;
+    visibility: string;
+    isActive: boolean;
+  };
 };
 
 type PersonWithRelations = {
@@ -93,7 +117,35 @@ type PersonWithRelations = {
   department: DepartmentSummary | null;
   leaves: LeaveRow[];
   personProjectAssignments: ProjectAssignmentRow[];
+  customFieldValues: CustomFieldValueRow[];
 };
+
+/**
+ * Pure visibility gate for a single custom field. Fail-closed: an unrecognised visibility value
+ * is treated as `MANAGEMENT` (most restrictive).
+ * - `COLLEAGUE` fields are visible to every audience.
+ * - `EMPLOYEE` fields are visible to employee-level and management-level audiences (not colleague).
+ * - `MANAGEMENT` fields are visible only to management-level audiences.
+ *
+ * Exported at module level so Epic-2 surfaces (list engine, export) can import it directly
+ * without requiring an HTTP hop or a shared service injection.
+ */
+export function canSeeCustomField(
+  visibility: string,
+  audienceLevel: CustomFieldAudienceLevel,
+): boolean {
+  switch (visibility) {
+    case 'COLLEAGUE':
+      return true;
+    case 'EMPLOYEE':
+      return audienceLevel === 'employee' || audienceLevel === 'management';
+    case 'MANAGEMENT':
+      return audienceLevel === 'management';
+    default:
+      // Unrecognised visibility value: fail closed, treat as management-only.
+      return audienceLevel === 'management';
+  }
+}
 
 @Injectable()
 export class ProfileService {
@@ -138,6 +190,20 @@ export class ProfileService {
           },
           orderBy: { startDate: 'asc' },
         },
+        customFieldValues: {
+          select: {
+            value: true,
+            definition: {
+              select: {
+                id: true,
+                name: true,
+                visibility: true,
+                isActive: true,
+              },
+            },
+          },
+          orderBy: { definition: { name: 'asc' } },
+        },
       },
     });
     if (!person) {
@@ -149,7 +215,7 @@ export class ProfileService {
       subjectPersonId,
     );
 
-    const response: ProfileResponse = {};
+    const response: ProfileResponse = { s16: [] };
     if (this.grantsAccess(audience.s1)) {
       response.s1 = this.toS1(person);
     }
@@ -166,6 +232,12 @@ export class ProfileService {
         ? this.toS11Colleague(person.personProjectAssignments)
         : this.toS11(person.personProjectAssignments);
     }
+    // S16 is unconditionally present -- per-field filtering, not section-level gating.
+    // An empty array signals "no visible fields" without revealing whether invisible ones exist.
+    response.s16 = this.toS16(
+      person.customFieldValues,
+      audience.customFieldAudienceLevel,
+    );
     return response;
   }
 
@@ -206,6 +278,7 @@ export class ProfileService {
     s10: SectionAccessLevel;
     s11: SectionAccessLevel;
     isColleague: boolean;
+    customFieldAudienceLevel: CustomFieldAudienceLevel;
   }> {
     if (viewerPersonId === subjectPersonId) {
       return {
@@ -214,6 +287,9 @@ export class ProfileService {
         s10: 'ReadWrite',
         s11: 'ReadWrite',
         isColleague: false,
+        // Self sees employee + colleague fields; management fields are not for the subject
+        // about themselves per the S16 section-matrix row.
+        customFieldAudienceLevel: 'employee',
       };
     }
 
@@ -239,6 +315,7 @@ export class ProfileService {
         s10: 'Read',
         s11: 'Read',
         isColleague: true,
+        customFieldAudienceLevel: 'colleague',
       };
     }
 
@@ -248,6 +325,7 @@ export class ProfileService {
       s10: this.mostPermissive(managerAccess?.s10?.level, ppAccess?.s10?.level),
       s11: this.mostPermissive(managerAccess?.s11?.level, ppAccess?.s11?.level),
       isColleague: false,
+      customFieldAudienceLevel: 'management',
     };
   }
 
@@ -271,6 +349,24 @@ export class ProfileService {
         ? level!
         : best;
     }, 'None');
+  }
+
+  /** Assembles the S16 array: always present, filtered by per-field visibility and isActive. */
+  private toS16(
+    customFieldValues: CustomFieldValueRow[],
+    audienceLevel: CustomFieldAudienceLevel,
+  ): S16CustomField[] {
+    return customFieldValues
+      .filter(
+        (cfv) =>
+          cfv.definition.isActive &&
+          canSeeCustomField(cfv.definition.visibility, audienceLevel),
+      )
+      .map((cfv) => ({
+        fieldId: cfv.definition.id,
+        name: cfv.definition.name,
+        value: cfv.value,
+      }));
   }
 
   private toS1(person: PersonWithRelations): S1IdentityCard {
