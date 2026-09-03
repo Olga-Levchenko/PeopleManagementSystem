@@ -428,7 +428,7 @@ FR-43: Epic 14 - Leave data sync into S10
 FR-44: Epic 1 (resolution logic against a stubbed event contract) / Epic 14 (real timetracker
 adapter fulfilling that contract) - Project/assignment sync feeding access resolution; see FR
 Split Registry below, closing verification story in Epic 14
-FR-45: Epic 15 - Candidate prefill by ID for resourcing
+FR-45: Epic 15 - Candidate prefill by ID for resourcing [DROPPED — see ADR-005]
 FR-46: Epic 16 - Employment status as a time-bounded fact
 FR-47: Epic 16 - Departure recording and effects
 
@@ -546,10 +546,11 @@ real timetracker API, replacing the stubbed event contract Epic 1 built against.
 **FRs covered:** FR-43, FR-44 (real-adapter portion) — closing verification story for the full
 FR-44 split lives here, since this is the last epic to touch it
 
-### Epic 15: PeopleForce Integration
-A good-to-have candidate-prefill button on the resourcing flow, with an explicitly sanctioned
-external-link fallback.
-**FRs covered:** FR-45
+### Epic 15: PeopleForce Integration [DROPPED — ADR-005]
+~~A good-to-have candidate-prefill button on the resourcing flow, with an explicitly sanctioned
+external-link fallback.~~
+**FRs covered:** FR-45 (dropped)
+**Decision (2026-09-03):** PeopleForce integration is not required. Epic cancelled; see ADR-005.
 
 ### Epic 16: Employee Lifecycle & Departure
 HR records a departure; the platform blocks it until dependent relationships are re-parented, then
@@ -1882,12 +1883,17 @@ the stub
 
 ---
 
-## Epic 15: PeopleForce Integration
+## Epic 15: PeopleForce Integration [DROPPED — ADR-005]
 
-A good-to-have candidate-prefill button on the resourcing flow, with an explicitly sanctioned
-external-link fallback.
+> **Dropped 2026-09-03.** PeopleForce integration is not required for this project (confirmed
+> with course organizers). `services/integration-peopleforce` is retained as a scaffold only.
+> The PeopleForce candidate ID is still stored on every external resourcing candidate (Epic 7,
+> Story 7.2 — data-model requirement, not an integration concern). See ADR-005 for full rationale.
 
-### Story 15.1: Candidate prefill by ID for resourcing
+~~A good-to-have candidate-prefill button on the resourcing flow, with an explicitly sanctioned
+external-link fallback.~~
+
+### ~~Story 15.1: Candidate prefill by ID for resourcing~~ [DROPPED]
 
 As a UM,
 I want to prefill a candidate-proposal record from a PeopleForce candidate ID, with per-field
