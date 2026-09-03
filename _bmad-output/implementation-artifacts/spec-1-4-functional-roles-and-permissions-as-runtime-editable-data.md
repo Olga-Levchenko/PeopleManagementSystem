@@ -93,8 +93,10 @@ Permission keys:
 | hr-admin | manage-functional-roles-and-permissions | null |
 | hr-admin | change-organisational-relationships | null |
 
-Seeds are editable stored data. Migration/bootstrap is idempotent, preserves custom roles/grants,
-and never silently revokes an existing grant.
+Seeds are editable stored data. Migration seeds only the catalogue, functional roles, and approved
+default grants; it never contains a deployment identity or bootstrap assignment. Explicit
+provisioning is idempotent, preserves custom roles/grants, and never silently revokes an existing
+grant.
 
 ## Data model and scoped grants
 
@@ -151,22 +153,50 @@ deterministically by permission key, canonical scope, then grant identifier.
 
 ## Bootstrap and audit
 
-Use configuration key `FUNCTIONAL_ROLE_BOOTSTRAP_SUB`: an opaque, nonblank Keycloak `sub` string
-(maximum 255 characters, no whitespace). It is supplied by deployment secret/configuration and
-never stored in source code or migrations. On a new installation, startup provisioning resolves
-that `sub` through `IPrincipalPersonResolver`, which is implemented at the Access Control
-boundary over the People-owned identity link, upserts the HR Admin role/catalogue/grants, and
-creates the active assignment if absent. Re-running it is a no-op and never revokes grants.
-Missing/invalid configuration or an unresolved `sub` fails closed for a new installation. An
-existing installation with an active administrator may start without reseeding; one with zero
-administrators refuses normal administration and requires recovery. Migration detects existing
-roles and assignments by stable keys/IDs and preserves all custom state.
+Ordinary Access Control web-service startup must not require
+`FUNCTIONAL_ROLE_BOOTSTRAP_SUB`, call People identity resolution, or silently create an
+administrator. It continues to expose health endpoints even when the database or authorization
+dependencies are unavailable. Administration requests fail closed when authentication, principal
+mapping, or required stored permissions are unavailable. Existing installations start normally
+without rerunning provisioning; an installation with no active functional-role administrator
+exposes only a safe operational/readiness state and continues to deny normal administration.
 
-Recovery is an out-of-band, separately authenticated deployment-provisioning operation, not an
-ordinary API route. It accepts a deployment-authenticated opaque `sub`, resolves it through the
-same identity port, restores the stored HR Admin assignment, and writes a `recovery` audit record.
-It is the only zero-holder exception and is owned by deployment provisioning, not an application
-controller. It cannot authorize through `hr-admin` text or bypass the zero-holder check.
+Bootstrap is an explicit deployment operation separate from normal web-service startup. Its
+application contract is:
+
+`ProvisionBootstrapAdministratorAsync(BootstrapProvisioningRequest request, CancellationToken
+cancellationToken) -> BootstrapProvisioningResult`
+
+`BootstrapProvisioningRequest` contains only the configured opaque trusted `PrincipalSub`; it
+accepts no `PersonId`, role key, permission key, or caller identity override. The operation
+requires `FUNCTIONAL_ROLE_BOOTSTRAP_SUB` only when explicitly invoked, validates it as a non-empty
+Keycloak `sub` of at most 255 characters with no whitespace, resolves it through
+`IPrincipalPersonResolver`, whose provisioning seam must distinguish
+`Resolved(PersonId)`, `Unavailable`, and `Ambiguous` results rather than collapsing them into a
+nullable identifier. It fails without writes when configuration is missing/invalid, the resolver
+is unavailable, or resolution is ambiguous. On successful resolution it idempotently
+ensures the seeded HR Admin functional role and approved stored grants exist, then creates the
+active assignment if absent. A repeated invocation for the same already-assigned identity is a
+no-op. The assignment and one `bootstrap` authorization-administration audit record commit in
+one transaction; an audit failure rolls back the assignment. The operation never uses a role-name
+authorization shortcut.
+
+The local Story 1.4 seam may expose this contract through an application service/command handler
+with deterministic resolver and persistence ports for unit and integration tests. It must not
+create an insecure executable, temporary identity path, or production bypass. The production
+deployment runner, configuration secret, and People-owned principal mapping remain external.
+
+Recovery is a separate deployment-only contract, not an ordinary HTTP route:
+
+`RecoverBootstrapAdministratorAsync(DeploymentAuthenticatedRecoveryRequest request,
+CancellationToken cancellationToken) -> RecoveryProvisioningResult`
+
+It requires independently authenticated deployment/operator authority, accepts an opaque trusted
+`sub` but no raw `PersonId` or user-controlled header/body identity, resolves it through the same
+resolver, restores the seeded HR Admin assignment atomically, and writes a `recovery` audit
+record. It is the only zero-holder exception and cannot authorize through `hr-admin` text or
+bypass stored permission checks. Production recovery execution remains blocked until deployment
+authentication exists.
 
 The audit entity contains `auditId`, `action`, `targetType`, `targetId`, `actorPersonId` or
 trusted provisioning actor, nullable `permissionKey`, nullable normalized `scope`, structured
@@ -184,23 +214,35 @@ assignment. It must use i18n and expose no profile-data access through HR Admin.
 
 Test the complete API matrix above: every 200/201/204/400/401/403/404/409/503 path, including the
 functional-role permission-grant read route and its empty, normalized, unauthorized, forbidden,
-not-found, and unavailable cases, invalid keys
-and scopes, role-only grants, immediate revocation, seeded-role behavior, self-modification,
-deactivation, concurrent final-administrator removal, audit atomicity, idempotent seed/bootstrap,
-scoped dashboards, and active-assignment listing. Include negative tests proving a PM-named
-functional role creates no Project-line access and no permission widens profile sections. Add
-trusted-principal mapping, Story 1.3 adapter, BFF, UI, migration, and persistence tests.
+not-found, and unavailable cases, invalid keys and scopes, role-only grants, immediate
+revocation, seeded-role behavior, self-modification, deactivation, concurrent final-administrator
+removal, audit atomicity, idempotent seed/bootstrap, scoped dashboards, and active-assignment
+listing. Provisioning tests must cover missing/empty bootstrap `sub`, unresolved and ambiguous
+principals, first idempotent assignment, repeated provisioning, audit-failure rollback, startup
+of an existing installation without provisioning, safe zero-administrator operational state, and
+recovery authorization unavailable. Include negative tests proving a PM-named functional role
+creates no Project-line access and no permission widens profile sections. Add trusted-principal
+mapping, Story 1.3 adapter, BFF, UI, migration, and persistence tests.
 
-Locally completable: Access Control persistence/domain/API behavior, idempotent seed tests, and
+Locally completable: the provisioning application/command seam, deterministic resolver and
+persistence ports, idempotent seed tests, existing-installation startup/readiness behavior, and
 BFF/UI contract tests with trusted test principals. Test principals and mocked adapters are not
-production authorization evidence. Externally blocked: production service-to-service
-authentication, principal propagation/mapping, real People Service integration, and E2E identity
-verification. Story 1.4 cannot be marked `done` until those dependencies are integrated and
-verified. Open PR #31 (Story 1.6) is separate; do not touch its files.
+production identity evidence. Externally blocked: production service-to-service authentication,
+production principal propagation/mapping, authenticated recovery execution, real People Service
+integration, and E2E identity verification. Story 1.4 remains `in-progress` and cannot be marked
+`done` until those dependencies are integrated and verified. Open PR #31 (Story 1.6) is separate;
+do not touch its files.
 
 ## Proposed files
 
-Access Control: `src/AccessControlService.Domain/Permissions/`, `src/AccessControlService.Domain/Identity/IPrincipalPersonResolver.cs`, `src/AccessControlService.Infrastructure/Persistence/` permission/role/assignment/audit entities and EF migration, `src/AccessControlService.Api/Controllers/PermissionsController.cs`, `src/AccessControlService.Api/Controllers/FunctionalRolesController.cs`, bootstrap configuration/provisioning files, and corresponding Domain/Infrastructure/Api tests.
+Access Control: `src/AccessControlService.Domain/Permissions/`,
+`src/AccessControlService.Domain/Identity/IPrincipalPersonResolver.cs`, the existing
+`src/AccessControlService.Infrastructure/Permissions/` application-service boundary for
+provisioning request/result/handler ports and implementation, `src/AccessControlService.Infrastructure/Persistence/`
+permission/role/assignment/audit entities and EF migration, `src/AccessControlService.Api/Controllers/PermissionsController.cs`,
+`src/AccessControlService.Api/Controllers/FunctionalRolesController.cs`, deployment provisioning
+integration files, and corresponding Domain/Infrastructure/Api tests. No new Application project
+is required by this story.
 BFF: `src/modules/functional-roles/` and `src/app.module.ts`.
 Frontend: `src/api/functionalRoles.ts`, `src/pages/AdministrationPage/`, `src/router/index.tsx`, `src/components/SideMenu/SideMenu.tsx`, and translations.
 
@@ -213,7 +255,8 @@ Frontend: `src/api/functionalRoles.ts`, `src/pages/AdministrationPage/`, `src/ro
   `FunctionalRolePermissionGrant.cs`, `PersonFunctionalRoleAssignment.cs`, and
   `AuthorizationAdministrationAudit.cs` -- add entities, constraints, indexes, and EF mappings.
 - [ ] `src/AccessControlService.Infrastructure/Persistence/Migrations/` -- generate an idempotent
-  migration and seed catalogue, functional roles, grants, and bootstrap assignment.
+  migration and seed the catalogue, functional roles, and approved grants only; the deployment
+  identity and bootstrap assignment must be created only by the explicit provisioning operation.
 - [ ] `src/AccessControlService.Domain/Permissions/` and
   `src/AccessControlService.Domain/Identity/IPrincipalPersonResolver.cs` -- implement key/scope
   validation and permission evaluation without role-name checks.
@@ -235,6 +278,26 @@ Frontend: `src/api/functionalRoles.ts`, `src/pages/AdministrationPage/`, `src/ro
 - Given a role or assignment administrator, when they modify themselves or a seeded role, then only the permitted non-final changes succeed; the final administrator cannot be removed or revoked.
 - Given any role, grant, assignment, bootstrap, or recovery mutation, when it commits, then one atomic authorization audit record contains the specified actor, target, permission/scope, before/after, timestamp, and correlation ID.
 - Given a new or existing installation, when idempotent seeding runs, then approved defaults are present, custom roles/grants remain, and no existing grant is silently revoked.
+- Given ordinary Access Control startup, when `FUNCTIONAL_ROLE_BOOTSTRAP_SUB` is missing or the
+  People identity resolver is unavailable, then startup does not invoke provisioning or create an
+  administrator, health endpoints remain exposed, and administration requests fail closed.
+- Given an explicit provisioning invocation, when the bootstrap `sub` is missing, empty, invalid,
+  unresolved, or ambiguous, then it exits without any assignment, grant, or audit write.
+- Given an explicit provisioning invocation with a resolvable trusted `sub`, when no assignment
+  exists, then the seeded HR Admin assignment and exactly one atomic bootstrap audit record are
+  created; repeating the invocation produces no duplicate assignment or audit record.
+- Given an authorization-audit persistence failure during provisioning, when the assignment is
+  attempted, then the transaction rolls back the assignment and leaves no partial provisioning
+  state.
+- Given an existing installation, when ordinary startup occurs without provisioning, then it
+  starts normally and does not rerun provisioning; a zero-administrator state is observable only
+  through safe operational/readiness status and normal administration remains denied.
+- Given recovery authorization is unavailable, when deployment-only recovery is invoked, then no
+  assignment or audit write occurs and no ordinary HTTP administration route can invoke recovery.
+- Given an existing installation, when ordinary startup occurs without
+  `FUNCTIONAL_ROLE_BOOTSTRAP_SUB`, then startup does not fail because of the absent setting, does
+  not invoke People identity resolution, does not rerun provisioning, continues to expose health
+  endpoints, and does not silently create an administrator.
 - Given a validated principal, when People Service calls permission check, then the actor is resolved through the trusted principal-to-PersonId port; unavailable identity or permission dependencies fail closed with 503.
 - Given test principals or mocked adapters, when tests pass, then they are not treated as evidence of production authorization; Story 1.4 remains incomplete until trusted service-to-service authentication, identity mapping, and the real Story 1.3 integration are verified.
 
@@ -243,6 +306,9 @@ Frontend: `src/api/functionalRoles.ts`, `src/pages/AdministrationPage/`, `src/ro
 - 2026-09-03: Added the approved `GET /api/v1/functional-roles/{roleKey}/permissions` contract
   for deterministic authoritative reads of current stored role grants across Access Control,
   BFF, frontend, and focused tests.
+- 2026-09-03: Clarified bootstrap as an explicit deployment operation separate from ordinary
+  Access Control startup, defined local provisioning/recovery seams, and added bootstrap,
+  existing-installation, zero-administrator, and recovery acceptance/test coverage.
 
 ## Verification
 

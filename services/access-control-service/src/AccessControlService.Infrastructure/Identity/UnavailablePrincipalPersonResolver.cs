@@ -4,8 +4,9 @@ namespace AccessControlService.Infrastructure.Identity;
 
 public sealed class UnavailablePrincipalPersonResolver : IPrincipalPersonResolver
 {
-    public Task<Guid?> ResolvePersonIdAsync(
+    public Task<PrincipalPersonResolution> ResolvePersonAsync(
         string principalSub,
         CancellationToken cancellationToken = default) =>
-        Task.FromResult<Guid?>(null);
+        Task.FromResult<PrincipalPersonResolution>(
+            new PrincipalPersonResolution.Unavailable());
 }

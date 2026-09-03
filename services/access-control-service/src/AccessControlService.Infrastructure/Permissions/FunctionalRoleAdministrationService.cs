@@ -38,6 +38,29 @@ public sealed class FunctionalRoleAdministrationService
             .OrderBy(role => role.RoleKey)
             .ToListAsync(cancellationToken);
 
+    public async Task<AdministrationOperationalState> GetOperationalStateAsync(
+        CancellationToken cancellationToken)
+    {
+        bool hasActiveAdministrator = await (
+            from assignment in dbContext.PersonFunctionalRoleAssignments.AsNoTracking()
+            join role in dbContext.FunctionalRoles.AsNoTracking()
+                on assignment.FunctionalRoleId equals role.Id
+            join grant in dbContext.FunctionalRolePermissionGrants.AsNoTracking()
+                on role.Id equals grant.FunctionalRoleId
+            join permission in dbContext.Permissions.AsNoTracking()
+                on grant.PermissionId equals permission.Id
+            where assignment.IsActive &&
+                  role.IsActive &&
+                  permission.IsActive &&
+                  permission.Key == MANAGE_PERMISSION &&
+                  grant.Scope == null
+            select assignment.Id).AnyAsync(cancellationToken);
+
+        return hasActiveAdministrator
+            ? AdministrationOperationalState.HasActiveAdministrator
+            : AdministrationOperationalState.NoActiveAdministrator;
+    }
+
     public async Task<FunctionalRole?> GetRoleAsync(string roleKey, CancellationToken cancellationToken)
     {
         ValidateRoleKey(roleKey);
@@ -816,3 +839,9 @@ public sealed class IdempotencyConflictException(string message) : Exception(mes
 public sealed record AssignmentOperationResult(PersonFunctionalRoleAssignment Assignment, bool Created);
 public sealed record AssignmentView(PersonFunctionalRoleAssignment Assignment, string RoleKey);
 public sealed record FunctionalRolePermissionView(Guid Id, string PermissionKey, string? Scope);
+
+public enum AdministrationOperationalState
+{
+    NoActiveAdministrator,
+    HasActiveAdministrator,
+}

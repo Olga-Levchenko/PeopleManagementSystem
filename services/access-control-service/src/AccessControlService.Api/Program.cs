@@ -59,6 +59,9 @@ builder.Services.AddScoped<AccessRoleResolver>();
 builder.Services.AddScoped<FunctionalRoleAdministrationService>();
 builder.Services.AddScoped<IPrincipalPersonResolver, UnavailablePrincipalPersonResolver>();
 builder.Services.AddScoped<
+    IBootstrapProvisioningService,
+    FunctionalRoleBootstrapProvisioningService>();
+builder.Services.AddScoped<
     ITrustedServicePrincipalAuthorizer,
     UnavailableTrustedServicePrincipalAuthorizer>();
 

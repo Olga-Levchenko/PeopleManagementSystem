@@ -317,8 +317,15 @@ public sealed class FunctionalRolesController : ControllerBase
             throw new UnauthorizedException();
         }
 
-        return await principalResolver.ResolvePersonIdAsync(sub, cancellationToken) ??
-               throw new ServiceUnavailableException();
+        PrincipalPersonResolution resolution =
+            await principalResolver.ResolvePersonAsync(sub, cancellationToken);
+        return resolution switch
+        {
+            PrincipalPersonResolution.Resolved resolved => resolved.PersonId,
+            PrincipalPersonResolution.Unavailable => throw new ServiceUnavailableException(),
+            PrincipalPersonResolution.Ambiguous => throw new ServiceUnavailableException(),
+            _ => throw new ServiceUnavailableException(),
+        };
     }
 
     private string CorrelationId() =>

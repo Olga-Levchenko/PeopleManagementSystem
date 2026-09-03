@@ -1,3 +1,4 @@
+using AccessControlService.Domain.Identity;
 using AccessControlService.Domain.Permissions;
 using AccessControlService.Infrastructure.Identity;
 using AccessControlService.Infrastructure.Persistence;
@@ -16,15 +17,16 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
         .Build();
 
     private AccessControlDbContext dbContext = null!;
+    private DbContextOptions<AccessControlDbContext> dbOptions = null!;
     private FunctionalRoleAdministrationService service = null!;
 
     public async Task InitializeAsync()
     {
         await postgresContainer.StartAsync();
-        var options = new DbContextOptionsBuilder<AccessControlDbContext>()
+        dbOptions = new DbContextOptionsBuilder<AccessControlDbContext>()
             .UseNpgsql(postgresContainer.GetConnectionString())
             .Options;
-        dbContext = new AccessControlDbContext(options);
+        dbContext = new AccessControlDbContext(dbOptions);
         await dbContext.Database.MigrateAsync();
 
         dbContext.PersonFunctionalRoleAssignments.Add(new PersonFunctionalRoleAssignment
@@ -287,5 +289,170 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
             await service.GetRolePermissionsAsync(role.RoleKey, CancellationToken.None);
 
         Assert.Empty(grants);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("invalid sub")]
+    public async Task BootstrapProvisioning_InvalidSub_ReturnsInvalidInput(string? sub)
+    {
+        FunctionalRoleBootstrapProvisioningService provisioning = CreateProvisioning(
+            new PrincipalPersonResolution.Resolved(FixtureSeedData.EngineerId));
+
+        BootstrapProvisioningResult result = await provisioning.ProvisionAsync(
+            new BootstrapProvisioningRequest(sub), "bootstrap-correlation", CancellationToken.None);
+
+        Assert.Equal(BootstrapProvisioningStatus.InvalidInput, result.Status);
+    }
+
+    [Fact]
+    public async Task BootstrapProvisioning_ResolvedIdentityIsIdempotent()
+    {
+        FunctionalRoleBootstrapProvisioningService provisioning = CreateProvisioning(
+            new PrincipalPersonResolution.Resolved(FixtureSeedData.EngineerId));
+        BootstrapProvisioningRequest request = new("trusted-bootstrap-sub");
+
+        BootstrapProvisioningResult first = await provisioning.ProvisionAsync(
+            request, "bootstrap-correlation-1", CancellationToken.None);
+        BootstrapProvisioningResult second = await provisioning.ProvisionAsync(
+            request, "bootstrap-correlation-2", CancellationToken.None);
+
+        Assert.Equal(BootstrapProvisioningStatus.Provisioned, first.Status);
+        Assert.Equal(BootstrapProvisioningStatus.AlreadyProvisioned, second.Status);
+        Assert.Equal(1, await dbContext.AuthorizationAdministrationAudits.CountAsync(
+            audit => audit.Action == "bootstrap"));
+    }
+
+    [Fact]
+    public async Task BootstrapProvisioning_DistinguishesUnavailableAndAmbiguousIdentity()
+    {
+        BootstrapProvisioningResult unavailable = await CreateProvisioning(
+            new PrincipalPersonResolution.Unavailable()).ProvisionAsync(
+                new BootstrapProvisioningRequest("trusted-bootstrap-sub"),
+                "bootstrap-correlation",
+                CancellationToken.None);
+        BootstrapProvisioningResult ambiguous = await CreateProvisioning(
+            new PrincipalPersonResolution.Ambiguous()).ProvisionAsync(
+                new BootstrapProvisioningRequest("trusted-bootstrap-sub"),
+                "bootstrap-correlation",
+                CancellationToken.None);
+
+        Assert.Equal(BootstrapProvisioningStatus.UnavailableIdentity, unavailable.Status);
+        Assert.Equal(BootstrapProvisioningStatus.AmbiguousIdentity, ambiguous.Status);
+    }
+
+    [Fact]
+    public async Task BootstrapProvisioning_MissingRoleAndAuditFailureWriteNothing()
+    {
+        FunctionalRole role = await dbContext.FunctionalRoles.SingleAsync(
+            candidate => candidate.Id == FixtureSeedData.HrAdminRoleId);
+        role.IsActive = false;
+        await dbContext.SaveChangesAsync();
+        int assignmentCount = await dbContext.PersonFunctionalRoleAssignments.CountAsync();
+        int auditCount = await dbContext.AuthorizationAdministrationAudits.CountAsync();
+
+        BootstrapProvisioningResult missing = await CreateProvisioning(
+            new PrincipalPersonResolution.Resolved(FixtureSeedData.EngineerId)).ProvisionAsync(
+                new BootstrapProvisioningRequest("trusted-bootstrap-sub"),
+                "bootstrap-correlation",
+                CancellationToken.None);
+
+        Assert.Equal(BootstrapProvisioningStatus.MissingSeededRole, missing.Status);
+        Assert.Equal(assignmentCount, await dbContext.PersonFunctionalRoleAssignments.CountAsync());
+        Assert.Equal(auditCount, await dbContext.AuthorizationAdministrationAudits.CountAsync());
+    }
+
+    [Fact]
+    public async Task OperationalState_ReportsNoAndHasActiveAdministrator()
+    {
+        dbContext.PersonFunctionalRoleAssignments.RemoveRange(
+            await dbContext.PersonFunctionalRoleAssignments.ToListAsync());
+        await dbContext.SaveChangesAsync();
+        Assert.Equal(
+            AdministrationOperationalState.NoActiveAdministrator,
+            await service.GetOperationalStateAsync(CancellationToken.None));
+
+        dbContext.PersonFunctionalRoleAssignments.Add(new PersonFunctionalRoleAssignment
+        {
+            Id = Guid.NewGuid(),
+            PersonId = FixtureSeedData.EngineerId,
+            FunctionalRoleId = FixtureSeedData.HrAdminRoleId,
+            IsActive = true,
+            AssignedAtUtc = DateTime.UtcNow,
+        });
+        await dbContext.SaveChangesAsync();
+        Assert.Equal(
+            AdministrationOperationalState.HasActiveAdministrator,
+            await service.GetOperationalStateAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task BootstrapProvisioning_AuditFailureRollsBackAssignment()
+    {
+        int assignmentCount = await dbContext.PersonFunctionalRoleAssignments.CountAsync();
+
+        BootstrapProvisioningResult result = await CreateProvisioning(
+            new PrincipalPersonResolution.Resolved(FixtureSeedData.EngineerId)).ProvisionAsync(
+                new BootstrapProvisioningRequest("trusted-bootstrap-sub"),
+                new string('c', 101),
+                CancellationToken.None);
+
+        Assert.Equal(BootstrapProvisioningStatus.PersistenceOrAuditFailure, result.Status);
+        Assert.Equal(assignmentCount, await dbContext.PersonFunctionalRoleAssignments.CountAsync());
+        Assert.Empty(await dbContext.AuthorizationAdministrationAudits
+            .Where(audit => audit.Action == "bootstrap")
+            .ToListAsync());
+    }
+
+    [Fact]
+    public async Task BootstrapProvisioning_ConcurrentCallsCreateOneAssignmentAndAudit()
+    {
+        async Task<BootstrapProvisioningResult> ProvisionAsync()
+        {
+            await using AccessControlDbContext context = new(dbOptions);
+            FunctionalRoleBootstrapProvisioningService provisioning = new(
+                context,
+                new StubPrincipalResolver(
+                    new PrincipalPersonResolution.Resolved(FixtureSeedData.EngineerId)));
+            return await provisioning.ProvisionAsync(
+                new BootstrapProvisioningRequest("trusted-bootstrap-sub"),
+                "bootstrap-correlation",
+                CancellationToken.None);
+        }
+
+        BootstrapProvisioningResult[] results = await Task.WhenAll(
+            ProvisionAsync(),
+            ProvisionAsync());
+
+        Assert.Contains(results, result =>
+            result.Status == BootstrapProvisioningStatus.Provisioned);
+        Assert.Contains(results, result =>
+            result.Status == BootstrapProvisioningStatus.AlreadyProvisioned);
+        Assert.Equal(1, await dbContext.PersonFunctionalRoleAssignments.CountAsync(
+            assignment => assignment.PersonId == FixtureSeedData.EngineerId &&
+                          assignment.FunctionalRoleId == FixtureSeedData.HrAdminRoleId &&
+                          assignment.IsActive));
+        Assert.Equal(1, await dbContext.AuthorizationAdministrationAudits.CountAsync(
+            audit => audit.Action == "bootstrap"));
+    }
+
+    private FunctionalRoleBootstrapProvisioningService CreateProvisioning(
+        PrincipalPersonResolution resolution) =>
+        new(dbContext, new StubPrincipalResolver(resolution));
+
+    private sealed class StubPrincipalResolver : IPrincipalPersonResolver
+    {
+        private readonly PrincipalPersonResolution resolution;
+
+        public StubPrincipalResolver(PrincipalPersonResolution resolution)
+        {
+            this.resolution = resolution;
+        }
+
+        public Task<PrincipalPersonResolution> ResolvePersonAsync(
+            string principalSub,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(resolution);
     }
 }
