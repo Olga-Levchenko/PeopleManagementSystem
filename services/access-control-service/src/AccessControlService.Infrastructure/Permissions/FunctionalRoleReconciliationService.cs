@@ -7,6 +7,7 @@ namespace AccessControlService.Infrastructure.Permissions;
 
 public sealed class FunctionalRoleReconciliationService
 {
+    private const long RECONCILIATION_ADVISORY_LOCK_KEY = 1_401_004_014;
     private readonly AccessControlDbContext dbContext;
 
     public FunctionalRoleReconciliationService(AccessControlDbContext dbContext)
@@ -37,7 +38,18 @@ public sealed class FunctionalRoleReconciliationService
     public async Task<FunctionalRoleReconciliationResult> ReconcileWithinTransactionAsync(
         CancellationToken cancellationToken = default)
     {
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock({RECONCILIATION_ADVISORY_LOCK_KEY})",
+            cancellationToken);
+
         List<Permission> permissions = await dbContext.Permissions.ToListAsync(cancellationToken);
+        Permission? existingAdministrationPermission = permissions.SingleOrDefault(
+            permission => permission.Key == PermissionCatalogue.MANAGE_FUNCTIONAL_ROLES_AND_PERMISSIONS);
+        if (existingAdministrationPermission is not null)
+        {
+            await LockAdministrationPermissionAsync(cancellationToken);
+        }
+
         List<FunctionalRole> roles = await dbContext.FunctionalRoles.ToListAsync(cancellationToken);
         List<FunctionalRolePermissionGrant> grants =
             await dbContext.FunctionalRolePermissionGrants.ToListAsync(cancellationToken);
@@ -78,6 +90,9 @@ public sealed class FunctionalRoleReconciliationService
                 permission.RequiresScope = seed.RequiresScope;
             }
         }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await LockAdministrationPermissionAsync(cancellationToken);
 
         Dictionary<string, FunctionalRole> rolesByKey =
             roles.ToDictionary(role => role.RoleKey, StringComparer.Ordinal);
@@ -170,6 +185,11 @@ public sealed class FunctionalRoleReconciliationService
             createdGrants,
             status);
     }
+
+    private Task LockAdministrationPermissionAsync(CancellationToken cancellationToken) =>
+        dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT \"Id\" FROM permissions WHERE \"Key\" = {PermissionCatalogue.MANAGE_FUNCTIONAL_ROLES_AND_PERMISSIONS} FOR UPDATE",
+            cancellationToken);
 
     private static bool ScopesEqual(string? left, string? right)
     {

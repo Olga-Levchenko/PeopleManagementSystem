@@ -62,6 +62,9 @@ public sealed class FunctionalRoleBootstrapProvisioningService : IBootstrapProvi
 
             await reconciliationService.ReconcileWithinTransactionAsync(cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
+            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT \"Id\" FROM permissions WHERE \"Key\" = {PermissionCatalogue.MANAGE_FUNCTIONAL_ROLES_AND_PERMISSIONS} FOR UPDATE",
+                cancellationToken);
 
             FunctionalRole? role = await dbContext.FunctionalRoles
                 .SingleOrDefaultAsync(

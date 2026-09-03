@@ -105,7 +105,17 @@ Add `Permission`, `FunctionalRole`, `FunctionalRolePermissionGrant`,
 Grants store a permission key and normalized optional scope JSON; only `view-dashboard` accepts
 `dashboardType`, and invalid or missing required scopes return 400. Assignments store person,
 role, active/revoked state, and timestamps. Generate an EF Core migration using existing
-Infrastructure conventions.
+Infrastructure conventions. Grant uniqueness is enforced by two partial unique indexes: one on
+`(FunctionalRoleId, PermissionId)` for unscoped grants and one on
+`(FunctionalRoleId, PermissionId, Scope)` for scoped grants. Existing duplicate unscoped data
+must cause a forward migration to fail clearly; it must never be deleted or silently merged.
+
+Every administration mutation serializes on the canonical active
+`manage-functional-roles-and-permissions` permission row. Authorization is evaluated only after
+that row is locked inside the mutation transaction. The global lock order is: reconciliation
+transaction-level advisory lock when reconciliation is involved, canonical administration
+permission row, target functional-role row, target permission, then target grant or assignment.
+Permission-check queries remain read-only and do not acquire this mutation serialization lock.
 
 Define `IPrincipalPersonResolver` at the Access Control application boundary. People Service owns
 the authoritative identity link; its adapter resolves a validated Keycloak `sub` to `PersonId`.

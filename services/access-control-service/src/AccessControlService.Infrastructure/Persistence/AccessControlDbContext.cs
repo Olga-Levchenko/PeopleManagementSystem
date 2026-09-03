@@ -178,7 +178,12 @@ public sealed class AccessControlDbContext : DbContext
             grant.ToTable("functional_role_permission_grants");
             grant.HasKey(g => g.Id);
             grant.Property(g => g.Scope).HasColumnType("jsonb");
-            grant.HasIndex(g => new { g.FunctionalRoleId, g.PermissionId, g.Scope }).IsUnique();
+            grant.HasIndex(g => new { g.FunctionalRoleId, g.PermissionId })
+                .IsUnique()
+                .HasFilter("\"Scope\" IS NULL");
+            grant.HasIndex(g => new { g.FunctionalRoleId, g.PermissionId, g.Scope })
+                .IsUnique()
+                .HasFilter("\"Scope\" IS NOT NULL");
             grant.HasOne<FunctionalRole>()
                 .WithMany()
                 .HasForeignKey(g => g.FunctionalRoleId)

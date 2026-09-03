@@ -926,6 +926,278 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
             audit => audit.Action == "bootstrap"));
     }
 
+    [Fact]
+    public async Task BootstrapProvisioning_ConcurrentCallsRestoreMissingCanonicalPermissionAndGrant()
+    {
+        Guid administrationPermissionId = FixtureSeedData.Permissions
+            .Single(permission =>
+                permission.Key == PermissionCatalogue.MANAGE_FUNCTIONAL_ROLES_AND_PERMISSIONS)
+            .Id;
+        await dbContext.FunctionalRolePermissionGrants
+            .Where(grant => grant.PermissionId == administrationPermissionId)
+            .ExecuteDeleteAsync();
+        await dbContext.Permissions
+            .Where(permission => permission.Id == administrationPermissionId)
+            .ExecuteDeleteAsync();
+
+        async Task<BootstrapProvisioningResult> ProvisionAsync()
+        {
+            await using AccessControlDbContext context = new(dbOptions);
+            FunctionalRoleBootstrapProvisioningService provisioning = new(
+                context,
+                new StubPrincipalResolver(
+                    new PrincipalPersonResolution.Resolved(FixtureSeedData.EngineerId)),
+                new FunctionalRoleReconciliationService(context));
+            return await provisioning.ProvisionAsync(
+                new BootstrapProvisioningRequest("trusted-bootstrap-sub"),
+                "bootstrap-correlation",
+                CancellationToken.None);
+        }
+
+        BootstrapProvisioningResult[] results = await Task.WhenAll(
+            ProvisionAsync(),
+            ProvisionAsync());
+
+        Assert.Contains(results, result =>
+            result.Status == BootstrapProvisioningStatus.Provisioned);
+        Assert.Contains(results, result =>
+            result.Status == BootstrapProvisioningStatus.AlreadyProvisioned);
+        Assert.True(await dbContext.Permissions.AnyAsync(
+            permission => permission.Id == administrationPermissionId));
+        Assert.Equal(1, await dbContext.FunctionalRolePermissionGrants.CountAsync(
+            grant => grant.FunctionalRoleId == FixtureSeedData.HrAdminRoleId &&
+                     grant.PermissionId == administrationPermissionId &&
+                     grant.Scope == null));
+        Assert.Equal(1, await dbContext.PersonFunctionalRoleAssignments.CountAsync(
+            assignment => assignment.PersonId == FixtureSeedData.EngineerId &&
+                          assignment.FunctionalRoleId == FixtureSeedData.HrAdminRoleId &&
+                          assignment.IsActive));
+        Assert.Equal(1, await dbContext.AuthorizationAdministrationAudits.CountAsync(
+            audit => audit.Action == "bootstrap"));
+    }
+
+    [Fact]
+    public async Task ConcurrentEquivalentUnscopedGrants_ReturnOneGrantAndOneAudit()
+    {
+        FunctionalRole role = await service.CreateRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            "concurrent-unscoped-grant",
+            "Concurrent Unscoped Grant",
+            "concurrency-correlation",
+            null,
+            CancellationToken.None);
+        Guid permissionId = await dbContext.Permissions
+            .Where(permission => permission.Key == PermissionCatalogue.CREATE_ACTION_ITEMS)
+            .Select(permission => permission.Id)
+            .SingleAsync();
+
+        async Task<FunctionalRolePermissionGrant> GrantAsync()
+        {
+            await using AccessControlDbContext context = new(dbOptions);
+            FunctionalRoleAdministrationService administration = new(
+                context,
+                new UnavailablePrincipalPersonResolver());
+            return await administration.GrantPermissionAsync(
+                FixtureSeedData.ExecutiveId,
+                role.RoleKey,
+                PermissionCatalogue.CREATE_ACTION_ITEMS,
+                null,
+                "concurrency-correlation",
+                null,
+                CancellationToken.None);
+        }
+
+        FunctionalRolePermissionGrant[] results = await Task.WhenAll(GrantAsync(), GrantAsync());
+
+        Assert.Equal(results[0].Id, results[1].Id);
+        Assert.Equal(1, await dbContext.FunctionalRolePermissionGrants.CountAsync(
+            grant => grant.FunctionalRoleId == role.Id &&
+                     grant.PermissionId == permissionId &&
+                     grant.Scope == null));
+        Assert.Equal(1, await dbContext.AuthorizationAdministrationAudits.CountAsync(
+            audit => audit.Action == "permission-grant" &&
+                     audit.TargetType == "functional-role-permission-grant"));
+    }
+
+    [Fact]
+    public async Task ConcurrentEquivalentScopedGrants_ReturnOneNormalizedGrantAndOneAudit()
+    {
+        FunctionalRole role = await service.CreateRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            "concurrent-scoped-grant",
+            "Concurrent Scoped Grant",
+            "concurrency-correlation",
+            null,
+            CancellationToken.None);
+        Guid permissionId = await dbContext.Permissions
+            .Where(permission => permission.Key == PermissionCatalogue.VIEW_DASHBOARD)
+            .Select(permission => permission.Id)
+            .SingleAsync();
+
+        async Task<FunctionalRolePermissionGrant> GrantAsync(string scope)
+        {
+            await using AccessControlDbContext context = new(dbOptions);
+            FunctionalRoleAdministrationService administration = new(
+                context,
+                new UnavailablePrincipalPersonResolver());
+            return await administration.GrantPermissionAsync(
+                FixtureSeedData.ExecutiveId,
+                role.RoleKey,
+                PermissionCatalogue.VIEW_DASHBOARD,
+                scope,
+                "concurrency-correlation",
+                null,
+                CancellationToken.None);
+        }
+
+        FunctionalRolePermissionGrant[] results = await Task.WhenAll(
+            GrantAsync("""{"dashboardType": "unit-manager"}"""),
+            GrantAsync("""{"dashboardType":"unit-manager"}"""));
+
+        Assert.Equal(results[0].Id, results[1].Id);
+        Assert.Equal(
+            """{"dashboardType":"unit-manager"}""",
+            results[0].Scope);
+        Assert.Equal(1, await dbContext.FunctionalRolePermissionGrants.CountAsync(
+            grant => grant.FunctionalRoleId == role.Id &&
+                     grant.PermissionId == permissionId &&
+                     grant.Scope == """{"dashboardType":"unit-manager"}"""));
+        Assert.Equal(1, await dbContext.AuthorizationAdministrationAudits.CountAsync(
+            audit => audit.Action == "permission-grant" &&
+                     audit.TargetType == "functional-role-permission-grant"));
+    }
+
+    [Fact]
+    public async Task FinalAdministratorRevocationFirst_DeniesFollowingMutation()
+    {
+        await ProvisionSecondaryAdministratorAsync();
+
+        await service.RevokePermissionAsync(
+            FixtureSeedData.ExecutiveId,
+            "hr-admin",
+            PermissionCatalogue.MANAGE_FUNCTIONAL_ROLES_AND_PERMISSIONS,
+            null,
+            "revocation-first",
+            CancellationToken.None);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            service.CreateRoleAsync(
+                FixtureSeedData.ExecutiveId,
+                "revocation-first-role",
+                "Revocation First Role",
+                "revocation-first",
+                null,
+                CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task MutationFirst_CompletesBeforeFinalAdministratorRevocation()
+    {
+        await ProvisionSecondaryAdministratorAsync();
+
+        FunctionalRole created = await service.CreateRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            "mutation-first-role",
+            "Mutation First Role",
+            "mutation-first",
+            null,
+            CancellationToken.None);
+
+        await service.RevokePermissionAsync(
+            FixtureSeedData.ExecutiveId,
+            "hr-admin",
+            PermissionCatalogue.MANAGE_FUNCTIONAL_ROLES_AND_PERMISSIONS,
+            null,
+            "mutation-first",
+            CancellationToken.None);
+
+        Assert.True(await dbContext.FunctionalRoles.AnyAsync(
+            role => role.Id == created.Id));
+    }
+
+    [Fact]
+    public async Task PartialIndexes_RejectDuplicateUnscopedAndScopedGrants()
+    {
+        FunctionalRole role = await service.CreateRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            "direct-index-check",
+            "Direct Index Check",
+            "index-correlation",
+            null,
+            CancellationToken.None);
+        Permission createActionItems = await dbContext.Permissions.SingleAsync(
+            permission => permission.Key == PermissionCatalogue.CREATE_ACTION_ITEMS);
+        Permission viewDashboard = await dbContext.Permissions.SingleAsync(
+            permission => permission.Key == PermissionCatalogue.VIEW_DASHBOARD);
+
+        dbContext.FunctionalRolePermissionGrants.Add(new FunctionalRolePermissionGrant
+        {
+            Id = Guid.NewGuid(),
+            FunctionalRoleId = role.Id,
+            PermissionId = createActionItems.Id,
+            Scope = null,
+            GrantedAtUtc = DateTime.UtcNow,
+        });
+        await dbContext.SaveChangesAsync();
+
+        dbContext.FunctionalRolePermissionGrants.Add(new FunctionalRolePermissionGrant
+        {
+            Id = Guid.NewGuid(),
+            FunctionalRoleId = role.Id,
+            PermissionId = createActionItems.Id,
+            Scope = null,
+            GrantedAtUtc = DateTime.UtcNow,
+        });
+        await Assert.ThrowsAsync<DbUpdateException>(() => dbContext.SaveChangesAsync());
+        await dbContext.DisposeAsync();
+
+        await using AccessControlDbContext scopedContext = new(dbOptions);
+        scopedContext.FunctionalRolePermissionGrants.Add(new FunctionalRolePermissionGrant
+        {
+            Id = Guid.NewGuid(),
+            FunctionalRoleId = role.Id,
+            PermissionId = viewDashboard.Id,
+            Scope = """{"dashboardType":"unit-manager"}""",
+            GrantedAtUtc = DateTime.UtcNow,
+        });
+        await scopedContext.SaveChangesAsync();
+        scopedContext.FunctionalRolePermissionGrants.Add(new FunctionalRolePermissionGrant
+        {
+            Id = Guid.NewGuid(),
+            FunctionalRoleId = role.Id,
+            PermissionId = viewDashboard.Id,
+            Scope = """{"dashboardType":"unit-manager"}""",
+            GrantedAtUtc = DateTime.UtcNow,
+        });
+        await Assert.ThrowsAsync<DbUpdateException>(() => scopedContext.SaveChangesAsync());
+    }
+
+    private async Task ProvisionSecondaryAdministratorAsync()
+    {
+        FunctionalRole role = await service.CreateRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            "secondary-administrator",
+            "Secondary Administrator",
+            "secondary-administrator",
+            null,
+            CancellationToken.None);
+        await service.GrantPermissionAsync(
+            FixtureSeedData.ExecutiveId,
+            role.RoleKey,
+            PermissionCatalogue.MANAGE_FUNCTIONAL_ROLES_AND_PERMISSIONS,
+            null,
+            "secondary-administrator",
+            null,
+            CancellationToken.None);
+        await service.AssignRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            FixtureSeedData.EngineerId,
+            role.RoleKey,
+            "secondary-administrator",
+            null,
+            CancellationToken.None);
+    }
+
     private async Task AssertValidAssignmentInvariantAsync()
     {
         Assert.False(await (

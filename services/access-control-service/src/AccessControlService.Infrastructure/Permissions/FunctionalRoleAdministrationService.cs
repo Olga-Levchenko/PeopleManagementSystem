@@ -119,8 +119,8 @@ public sealed class FunctionalRoleAdministrationService
         CancellationToken cancellationToken)
     {
         ValidateRole(roleKey, displayName);
-        await EnsureAdministratorAsync(actorPersonId, cancellationToken);
-
+        await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
+            await BeginAdministrationTransactionAsync(actorPersonId, cancellationToken);
         FunctionalRole? existing = await FindIdempotentRoleAsync(
             idempotencyKey,
             roleKey,
@@ -128,6 +128,7 @@ public sealed class FunctionalRoleAdministrationService
             cancellationToken);
         if (existing is not null)
         {
+            await transaction.CommitAsync(cancellationToken);
             return existing;
         }
 
@@ -162,7 +163,8 @@ public sealed class FunctionalRoleAdministrationService
                 dbContext.FunctionalRoles.Add(role);
                 await dbContext.SaveChangesAsync(cancellationToken);
             },
-            cancellationToken);
+            cancellationToken,
+            existingTransaction: transaction);
 
         return role;
     }
@@ -175,11 +177,17 @@ public sealed class FunctionalRoleAdministrationService
         CancellationToken cancellationToken)
     {
         ValidateRole(roleKey, displayName);
-        await EnsureAdministratorAsync(actorPersonId, cancellationToken);
-
-        FunctionalRole role = await GetRequiredRoleAsync(roleKey, cancellationToken);
+        await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
+            await BeginAdministrationTransactionAsync(actorPersonId, cancellationToken);
+        await LockFunctionalRoleAsync(roleKey, cancellationToken);
+        FunctionalRole? role = await GetLockedRoleAsync(roleKey, cancellationToken);
+        if (role is null || !role.IsActive)
+        {
+            throw new NotFoundException("The functional role was not found.");
+        }
         if (role.DisplayName == displayName)
         {
+            await transaction.CommitAsync(cancellationToken);
             return role;
         }
 
@@ -204,7 +212,8 @@ public sealed class FunctionalRoleAdministrationService
             correlationId,
             idempotencyKey: null,
             () => dbContext.SaveChangesAsync(cancellationToken),
-            cancellationToken);
+            cancellationToken,
+            existingTransaction: transaction);
 
         return role;
     }
@@ -223,8 +232,8 @@ public sealed class FunctionalRoleAdministrationService
         }
 
         await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
-            await BeginFunctionalRoleTransactionAsync(roleKey, cancellationToken);
-        await EnsureAdministratorAsync(actorPersonId, cancellationToken);
+            await BeginAdministrationTransactionAsync(actorPersonId, cancellationToken);
+        await LockFunctionalRoleAsync(roleKey, cancellationToken);
         FunctionalRole? role = await GetLockedRoleAsync(roleKey, cancellationToken);
         if (role is null)
         {
@@ -275,12 +284,15 @@ public sealed class FunctionalRoleAdministrationService
         CancellationToken cancellationToken)
     {
         string? normalizedScope = PermissionScopeValidator.ValidateAndNormalize(permissionKey, scope);
-        await EnsureAdministratorAsync(actorPersonId, cancellationToken);
-        FunctionalRole role = await GetRequiredRoleAsync(roleKey, cancellationToken);
-        if (!role.IsActive)
+        await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
+            await BeginAdministrationTransactionAsync(actorPersonId, cancellationToken);
+        await LockFunctionalRoleAsync(roleKey, cancellationToken);
+        FunctionalRole? role = await GetLockedRoleAsync(roleKey, cancellationToken);
+        if (role is null || !role.IsActive)
         {
             throw new NotFoundException("The functional role was not found.");
         }
+        await LockPermissionAsync(permissionKey, cancellationToken);
         Permission permission = await GetRequiredPermissionAsync(permissionKey, cancellationToken);
 
         FunctionalRolePermissionGrant? existing = await dbContext.FunctionalRolePermissionGrants
@@ -298,6 +310,7 @@ public sealed class FunctionalRoleAdministrationService
                 normalizedScope,
                 role.Id,
                 cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
             return existing;
         }
 
@@ -315,6 +328,7 @@ public sealed class FunctionalRoleAdministrationService
                 await dbContext.FunctionalRolePermissionGrants.SingleOrDefaultAsync(
                     grant => grant.Id == replayAudit.TargetId,
                     cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
             return replayGrant ?? throw new IdempotencyConflictException(
                 "The idempotency key does not identify an existing grant.");
         }
@@ -344,7 +358,8 @@ public sealed class FunctionalRoleAdministrationService
             },
             cancellationToken,
             auditPermissionKey: permissionKey,
-            auditScope: normalizedScope);
+            auditScope: normalizedScope,
+            existingTransaction: transaction);
 
         return grant;
     }
@@ -358,8 +373,16 @@ public sealed class FunctionalRoleAdministrationService
         CancellationToken cancellationToken)
     {
         string? normalizedScope = PermissionScopeValidator.ValidateAndNormalize(permissionKey, scope);
-        await EnsureAdministratorAsync(actorPersonId, cancellationToken);
-        FunctionalRole role = await GetRequiredRoleAsync(roleKey, cancellationToken);
+        await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
+            await BeginAdministrationTransactionAsync(actorPersonId, cancellationToken);
+        await LockFunctionalRoleAsync(roleKey, cancellationToken);
+        FunctionalRole? role = await GetLockedRoleAsync(roleKey, cancellationToken);
+        if (role is null || !role.IsActive)
+        {
+            throw new NotFoundException("The functional role was not found.");
+        }
+
+        await LockPermissionAsync(permissionKey, cancellationToken);
         Permission permission = await GetRequiredPermissionAsync(permissionKey, cancellationToken);
         FunctionalRolePermissionGrant? grant = await dbContext.FunctionalRolePermissionGrants
             .SingleOrDefaultAsync(
@@ -370,6 +393,7 @@ public sealed class FunctionalRoleAdministrationService
 
         if (grant is null)
         {
+            await transaction.CommitAsync(cancellationToken);
             return;
         }
 
@@ -397,9 +421,9 @@ public sealed class FunctionalRoleAdministrationService
                 await dbContext.SaveChangesAsync(cancellationToken);
             },
             cancellationToken,
-            lockAdministration: permissionKey == MANAGE_PERMISSION,
             auditPermissionKey: permissionKey,
-            auditScope: normalizedScope);
+            auditScope: normalizedScope,
+            existingTransaction: transaction);
     }
 
     public async Task<AssignmentOperationResult> AssignRoleAsync(
@@ -412,8 +436,8 @@ public sealed class FunctionalRoleAdministrationService
     {
         ValidateRoleKey(roleKey);
         await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
-            await BeginFunctionalRoleTransactionAsync(roleKey, cancellationToken);
-        await EnsureAdministratorAsync(actorPersonId, cancellationToken);
+            await BeginAdministrationTransactionAsync(actorPersonId, cancellationToken);
+        await LockFunctionalRoleAsync(roleKey, cancellationToken);
         FunctionalRole? role = await GetLockedRoleAsync(roleKey, cancellationToken);
         if (role is null)
         {
@@ -503,8 +527,14 @@ public sealed class FunctionalRoleAdministrationService
         string correlationId,
         CancellationToken cancellationToken)
     {
-        await EnsureAdministratorAsync(actorPersonId, cancellationToken);
-        FunctionalRole role = await GetRequiredRoleAsync(roleKey, cancellationToken);
+        await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
+            await BeginAdministrationTransactionAsync(actorPersonId, cancellationToken);
+        await LockFunctionalRoleAsync(roleKey, cancellationToken);
+        FunctionalRole? role = await GetLockedRoleAsync(roleKey, cancellationToken);
+        if (role is null)
+        {
+            throw new NotFoundException("The functional role was not found.");
+        }
         PersonFunctionalRoleAssignment? assignment = await dbContext.PersonFunctionalRoleAssignments
             .SingleOrDefaultAsync(
                 candidate => candidate.PersonId == personId &&
@@ -514,6 +544,7 @@ public sealed class FunctionalRoleAdministrationService
 
         if (assignment is null)
         {
+            await transaction.CommitAsync(cancellationToken);
             return;
         }
 
@@ -542,8 +573,8 @@ public sealed class FunctionalRoleAdministrationService
                 await dbContext.SaveChangesAsync(cancellationToken);
             },
             cancellationToken,
-            lockAdministration: true,
-            afterFactory: () => SerializeAssignment(assignment));
+            afterFactory: () => SerializeAssignment(assignment),
+            existingTransaction: transaction);
     }
 
     public async Task<IReadOnlyList<AssignmentView>> GetAssignmentsAsync(
@@ -788,42 +819,48 @@ public sealed class FunctionalRoleAdministrationService
         CancellationToken cancellationToken,
         string? auditPermissionKey = null,
         string? auditScope = null,
-        bool lockAdministration = false,
-        Func<string?>? afterFactory = null)
+        Func<string?>? afterFactory = null,
+        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? existingTransaction = null)
     {
-        await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
+        bool ownsTransaction = existingTransaction is null;
+        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
+            existingTransaction ??
             await dbContext.Database.BeginTransactionAsync(
                 IsolationLevel.ReadCommitted,
                 cancellationToken);
-        if (lockAdministration)
+        try
         {
-            await dbContext.Database.ExecuteSqlInterpolatedAsync(
-                $"SELECT \"Id\" FROM permissions WHERE \"Key\" = {MANAGE_PERMISSION} FOR UPDATE",
-                cancellationToken);
+            await mutation();
+            dbContext.AuthorizationAdministrationAudits.Add(new AuthorizationAdministrationAudit
+            {
+                AuditId = Guid.NewGuid(),
+                Action = action,
+                TargetType = targetType,
+                TargetId = targetId,
+                ActorPersonId = actorPersonId,
+                PermissionKey = auditPermissionKey,
+                Scope = auditScope,
+                Before = before,
+                After = afterFactory?.Invoke() ?? after,
+                OccurredAtUtc = DateTime.UtcNow,
+                CorrelationId = correlationId,
+                IdempotencyKey = idempotencyKey,
+            });
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
-        await mutation();
-        dbContext.AuthorizationAdministrationAudits.Add(new AuthorizationAdministrationAudit
+        finally
         {
-            AuditId = Guid.NewGuid(),
-            Action = action,
-            TargetType = targetType,
-            TargetId = targetId,
-            ActorPersonId = actorPersonId,
-            PermissionKey = auditPermissionKey,
-            Scope = auditScope,
-            Before = before,
-            After = afterFactory?.Invoke() ?? after,
-            OccurredAtUtc = DateTime.UtcNow,
-            CorrelationId = correlationId,
-            IdempotencyKey = idempotencyKey,
-        });
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+            if (ownsTransaction)
+            {
+                await transaction.DisposeAsync();
+            }
+        }
     }
 
     private async Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction>
-        BeginFunctionalRoleTransactionAsync(
-            string roleKey,
+        BeginAdministrationTransactionAsync(
+            Guid actorPersonId,
             CancellationToken cancellationToken)
     {
         Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
@@ -833,8 +870,9 @@ public sealed class FunctionalRoleAdministrationService
         try
         {
             await dbContext.Database.ExecuteSqlInterpolatedAsync(
-                $"SELECT \"Id\" FROM functional_roles WHERE \"RoleKey\" = {roleKey} FOR UPDATE",
+                $"SELECT \"Id\" FROM permissions WHERE \"Key\" = {MANAGE_PERMISSION} FOR UPDATE",
                 cancellationToken);
+            await EnsureAdministratorAsync(actorPersonId, cancellationToken);
             return transaction;
         }
         catch
@@ -843,6 +881,16 @@ public sealed class FunctionalRoleAdministrationService
             throw;
         }
     }
+
+    private Task LockFunctionalRoleAsync(string roleKey, CancellationToken cancellationToken) =>
+        dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT \"Id\" FROM functional_roles WHERE \"RoleKey\" = {roleKey} FOR UPDATE",
+            cancellationToken);
+
+    private Task LockPermissionAsync(string permissionKey, CancellationToken cancellationToken) =>
+        dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT \"Id\" FROM permissions WHERE \"Key\" = {permissionKey} FOR UPDATE",
+            cancellationToken);
 
     private Task<FunctionalRole?> GetLockedRoleAsync(
         string roleKey,
