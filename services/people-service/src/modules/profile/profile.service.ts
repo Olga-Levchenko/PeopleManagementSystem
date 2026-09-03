@@ -64,7 +64,7 @@ export interface ProfileResponse {
   s2?: S2PersonalContacts;
   s10?: S10Leave[];
   s11?: S11ProjectEntry[];
-  s16?: S16CustomField[];
+  s16: S16CustomField[];
 }
 
 type LeaveRow = {
@@ -119,6 +119,33 @@ type PersonWithRelations = {
   personProjectAssignments: ProjectAssignmentRow[];
   customFieldValues: CustomFieldValueRow[];
 };
+
+/**
+ * Pure visibility gate for a single custom field. Fail-closed: an unrecognised visibility value
+ * is treated as `MANAGEMENT` (most restrictive).
+ * - `COLLEAGUE` fields are visible to every audience.
+ * - `EMPLOYEE` fields are visible to employee-level and management-level audiences (not colleague).
+ * - `MANAGEMENT` fields are visible only to management-level audiences.
+ *
+ * Exported at module level so Epic-2 surfaces (list engine, export) can import it directly
+ * without requiring an HTTP hop or a shared service injection.
+ */
+export function canSeeCustomField(
+  visibility: string,
+  audienceLevel: CustomFieldAudienceLevel,
+): boolean {
+  switch (visibility) {
+    case 'COLLEAGUE':
+      return true;
+    case 'EMPLOYEE':
+      return audienceLevel === 'employee' || audienceLevel === 'management';
+    case 'MANAGEMENT':
+      return audienceLevel === 'management';
+    default:
+      // Unrecognised visibility value: fail closed, treat as management-only.
+      return audienceLevel === 'management';
+  }
+}
 
 @Injectable()
 export class ProfileService {
@@ -188,7 +215,7 @@ export class ProfileService {
       subjectPersonId,
     );
 
-    const response: ProfileResponse = {};
+    const response: ProfileResponse = { s16: [] };
     if (this.grantsAccess(audience.s1)) {
       response.s1 = this.toS1(person);
     }
@@ -324,30 +351,6 @@ export class ProfileService {
     }, 'None');
   }
 
-  /**
-   * Pure visibility gate for a single custom field. Fail-closed: an unrecognised visibility value
-   * is treated as `MANAGEMENT` (most restrictive).
-   * - `COLLEAGUE` fields are visible to every audience.
-   * - `EMPLOYEE` fields are visible to employee-level and management-level audiences (not colleague).
-   * - `MANAGEMENT` fields are visible only to management-level audiences.
-   */
-  private canSeeCustomField(
-    visibility: string,
-    audienceLevel: CustomFieldAudienceLevel,
-  ): boolean {
-    switch (visibility) {
-      case 'COLLEAGUE':
-        return true;
-      case 'EMPLOYEE':
-        return audienceLevel === 'employee' || audienceLevel === 'management';
-      case 'MANAGEMENT':
-        return audienceLevel === 'management';
-      default:
-        // Unrecognised visibility value: fail closed, treat as management-only.
-        return audienceLevel === 'management';
-    }
-  }
-
   /** Assembles the S16 array: always present, filtered by per-field visibility and isActive. */
   private toS16(
     customFieldValues: CustomFieldValueRow[],
@@ -357,7 +360,7 @@ export class ProfileService {
       .filter(
         (cfv) =>
           cfv.definition.isActive &&
-          this.canSeeCustomField(cfv.definition.visibility, audienceLevel),
+          canSeeCustomField(cfv.definition.visibility, audienceLevel),
       )
       .map((cfv) => ({
         fieldId: cfv.definition.id,

@@ -374,9 +374,11 @@ describe('Profile (e2e)', () => {
     // PP sees full S10/S11 data (isColleague: false)
     expect(body.s10[0]).toHaveProperty('leaveType', 'vacation');
     expect(body.s11[0]).toHaveProperty('role', 'Developer');
-    // PP gets management-level S16: both management and colleague fields visible
+    // PP gets management-level S16: all three visibility tiers visible
     const s16Names = body.s16.map((f) => f.name);
     expect(s16Names).toContain('Internal Grade');
+    // EMPLOYEE_FIELD_MANAGER: employee-visibility field present for PP (management audience)
+    expect(s16Names).toContain('Bio');
     expect(s16Names).toContain('Office Location');
   });
 
@@ -449,9 +451,13 @@ describe('Profile (e2e)', () => {
     // Project-line is NOT a Colleague (isColleague: false) -- gets full S10/S11 data
     expect(body.s10[0]).toHaveProperty('leaveType', 'vacation');
     expect(body.s11[0]).toHaveProperty('role', 'Developer');
-    // Project-line DM/PM gets management-level S16 (management audience)
+    // Project-line DM/PM gets management-level S16 (management audience): all three tiers visible
     const s16Names = body.s16.map((f) => f.name);
     expect(s16Names).toContain('Internal Grade');
+    // EMPLOYEE_FIELD_MANAGER: employee-visibility field present for management audience
+    expect(s16Names).toContain('Bio');
+    // COLLEAGUE_FIELD_ALL: colleague-visibility field present for management audience
+    expect(s16Names).toContain('Office Location');
   });
 
   it('Colleague: neither line qualifies -> exactly s1+s10+s11+s16 (whitelist); s2 absent, leaveType stripped, role/dates stripped; management field absent from s16', async () => {

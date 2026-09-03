@@ -3,7 +3,7 @@ title: 'Story 1.10: Custom field visibility enforcement'
 type: 'feature'
 created: '2026-09-03'
 status: 'done'
-review_loop_iteration: 0
+review_loop_iteration: 1
 baseline_commit: 'da52e2f'
 context:
   - '{project-root}/.claude/rules/access-control-invariants.md'
@@ -110,12 +110,28 @@ Three blind-hunter / edge-case-hunter / verification-gap subagents reviewed the 
 - "Prisma generates snake_case SQL column names" — false; Prisma generates camelCase aliases without `@map` annotations, matching the TypeScript field names. No change needed.
 - "`toS16` should be gated like other sections" — false; the spec's "Always" constraint explicitly requires `s16` to be unconditionally present as per-field filtering, not section-level gating. No change needed.
 
+### Round 2 patches (blind-hunter / edge-case-hunter / verification-gap / acceptance-auditor; committed post-review)
+
+1. **`s16` type non-optional** — `ProfileResponse` declared `s16?: S16CustomField[]`; Design Note requires the key always present. Fixed: changed to `s16: S16CustomField[]`; initialized `response` as `{ s16: [] }` so TypeScript enforces the invariant at compile time.
+2. **`canSeeCustomField` module-level export** — spec Design Note states "other Epic-2 surfaces (list engine, export) import and call it directly." The private class method prevented that. Fixed: extracted to `export function canSeeCustomField(...)` at module level; `toS16` calls it directly (no `this.`).
+3. **PP e2e EMPLOYEE-visibility assertion missing** — `test/profile.e2e-spec.ts` PP test verified `Internal Grade` and `Office Location` but omitted `Bio` (EMPLOYEE-visibility), leaving the EMPLOYEE_FIELD_MANAGER matrix cell unverified for the PP audience. Fixed: added `expect(s16Names).toContain('Bio')`.
+4. **Narrowed Project-line e2e EMPLOYEE+COLLEAGUE assertions missing** — narrowed Project-line test only asserted `Internal Grade`; `Bio` (EMPLOYEE) and `Office Location` (COLLEAGUE) were missing despite management audience seeing all three tiers. Fixed: added both assertions.
+5. **Dead `s16` parse undocumented** — `parseSectionAccessGroup` parsed `s16` without any inline explanation; a reader would not know why a parsed value is never read. Fixed: added inline comment at `profile.ports.ts` explaining the parse is for interface symmetry and that S16 uses `canSeeCustomField()` per-field filtering, not section-level gating.
+
+### Round 2 dismissals (13 total)
+
+Key dismissals with rationale:
+- Full-profile-access / shared-link audience branches not covered — those branches don't exist yet; TypeScript enforces `customFieldAudienceLevel` at compile time when added.
+- `parseSectionAccess(undefined)` safety — line 59 of `profile.ports.ts` safely returns `{ level: 'None' }` for non-object inputs; no runtime risk.
+- No section-level S16 gate for Colleague — intentional per spec "Always" constraint; per-field `canSeeCustomField()` IS the gate for S16.
+- `isActive`/`visibility` DB index missing — filtering is in-memory TypeScript after Prisma loads all values for a person; no query-time index needed.
+
 ## Suggested Review Order
 
 **Visibility policy — the core enforcement logic**
 
-- Pure gate function: fail-closed switch maps `COLLEAGUE`/`EMPLOYEE`/`MANAGEMENT` → audience level
-  [`profile.service.ts:334`](../../services/people-service/src/modules/profile/profile.service.ts#L334)
+- Pure gate function: fail-closed switch maps `COLLEAGUE`/`EMPLOYEE`/`MANAGEMENT` → audience level (module-level export — round-2 patch)
+  [`profile.service.ts:123`](../../services/people-service/src/modules/profile/profile.service.ts#L123)
 
 - Audience-level resolution: Self→`employee`, Manager/PP→`management`, Colleague→`colleague`
   [`profile.service.ts:245`](../../services/people-service/src/modules/profile/profile.service.ts#L245)

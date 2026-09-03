@@ -132,7 +132,7 @@ describe('ProfileService', () => {
       projectName: 'Project Alpha',
     });
     // SELF S16: management field absent; employee + colleague fields present
-    const s16FieldIds = result.s16!.map((f) => f.fieldId);
+    const s16FieldIds = result.s16.map((f) => f.fieldId);
     expect(s16FieldIds).not.toContain(MGMT_FIELD_ID);
     expect(s16FieldIds).toContain(EMPLOYEE_FIELD_ID);
     expect(s16FieldIds).toContain(COLLEAGUE_FIELD_ID);
@@ -172,7 +172,7 @@ describe('ProfileService', () => {
     expect(result.s11![0]).toHaveProperty('role', 'Member');
     expect(result.s11![0]).toHaveProperty('projectName', 'Project Alpha');
     // MANAGER S16: management audience sees all three visibility tiers
-    const s16FieldIds = result.s16!.map((f) => f.fieldId);
+    const s16FieldIds = result.s16.map((f) => f.fieldId);
     expect(s16FieldIds).toContain(MGMT_FIELD_ID);
     expect(s16FieldIds).toContain(EMPLOYEE_FIELD_ID);
     expect(s16FieldIds).toContain(COLLEAGUE_FIELD_ID);
@@ -200,7 +200,7 @@ describe('ProfileService', () => {
     expect(result.s10![0]).toHaveProperty('leaveType', 'vacation');
     expect(result.s11![0]).toHaveProperty('role', 'Member');
     // Project-line DM/PM gets management-level S16 access
-    const s16FieldIds = result.s16!.map((f) => f.fieldId);
+    const s16FieldIds = result.s16.map((f) => f.fieldId);
     expect(s16FieldIds).toContain(MGMT_FIELD_ID);
   });
 
@@ -231,7 +231,7 @@ describe('ProfileService', () => {
     expect(result.s11![0]).not.toHaveProperty('startDate');
     expect(result.s11![0]).not.toHaveProperty('endDate');
     // MANAGEMENT_FIELD_COLLEAGUE: management field absent, s16 is non-null (array)
-    const s16FieldIds = result.s16!.map((f) => f.fieldId);
+    const s16FieldIds = result.s16.map((f) => f.fieldId);
     expect(s16FieldIds).not.toContain(MGMT_FIELD_ID);
     // EMPLOYEE_FIELD_COLLEAGUE: employee field absent
     expect(s16FieldIds).not.toContain(EMPLOYEE_FIELD_ID);
@@ -485,7 +485,7 @@ describe('ProfileService', () => {
     expect(result.s10![0]).toHaveProperty('leaveType', 'vacation');
     expect(result.s11![0]).toHaveProperty('role', 'Member');
     // PP sees all S16 fields (management audience level)
-    const s16FieldIds = result.s16!.map((f) => f.fieldId);
+    const s16FieldIds = result.s16.map((f) => f.fieldId);
     expect(s16FieldIds).toContain(MGMT_FIELD_ID);
     expect(s16FieldIds).toContain(COLLEAGUE_FIELD_ID);
   });
@@ -693,7 +693,7 @@ describe('ProfileService', () => {
     const result = await service.getProfile(SUBJECT_ID, SUBJECT_ID);
 
     expect(result.s16).toHaveLength(1);
-    expect(result.s16![0]).toMatchObject({
+    expect(result.s16[0]).toMatchObject({
       fieldId: EMPLOYEE_FIELD_ID,
       value: 'employee-value',
     });

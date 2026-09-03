@@ -79,6 +79,8 @@ export function parseAccessRoleResolution(raw: unknown): AccessRoleResolution {
       s2: parseSectionAccess(o['s2']),
       s10: parseSectionAccess(o['s10']),
       s11: parseSectionAccess(o['s11']),
+      // s16 is parsed for interface symmetry but is intentionally not consumed by ProfileService:
+      // S16 uses per-field canSeeCustomField() filtering, not section-level gating.
       s16: parseSectionAccess(o['s16']),
     };
   };
