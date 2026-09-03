@@ -175,6 +175,7 @@ export class ProfileService {
               },
             },
           },
+          orderBy: { definition: { name: 'asc' } },
         },
       },
     });

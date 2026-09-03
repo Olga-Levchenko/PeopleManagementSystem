@@ -2,7 +2,7 @@
 title: 'Story 1.10: Custom field visibility enforcement'
 type: 'feature'
 created: '2026-09-03'
-status: 'in-progress'
+status: 'done'
 review_loop_iteration: 0
 baseline_commit: 'da52e2f'
 context:
@@ -83,3 +83,71 @@ context:
 - `cd services/people-service && node node_modules/jest-cli/bin/jest.js "profile.service.spec" --no-coverage` — expected: all unit tests pass including new S16 visibility assertions and updated key-set check
 - `cd services/people-service && node node_modules/jest-cli/bin/jest.js "profile.e2e-spec" --no-coverage` — expected: all e2e tests pass including colleague key-set and S16 field-restriction spot-checks
 - `cd services/people-service && npm run lint` — expected: no lint errors
+
+## Review Findings
+
+Three blind-hunter / edge-case-hunter / verification-gap subagents reviewed the implementation after the initial commit (`96b6854`). Findings classified as patch, defer, or reject.
+
+### Patches applied (committed separately)
+
+1. **Non-deterministic `customFieldValues` order** — `profile.service.ts` Prisma select had no `orderBy`; result order was DB-internal and test-unstable. Fixed: added `orderBy: { definition: { name: 'asc' } }` to the select.
+2. **EMPLOYEE-visibility field missing from e2e** — `seedSubject` only had MANAGEMENT + COLLEAGUE fields; the EMPLOYEE tier was exercised only in unit tests. Fixed: added `Bio` (EMPLOYEE, active) definition + value; Self, Manager, and Colleague assertions updated.
+3. **`isActive: false` not exercised in e2e** — inactive filtering was verified only in unit tests. Fixed: added `Deprecated Field` (COLLEAGUE, inactive) definition + value; all audience assertions extended to assert absence.
+
+### Deferred (logged to `deferred-work.md`)
+
+- `fieldType` column missing from `CustomFieldDefinition` — type coercion is out of scope for this story.
+- `createdAt`/`updatedAt` timestamps missing from both models — no audit/diff feature exists yet.
+- Unique name constraint on `CustomFieldDefinition.name` — no write path exists yet to enforce it.
+- `CustomFieldValueRow` is module-private — exportability deferred until a second consumer needs it.
+- Migration rollback: no explicit down SQL — standard Prisma behavior, acceptable for now.
+- Empty-string `value` passes filtering unchanged — write validation is out of scope for this story.
+- Dead `s16` parse in `parseSectionAccessGroup` — parsed for interface symmetry; value never read at runtime; document or remove when design is stable.
+- Narrowed-Project-line `isColleague: false` path not explicitly asserted — test is correct, assertion intent could be made more explicit.
+
+### Rejects (false positives)
+
+- "Prisma generates snake_case SQL column names" — false; Prisma generates camelCase aliases without `@map` annotations, matching the TypeScript field names. No change needed.
+- "`toS16` should be gated like other sections" — false; the spec's "Always" constraint explicitly requires `s16` to be unconditionally present as per-field filtering, not section-level gating. No change needed.
+
+## Suggested Review Order
+
+**Visibility policy — the core enforcement logic**
+
+- Pure gate function: fail-closed switch maps `COLLEAGUE`/`EMPLOYEE`/`MANAGEMENT` → audience level
+  [`profile.service.ts:334`](../../services/people-service/src/modules/profile/profile.service.ts#L334)
+
+- Audience-level resolution: Self→`employee`, Manager/PP→`management`, Colleague→`colleague`
+  [`profile.service.ts:245`](../../services/people-service/src/modules/profile/profile.service.ts#L245)
+
+- `toS16` assembler: unconditional `s16`, filters by `isActive` + `canSeeCustomField`
+  [`profile.service.ts:352`](../../services/people-service/src/modules/profile/profile.service.ts#L352)
+
+- Unconditional `response.s16` assignment in `getProfile` — differs from S2 section-level gating
+  [`profile.service.ts:210`](../../services/people-service/src/modules/profile/profile.service.ts#L210)
+
+**Data model**
+
+- `CustomFieldVisibility` enum, `CustomFieldDefinition`, `CustomFieldValue` models; inverse on `Person`
+  [`schema.prisma:161`](../../services/people-service/prisma/schema.prisma#L161)
+
+- Migration DDL: enum type, two tables, FK constraints, unique index
+  [`migration.sql:1`](../../services/people-service/prisma/migrations/20260903103247_add_custom_field_definition_value/migration.sql#L1)
+
+**Interface extensions**
+
+- `S16CustomField` type; `s16` added to `managerSectionAccess`/`peoplePartnerSectionAccess`; `parseSectionAccess(o['s16'])` parse (returns None — dead at runtime but keeps interface symmetric)
+  [`profile.ports.ts:26`](../../services/people-service/src/modules/profile/profile.ports.ts#L26)
+
+**Prisma select extension**
+
+- `customFieldValues` select with deterministic `orderBy: { definition: { name: 'asc' } }` (patch: review finding 1)
+  [`profile.service.ts:166`](../../services/people-service/src/modules/profile/profile.service.ts#L166)
+
+**Tests**
+
+- Unit: all three visibility tiers + inactive + unrecognised-visibility (fail-closed) assertions; key-set includes `s16`
+  [`profile.service.spec.ts:17`](../../services/people-service/src/modules/profile/__tests__/profile.service.spec.ts#L17)
+
+- E2e: four-field `seedSubject` (MANAGEMENT, EMPLOYEE, COLLEAGUE, inactive COLLEAGUE); per-audience assertions covering all 9 matrix scenarios
+  [`profile.e2e-spec.ts:189`](../../services/people-service/test/profile.e2e-spec.ts#L189)

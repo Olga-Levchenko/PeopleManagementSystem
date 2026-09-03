@@ -189,16 +189,17 @@ describe('Profile (e2e)', () => {
         },
       });
 
-      // S16: one MANAGEMENT-visibility field and one COLLEAGUE-visibility field.
-      // Used to verify per-field filtering -- management field should appear only for Manager/PP
-      // audiences and be absent for Colleague and Self (management fields are not for the subject
-      // about themselves per the S16 matrix row).
+      // S16: three visibility tiers + one inactive definition to exercise all filtering paths
+      // against real Postgres + real CustomFieldVisibility enum deserialization.
       const mgmtFieldDef = await prisma.customFieldDefinition.create({
         data: {
           name: 'Internal Grade',
           visibility: 'MANAGEMENT',
           isActive: true,
         },
+      });
+      const employeeFieldDef = await prisma.customFieldDefinition.create({
+        data: { name: 'Bio', visibility: 'EMPLOYEE', isActive: true },
       });
       const colleagueFieldDef = await prisma.customFieldDefinition.create({
         data: {
@@ -207,19 +208,36 @@ describe('Profile (e2e)', () => {
           isActive: true,
         },
       });
-      await prisma.customFieldValue.create({
+      const inactiveFieldDef = await prisma.customFieldDefinition.create({
         data: {
-          personId: subject.id,
-          definitionId: mgmtFieldDef.id,
-          value: 'Senior',
+          name: 'Deprecated Field',
+          visibility: 'COLLEAGUE',
+          isActive: false,
         },
       });
-      await prisma.customFieldValue.create({
-        data: {
-          personId: subject.id,
-          definitionId: colleagueFieldDef.id,
-          value: 'Kyiv office',
-        },
+      await prisma.customFieldValue.createMany({
+        data: [
+          {
+            personId: subject.id,
+            definitionId: mgmtFieldDef.id,
+            value: 'Senior',
+          },
+          {
+            personId: subject.id,
+            definitionId: employeeFieldDef.id,
+            value: 'Experienced dev',
+          },
+          {
+            personId: subject.id,
+            definitionId: colleagueFieldDef.id,
+            value: 'Kyiv office',
+          },
+          {
+            personId: subject.id,
+            definitionId: inactiveFieldDef.id,
+            value: 'old value',
+          },
+        ],
       });
     }
 
@@ -254,11 +272,15 @@ describe('Profile (e2e)', () => {
     expect(body.s11).toHaveLength(1);
     expect(body.s11[0]).toHaveProperty('projectName', 'Project Beta');
     expect(body.s11[0]).toHaveProperty('role', 'Developer');
-    // MANAGEMENT_FIELD_SELF: management-visibility field absent for Self
     const s16Names = body.s16.map((f) => f.name);
+    // MANAGEMENT_FIELD_SELF: management-visibility field absent for Self audience
     expect(s16Names).not.toContain('Internal Grade');
+    // EMPLOYEE_FIELD_SELF: employee-visibility field present for Self audience
+    expect(s16Names).toContain('Bio');
     // COLLEAGUE_FIELD_ALL: colleague-visibility field present for Self
     expect(s16Names).toContain('Office Location');
+    // INACTIVE_DEFINITION: inactive definition absent regardless of audience
+    expect(s16Names).not.toContain('Deprecated Field');
   });
 
   it('Reporting line: ReadWrite s1 / Read s2 / Read s10/s11 -> all four sections + s16 present; both management and colleague fields visible', async () => {
@@ -300,10 +322,14 @@ describe('Profile (e2e)', () => {
     // Manager sees full S11 with role
     expect(body.s11[0]).toHaveProperty('projectName', 'Project Beta');
     expect(body.s11[0]).toHaveProperty('role', 'Developer');
-    // MANAGEMENT_FIELD_MANAGER: management audience sees both management and colleague fields
+    // MANAGEMENT_FIELD_MANAGER: management audience sees all three visibility tiers
     const s16Names = body.s16.map((f) => f.name);
     expect(s16Names).toContain('Internal Grade');
+    // EMPLOYEE_FIELD_MANAGER: employee-visibility field present for management audience
+    expect(s16Names).toContain('Bio');
     expect(s16Names).toContain('Office Location');
+    // INACTIVE_DEFINITION: inactive definition absent for management audience too
+    expect(s16Names).not.toContain('Deprecated Field');
   });
 
   it('PP line: peoplePartnerLine true with ReadWrite s1/s2 and Read s10/s11 -> all four sections + s16 present; management field visible', async () => {
@@ -465,11 +491,15 @@ describe('Profile (e2e)', () => {
     expect(body.s11[0]).not.toHaveProperty('role');
     expect(body.s11[0]).not.toHaveProperty('startDate');
     expect(body.s11[0]).not.toHaveProperty('endDate');
-    // MANAGEMENT_FIELD_COLLEAGUE: management field absent from s16
     const s16Names = body.s16.map((f) => f.name);
+    // MANAGEMENT_FIELD_COLLEAGUE: management field absent from s16
     expect(s16Names).not.toContain('Internal Grade');
+    // EMPLOYEE_FIELD_COLLEAGUE: employee-visibility field absent for Colleague audience
+    expect(s16Names).not.toContain('Bio');
     // COLLEAGUE_FIELD_ALL: colleague-visibility field present in s16
     expect(s16Names).toContain('Office Location');
+    // INACTIVE_DEFINITION: inactive definition absent for all audiences
+    expect(s16Names).not.toContain('Deprecated Field');
   });
 
   it('EMPTY_RECORDS: subject with no leaves, assignments, or custom field values -> s10:[], s11:[], s16:[] all present as empty arrays for Colleague', async () => {
