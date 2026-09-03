@@ -372,6 +372,7 @@ public sealed class FunctionalRoleAdministrationService
         string correlationId,
         CancellationToken cancellationToken)
     {
+        ValidateRoleKey(roleKey);
         string? normalizedScope = PermissionScopeValidator.ValidateAndNormalize(permissionKey, scope);
         await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
             await BeginAdministrationTransactionAsync(actorPersonId, cancellationToken);
@@ -531,6 +532,7 @@ public sealed class FunctionalRoleAdministrationService
         string correlationId,
         CancellationToken cancellationToken)
     {
+        ValidateRoleKey(roleKey);
         await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
             await BeginAdministrationTransactionAsync(actorPersonId, cancellationToken);
         await LockFunctionalRoleAsync(roleKey, cancellationToken);

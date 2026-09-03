@@ -428,6 +428,136 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task SuccessfulMutations_AuditCompletePayloadIsPersistedExactlyOnce()
+    {
+        Guid actorPersonId = FixtureSeedData.ExecutiveId;
+        const string correlationPrefix = "complete-audit-payload-";
+        DateTime startedAtUtc = DateTime.UtcNow;
+
+        FunctionalRole role = await service.CreateRoleAsync(
+            actorPersonId,
+            "complete-audit-role",
+            "Complete Audit Role",
+            correlationPrefix + "create",
+            null,
+            CancellationToken.None);
+        await service.UpdateRoleAsync(
+            actorPersonId,
+            role.RoleKey,
+            "Updated Complete Audit Role",
+            correlationPrefix + "update",
+            CancellationToken.None);
+        FunctionalRolePermissionGrant grant = await service.GrantPermissionAsync(
+            actorPersonId,
+            role.RoleKey,
+            PermissionCatalogue.CREATE_ACTION_ITEMS,
+            null,
+            correlationPrefix + "grant",
+            null,
+            CancellationToken.None);
+        await service.RevokePermissionAsync(
+            actorPersonId,
+            role.RoleKey,
+            PermissionCatalogue.CREATE_ACTION_ITEMS,
+            null,
+            correlationPrefix + "revoke",
+            CancellationToken.None);
+        AssignmentOperationResult assignment = await service.AssignRoleAsync(
+            actorPersonId,
+            FixtureSeedData.EngineerId,
+            role.RoleKey,
+            correlationPrefix + "assignment-create",
+            null,
+            CancellationToken.None);
+        await service.RevokeRoleAsync(
+            actorPersonId,
+            FixtureSeedData.EngineerId,
+            role.RoleKey,
+            correlationPrefix + "assignment-revoke",
+            CancellationToken.None);
+        await service.DeactivateRoleAsync(
+            actorPersonId,
+            role.RoleKey,
+            "complete audit payload",
+            correlationPrefix + "deactivate",
+            CancellationToken.None);
+
+        AuthorizationAdministrationAudit[] audits = await dbContext
+            .AuthorizationAdministrationAudits
+            .Where(audit => audit.CorrelationId.StartsWith(correlationPrefix))
+            .OrderBy(audit => audit.CorrelationId)
+            .ToArrayAsync();
+
+        Assert.Equal(7, audits.Length);
+        Assert.Equal(7, audits.Select(audit => audit.Action).Distinct().Count());
+        foreach (AuthorizationAdministrationAudit audit in audits)
+        {
+            Assert.Equal(actorPersonId, audit.ActorPersonId);
+            Assert.NotNull(audit.TargetId);
+            Assert.NotEqual(Guid.Empty, audit.TargetId);
+            Assert.NotEqual(default, audit.OccurredAtUtc);
+            Assert.InRange(audit.OccurredAtUtc, startedAtUtc, DateTime.UtcNow);
+        }
+
+        AuthorizationAdministrationAudit roleCreate = audits.Single(
+            audit => audit.Action == "role-create");
+        Assert.Equal(correlationPrefix + "create", roleCreate.CorrelationId);
+        Assert.Equal("functional-role", roleCreate.TargetType);
+        Assert.Equal(role.Id, roleCreate.TargetId);
+        Assert.Null(roleCreate.Before);
+        Assert.NotNull(roleCreate.After);
+
+        AuthorizationAdministrationAudit roleUpdate = audits.Single(
+            audit => audit.Action == "role-update");
+        Assert.Equal(correlationPrefix + "update", roleUpdate.CorrelationId);
+        Assert.Equal(role.Id, roleUpdate.TargetId);
+        Assert.NotEqual(roleUpdate.Before, roleUpdate.After);
+
+        AuthorizationAdministrationAudit grantAudit = audits.Single(
+            audit => audit.Action == "permission-grant");
+        Assert.Equal(correlationPrefix + "grant", grantAudit.CorrelationId);
+        Assert.Equal(grant.Id, grantAudit.TargetId);
+        Assert.Equal("functional-role-permission-grant", grantAudit.TargetType);
+        Assert.Equal(PermissionCatalogue.CREATE_ACTION_ITEMS, grantAudit.PermissionKey);
+        Assert.Null(grantAudit.Scope);
+        Assert.Null(grantAudit.Before);
+        Assert.NotNull(grantAudit.After);
+
+        AuthorizationAdministrationAudit revokeAudit = audits.Single(
+            audit => audit.Action == "permission-revoke");
+        Assert.Equal(correlationPrefix + "revoke", revokeAudit.CorrelationId);
+        Assert.Equal(grant.Id, revokeAudit.TargetId);
+        Assert.Equal(PermissionCatalogue.CREATE_ACTION_ITEMS, revokeAudit.PermissionKey);
+        Assert.Null(revokeAudit.Scope);
+        Assert.NotNull(revokeAudit.Before);
+        Assert.Null(revokeAudit.After);
+
+        AuthorizationAdministrationAudit assignmentCreate = audits.Single(
+            audit => audit.Action == "assignment-create");
+        Assert.Equal(correlationPrefix + "assignment-create", assignmentCreate.CorrelationId);
+        Assert.Equal(assignment.Assignment.Id, assignmentCreate.TargetId);
+        Assert.Equal("person-functional-role-assignment", assignmentCreate.TargetType);
+        Assert.Null(assignmentCreate.Before);
+        Assert.NotNull(assignmentCreate.After);
+
+        AuthorizationAdministrationAudit assignmentRevoke = audits.Single(
+            audit => audit.Action == "assignment-revoke");
+        Assert.Equal(correlationPrefix + "assignment-revoke", assignmentRevoke.CorrelationId);
+        Assert.Equal(assignment.Assignment.Id, assignmentRevoke.TargetId);
+        Assert.NotNull(assignmentRevoke.Before);
+        Assert.NotNull(assignmentRevoke.After);
+        Assert.NotEqual(assignmentRevoke.Before, assignmentRevoke.After);
+
+        AuthorizationAdministrationAudit roleDeactivate = audits.Single(
+            audit => audit.Action == "role-deactivate");
+        Assert.Equal(correlationPrefix + "deactivate", roleDeactivate.CorrelationId);
+        Assert.Equal(role.Id, roleDeactivate.TargetId);
+        Assert.NotNull(roleDeactivate.Before);
+        Assert.NotNull(roleDeactivate.After);
+        Assert.NotEqual(roleDeactivate.Before, roleDeactivate.After);
+    }
+
+    [Fact]
     public async Task ScopedAdministrationGrant_DoesNotProtectFinalAdministrator()
     {
         FunctionalRole role = await service.CreateRoleAsync(
@@ -552,6 +682,42 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
                 "hr-admin",
                 "unknown-person-revoke",
                 CancellationToken.None));
+
+        Assert.Equal(
+            auditCountBefore,
+            await dbContext.AuthorizationAdministrationAudits.CountAsync());
+    }
+
+    [Theory]
+    [InlineData("invalid role", false)]
+    [InlineData("invalid role", true)]
+    public async Task RevokeOperations_WithMalformedRoleKey_ReturnValidationError(
+        string roleKey,
+        bool revokeAssignment)
+    {
+        int auditCountBefore = await dbContext.AuthorizationAdministrationAudits.CountAsync();
+
+        if (revokeAssignment)
+        {
+            await Assert.ThrowsAsync<ValidationException>(() =>
+                service.RevokeRoleAsync(
+                    FixtureSeedData.ExecutiveId,
+                    FixtureSeedData.EngineerId,
+                    roleKey,
+                    "invalid-role-key",
+                    CancellationToken.None));
+        }
+        else
+        {
+            await Assert.ThrowsAsync<ValidationException>(() =>
+                service.RevokePermissionAsync(
+                    FixtureSeedData.ExecutiveId,
+                    roleKey,
+                    PermissionCatalogue.CREATE_ACTION_ITEMS,
+                    null,
+                    "invalid-role-key",
+                    CancellationToken.None));
+        }
 
         Assert.Equal(
             auditCountBefore,
@@ -1054,6 +1220,35 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
             .ToListAsync());
     }
 
+    [Theory]
+    [InlineData(false, RecoveryProvisioningStatus.Unauthorized)]
+    [InlineData(true, RecoveryProvisioningStatus.Unavailable)]
+    public async Task Recovery_DeniedOrUnavailableFailsBeforeResolutionOrWrites(
+        bool unavailable,
+        RecoveryProvisioningStatus expectedStatus)
+    {
+        int assignmentCount = await dbContext.PersonFunctionalRoleAssignments.CountAsync();
+        int auditCount = await dbContext.AuthorizationAdministrationAudits.CountAsync();
+        FunctionalRoleRecoveryService recovery = new(
+            dbContext,
+            new StubRecoveryAuthorizer(
+                unavailable
+                    ? new DeploymentRecoveryAuthorization.Unavailable()
+                    : new DeploymentRecoveryAuthorization.Denied()),
+            new ThrowingPrincipalResolver(),
+            reconciliationService);
+
+        RecoveryProvisioningResult result =
+            await recovery.RecoverBootstrapAdministratorAsync(
+                new DeploymentAuthenticatedRecoveryRequest("trusted-recovery-sub"),
+                "recovery-denied",
+                CancellationToken.None);
+
+        Assert.Equal(expectedStatus, result.Status);
+        Assert.Equal(assignmentCount, await dbContext.PersonFunctionalRoleAssignments.CountAsync());
+        Assert.Equal(auditCount, await dbContext.AuthorizationAdministrationAudits.CountAsync());
+    }
+
     [Fact]
     public async Task BootstrapProvisioning_ConcurrentCallsCreateOneAssignmentAndAudit()
     {
@@ -1403,6 +1598,29 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
     private FunctionalRoleBootstrapProvisioningService CreateProvisioning(
         PrincipalPersonResolution resolution) =>
         new(dbContext, new StubPrincipalResolver(resolution), reconciliationService);
+
+    private sealed class StubRecoveryAuthorizer : IDeploymentRecoveryAuthorizer
+    {
+        private readonly DeploymentRecoveryAuthorization authorization;
+
+        public StubRecoveryAuthorizer(DeploymentRecoveryAuthorization authorization)
+        {
+            this.authorization = authorization;
+        }
+
+        public Task<DeploymentRecoveryAuthorization> AuthorizeAsync(
+            DeploymentAuthenticatedRecoveryRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(authorization);
+    }
+
+    private sealed class ThrowingPrincipalResolver : IPrincipalPersonResolver
+    {
+        public Task<PrincipalPersonResolution> ResolvePersonAsync(
+            string principalSub,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Recovery must authorize before resolution.");
+    }
 
     private sealed class StubPrincipalResolver : IPrincipalPersonResolver
     {

@@ -281,19 +281,26 @@ public sealed class FunctionalRolesController : ControllerBase
     {
         try
         {
-            TrustedServicePrincipalAuthorization authorization =
+            TrustedPermissionCheckAuthorization authorization =
                 await trustedServicePrincipalAuthorizer.AuthorizeAsync(cancellationToken);
-            if (authorization == TrustedServicePrincipalAuthorization.Unavailable)
+            if (authorization is TrustedPermissionCheckAuthorization.Unavailable)
             {
                 throw new ServiceUnavailableException();
             }
 
-            if (authorization == TrustedServicePrincipalAuthorization.Unauthorized)
+            if (authorization is TrustedPermissionCheckAuthorization.Unauthorized)
             {
                 throw new UnauthorizedException();
             }
 
-            Guid actor = await ResolveActorAsync(cancellationToken);
+            if (authorization is not TrustedPermissionCheckAuthorization.Authorized authorized)
+            {
+                throw new UnauthorizedException();
+            }
+
+            Guid actor = await ResolveDelegatedActorAsync(
+                authorized.Context,
+                cancellationToken);
             bool granted = await service.CheckPermissionAsync(
                 actor, request.PermissionKey, ScopeText(request.Scope), cancellationToken);
             return Ok(new PermissionCheckResponse(granted));
@@ -325,6 +332,29 @@ public sealed class FunctionalRolesController : ControllerBase
             PrincipalPersonResolution.Unavailable => throw new ServiceUnavailableException(),
             PrincipalPersonResolution.Ambiguous => throw new ServiceUnavailableException(),
             _ => throw new ServiceUnavailableException(),
+        };
+    }
+
+    private async Task<Guid> ResolveDelegatedActorAsync(
+        TrustedPermissionCheckContext context,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(context.ServiceIdentity) ||
+            string.IsNullOrWhiteSpace(context.DelegatedActorSub))
+        {
+            throw new UnauthorizedException();
+        }
+
+        PrincipalPersonResolution resolution =
+            await principalResolver.ResolvePersonAsync(
+                context.DelegatedActorSub,
+                cancellationToken);
+        return resolution switch
+        {
+            PrincipalPersonResolution.Resolved resolved => resolved.PersonId,
+            PrincipalPersonResolution.Unavailable => throw new ServiceUnavailableException(),
+            PrincipalPersonResolution.Ambiguous => throw new UnauthorizedException(),
+            _ => throw new UnauthorizedException(),
         };
     }
 

@@ -63,6 +63,10 @@ builder.Services.AddScoped<IPrincipalPersonResolver, UnavailablePrincipalPersonR
 builder.Services.AddScoped<
     IBootstrapProvisioningService,
     FunctionalRoleBootstrapProvisioningService>();
+builder.Services.AddScoped<IBootstrapRecoveryService, FunctionalRoleRecoveryService>();
+builder.Services.AddScoped<
+    IDeploymentRecoveryAuthorizer,
+    UnavailableDeploymentRecoveryAuthorizer>();
 builder.Services.AddScoped<
     ITrustedServicePrincipalAuthorizer,
     UnavailableTrustedServicePrincipalAuthorizer>();

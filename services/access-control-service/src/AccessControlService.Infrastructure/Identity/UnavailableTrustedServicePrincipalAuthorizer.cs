@@ -4,7 +4,8 @@ namespace AccessControlService.Infrastructure.Identity;
 
 public sealed class UnavailableTrustedServicePrincipalAuthorizer : ITrustedServicePrincipalAuthorizer
 {
-    public Task<TrustedServicePrincipalAuthorization> AuthorizeAsync(
+    public Task<TrustedPermissionCheckAuthorization> AuthorizeAsync(
         CancellationToken cancellationToken = default) =>
-        Task.FromResult(TrustedServicePrincipalAuthorization.Unavailable);
+        Task.FromResult<TrustedPermissionCheckAuthorization>(
+            new TrustedPermissionCheckAuthorization.Unavailable());
 }

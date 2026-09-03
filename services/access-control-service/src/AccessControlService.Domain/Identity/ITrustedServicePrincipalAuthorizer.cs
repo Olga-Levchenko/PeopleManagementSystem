@@ -2,13 +2,20 @@ namespace AccessControlService.Domain.Identity;
 
 public interface ITrustedServicePrincipalAuthorizer
 {
-    Task<TrustedServicePrincipalAuthorization> AuthorizeAsync(
+    Task<TrustedPermissionCheckAuthorization> AuthorizeAsync(
         CancellationToken cancellationToken = default);
 }
 
-public enum TrustedServicePrincipalAuthorization
+public sealed record TrustedPermissionCheckContext(
+    string ServiceIdentity,
+    string DelegatedActorSub);
+
+public abstract record TrustedPermissionCheckAuthorization
 {
-    Authorized,
-    Unauthorized,
-    Unavailable,
+    public sealed record Authorized(TrustedPermissionCheckContext Context)
+        : TrustedPermissionCheckAuthorization;
+
+    public sealed record Unauthorized : TrustedPermissionCheckAuthorization;
+
+    public sealed record Unavailable : TrustedPermissionCheckAuthorization;
 }

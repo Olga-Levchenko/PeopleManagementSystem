@@ -5,6 +5,7 @@ using AccessControlService.Domain.Identity;
 using AccessControlService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
@@ -64,6 +65,7 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
                 services.AddSingleton<IPrincipalPersonResolver, TestPrincipalPersonResolver>();
                 services.RemoveAll<ITrustedServicePrincipalAuthorizer>();
                 services.AddSingleton<ITrustedServicePrincipalAuthorizer, TestTrustedServicePrincipalAuthorizer>();
+                services.AddHttpContextAccessor();
                 services.AddSingleton<IStartupFilter, TestAuthenticationStartupFilter>();
                 services.AddAuthentication(TestAuthenticationHandler.SchemeName)
                     .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(
@@ -259,13 +261,71 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
     [Fact]
     public async Task PermissionCheck_UsesTrustedServicePrincipalAndReturnsDecision()
     {
+        int auditCountBefore = await GetAuditCountAsync();
+        using HttpResponseMessage response = await SendAsync(
+            HttpMethod.Post,
+            "/api/v1/permissions/check",
+            json: """{"permissionKey":"manage-functional-roles-and-permissions","scope":null}""",
+            trustedService: true,
+            delegatedSub: FixtureSeedData.ExecutiveId.ToString());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(
+            "\"granted\":true",
+            await response.Content.ReadAsStringAsync(),
+            StringComparison.OrdinalIgnoreCase);
+
+        using HttpResponseMessage delegatedResponse = await SendAsync(
+            HttpMethod.Post,
+            "/api/v1/permissions/check",
+            json: """{"permissionKey":"manage-functional-roles-and-permissions","scope":null}""",
+            trustedService: true,
+            delegatedSub: FixtureSeedData.EngineerId.ToString());
+
+        Assert.Equal(HttpStatusCode.OK, delegatedResponse.StatusCode);
+        Assert.Contains(
+            "\"granted\":false",
+            await delegatedResponse.Content.ReadAsStringAsync(),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(auditCountBefore, await GetAuditCountAsync());
+    }
+
+    [Fact]
+    public async Task PermissionCheck_WithTrustedServiceButMissingDelegatedActor_ReturnsUnauthorized()
+    {
+        using HttpResponseMessage response = await SendAsync(
+            HttpMethod.Post,
+            "/api/v1/permissions/check",
+            json: """{"permissionKey":"view-dashboard","scope":null}""",
+            trustedService: true);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PermissionCheck_WithTrustedServiceButMalformedDelegatedActor_ReturnsUnauthorized()
+    {
+        using HttpResponseMessage response = await SendAsync(
+            HttpMethod.Post,
+            "/api/v1/permissions/check",
+            json: """{"permissionKey":"view-dashboard","scope":null}""",
+            trustedService: true,
+            delegatedSub: "malformed-delegated-sub");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PermissionCheck_WithEndUserOnlyPrincipal_ReturnsUnauthorized()
+    {
         using HttpResponseMessage response = await SendAsync(
             HttpMethod.Post,
             "/api/v1/permissions/check",
             FixtureSeedData.ExecutiveId,
-            """{"permissionKey":"manage-functional-roles-and-permissions","scope":null}""");
+            """{"permissionKey":"view-dashboard","scope":null}""",
+            delegatedSub: FixtureSeedData.ExecutiveId.ToString());
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
@@ -312,8 +372,9 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
         using HttpResponseMessage response = await SendAsync(
             HttpMethod.Post,
             "/api/v1/permissions/check",
-            FixtureSeedData.ExecutiveId,
-            """{"permissionKey":"view-dashboard","scope":{"dashboardType":"invalid"}}""");
+            json: """{"permissionKey":"view-dashboard","scope":{"dashboardType":"invalid"}}""",
+            trustedService: true,
+            delegatedSub: FixtureSeedData.ExecutiveId.ToString());
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(auditCountBefore, await GetAuditCountAsync());
@@ -362,6 +423,22 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
             FixtureSeedData.ExecutiveId);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RevokeOperations_WithMalformedRoleKey_ReturnBadRequest()
+    {
+        using HttpResponseMessage permissionResponse = await SendAsync(
+            HttpMethod.Delete,
+            "/api/v1/functional-roles/invalid%20role/permissions/create-action-items",
+            FixtureSeedData.ExecutiveId);
+        using HttpResponseMessage assignmentResponse = await SendAsync(
+            HttpMethod.Delete,
+            $"/api/v1/people/{FixtureSeedData.EngineerId}/functional-roles/invalid%20role",
+            FixtureSeedData.ExecutiveId);
+
+        Assert.Equal(HttpStatusCode.BadRequest, permissionResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, assignmentResponse.StatusCode);
     }
 
     [Fact]
@@ -473,12 +550,24 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
         Guid? personId = null,
         string? json = null,
         string? idempotencyKey = null,
-        string? sub = null)
+        string? sub = null,
+        bool trustedService = false,
+        string? delegatedSub = null)
     {
         using HttpRequestMessage request = new(method, path);
         if (personId is not null)
         {
             request.Headers.Add(TEST_SUB_HEADER, sub ?? personId.Value.ToString());
+        }
+
+        if (trustedService)
+        {
+            request.Headers.Add("X-Test-Service", "trusted-test-service");
+        }
+
+        if (delegatedSub is not null)
+        {
+            request.Headers.Add("X-Test-Delegated-Sub", delegatedSub);
         }
 
         if (idempotencyKey is not null)
@@ -549,8 +638,23 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
 
     private sealed class TestTrustedServicePrincipalAuthorizer : ITrustedServicePrincipalAuthorizer
     {
-        public Task<TrustedServicePrincipalAuthorization> AuthorizeAsync(
+        private readonly IHttpContextAccessor httpContextAccessor;
+
+        public TestTrustedServicePrincipalAuthorizer(IHttpContextAccessor httpContextAccessor)
+        {
+            this.httpContextAccessor = httpContextAccessor;
+        }
+
+        public Task<TrustedPermissionCheckAuthorization> AuthorizeAsync(
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(TrustedServicePrincipalAuthorization.Authorized);
+            Task.FromResult<TrustedPermissionCheckAuthorization>(
+                httpContextAccessor.HttpContext?.Request.Headers["X-Test-Service"]
+                    .FirstOrDefault() == "trusted-test-service"
+                    ? new TrustedPermissionCheckAuthorization.Authorized(
+                        new TrustedPermissionCheckContext(
+                            "trusted-test-service",
+                            httpContextAccessor.HttpContext.Request.Headers["X-Test-Delegated-Sub"]
+                                .FirstOrDefault() ?? string.Empty))
+                    : new TrustedPermissionCheckAuthorization.Unauthorized());
     }
 }
