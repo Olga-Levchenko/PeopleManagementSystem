@@ -188,12 +188,45 @@ describe('Profile (e2e)', () => {
           endDate: new Date('2024-06-01T00:00:00.000Z'),
         },
       });
+
+      // S16: one MANAGEMENT-visibility field and one COLLEAGUE-visibility field.
+      // Used to verify per-field filtering -- management field should appear only for Manager/PP
+      // audiences and be absent for Colleague and Self (management fields are not for the subject
+      // about themselves per the S16 matrix row).
+      const mgmtFieldDef = await prisma.customFieldDefinition.create({
+        data: {
+          name: 'Internal Grade',
+          visibility: 'MANAGEMENT',
+          isActive: true,
+        },
+      });
+      const colleagueFieldDef = await prisma.customFieldDefinition.create({
+        data: {
+          name: 'Office Location',
+          visibility: 'COLLEAGUE',
+          isActive: true,
+        },
+      });
+      await prisma.customFieldValue.create({
+        data: {
+          personId: subject.id,
+          definitionId: mgmtFieldDef.id,
+          value: 'Senior',
+        },
+      });
+      await prisma.customFieldValue.create({
+        data: {
+          personId: subject.id,
+          definitionId: colleagueFieldDef.id,
+          value: 'Kyiv office',
+        },
+      });
     }
 
     return { subject, manager, peoplePartner, department };
   }
 
-  it('Self: full s1+s2+s10+s11, resolver never called', async () => {
+  it('Self: full s1+s2+s10+s11+s16, resolver never called; management field absent from s16, colleague field present', async () => {
     const { subject } = await seedSubject();
     currentViewerId = subject.id;
 
@@ -205,23 +238,30 @@ describe('Profile (e2e)', () => {
       's1',
       's10',
       's11',
+      's16',
       's2',
     ]);
     expect(resolveMock).not.toHaveBeenCalled();
-    // Self sees full S10 including leaveType
     const body = res.body as {
       s10: Array<Record<string, unknown>>;
       s11: Array<Record<string, unknown>>;
+      s16: Array<{ fieldId: string; name: string; value: string }>;
     };
+    // Self sees full S10 including leaveType
     expect(body.s10).toHaveLength(1);
     expect(body.s10[0]).toHaveProperty('leaveType', 'vacation');
     // Self sees full S11 including role and dates
     expect(body.s11).toHaveLength(1);
     expect(body.s11[0]).toHaveProperty('projectName', 'Project Beta');
     expect(body.s11[0]).toHaveProperty('role', 'Developer');
+    // MANAGEMENT_FIELD_SELF: management-visibility field absent for Self
+    const s16Names = body.s16.map((f) => f.name);
+    expect(s16Names).not.toContain('Internal Grade');
+    // COLLEAGUE_FIELD_ALL: colleague-visibility field present for Self
+    expect(s16Names).toContain('Office Location');
   });
 
-  it('Reporting line: ReadWrite s1 / Read s2 / Read s10/s11 -> all four sections present with full field data', async () => {
+  it('Reporting line: ReadWrite s1 / Read s2 / Read s10/s11 -> all four sections + s16 present; both management and colleague fields visible', async () => {
     const { subject } = await seedSubject();
     currentViewerId = 'viewer-reporting-line';
     resolveMock.mockResolvedValue({
@@ -232,6 +272,7 @@ describe('Profile (e2e)', () => {
         s2: { level: 'Read' },
         s10: { level: 'Read' },
         s11: { level: 'Read' },
+        s16: { level: 'ReadWrite' },
       },
     });
 
@@ -244,11 +285,13 @@ describe('Profile (e2e)', () => {
       s2: unknown;
       s10: Array<Record<string, unknown>>;
       s11: Array<Record<string, unknown>>;
+      s16: Array<{ fieldId: string; name: string; value: string }>;
     };
     expect(Object.keys(res.body as object).sort()).toEqual([
       's1',
       's10',
       's11',
+      's16',
       's2',
     ]);
     expect(body.s1.manager).toMatchObject({ fullName: 'Manager Testenko' });
@@ -257,9 +300,13 @@ describe('Profile (e2e)', () => {
     // Manager sees full S11 with role
     expect(body.s11[0]).toHaveProperty('projectName', 'Project Beta');
     expect(body.s11[0]).toHaveProperty('role', 'Developer');
+    // MANAGEMENT_FIELD_MANAGER: management audience sees both management and colleague fields
+    const s16Names = body.s16.map((f) => f.name);
+    expect(s16Names).toContain('Internal Grade');
+    expect(s16Names).toContain('Office Location');
   });
 
-  it('PP line: peoplePartnerLine true with ReadWrite s1/s2 and Read s10/s11 -> all four sections present with full field data', async () => {
+  it('PP line: peoplePartnerLine true with ReadWrite s1/s2 and Read s10/s11 -> all four sections + s16 present; management field visible', async () => {
     const { subject } = await seedSubject();
     currentViewerId = 'viewer-pp-line';
     resolveMock.mockResolvedValue({
@@ -275,6 +322,7 @@ describe('Profile (e2e)', () => {
         s2: { level: 'ReadWrite' },
         s10: { level: 'Read' },
         s11: { level: 'Read' },
+        s16: { level: 'ReadWrite' },
       },
     });
 
@@ -287,17 +335,23 @@ describe('Profile (e2e)', () => {
       s2: unknown;
       s10: Array<Record<string, unknown>>;
       s11: Array<Record<string, unknown>>;
+      s16: Array<{ fieldId: string; name: string; value: string }>;
     };
     expect(Object.keys(res.body as object).sort()).toEqual([
       's1',
       's10',
       's11',
+      's16',
       's2',
     ]);
     expect(body.s1.manager).toMatchObject({ fullName: 'Manager Testenko' });
     // PP sees full S10/S11 data (isColleague: false)
     expect(body.s10[0]).toHaveProperty('leaveType', 'vacation');
     expect(body.s11[0]).toHaveProperty('role', 'Developer');
+    // PP gets management-level S16: both management and colleague fields visible
+    const s16Names = body.s16.map((f) => f.name);
+    expect(s16Names).toContain('Internal Grade');
+    expect(s16Names).toContain('Office Location');
   });
 
   it('Narrowed Project line + PP line together: PP is the only line granting S2, must not be dropped by checking Manager first', async () => {
@@ -312,12 +366,14 @@ describe('Profile (e2e)', () => {
         s2: { level: 'None' },
         s10: { level: 'Read' },
         s11: { level: 'Read' },
+        s16: { level: 'ReadWrite' },
       },
       peoplePartnerSectionAccess: {
         s1: { level: 'ReadWrite' },
         s2: { level: 'ReadWrite' },
         s10: { level: 'Read' },
         s11: { level: 'Read' },
+        s16: { level: 'ReadWrite' },
       },
     });
 
@@ -329,11 +385,12 @@ describe('Profile (e2e)', () => {
       's1',
       's10',
       's11',
+      's16',
       's2',
     ]);
   });
 
-  it('Project line only, narrowed: s2 key absent (not null) from the actual JSON, s10/s11 present with full field data', async () => {
+  it('Project line only, narrowed: s2 key absent (not null) from the actual JSON, s10/s11+s16 present with full field data', async () => {
     const { subject } = await seedSubject();
     currentViewerId = 'viewer-project-line';
     resolveMock.mockResolvedValue({
@@ -344,6 +401,7 @@ describe('Profile (e2e)', () => {
         s2: { level: 'None' },
         s10: { level: 'Read' },
         s11: { level: 'Read' },
+        s16: { level: 'ReadWrite' },
       },
     });
 
@@ -354,18 +412,23 @@ describe('Profile (e2e)', () => {
     const body = res.body as {
       s10: Array<Record<string, unknown>>;
       s11: Array<Record<string, unknown>>;
+      s16: Array<{ name: string }>;
     };
     expect(Object.keys(res.body as object).sort()).toEqual([
       's1',
       's10',
       's11',
+      's16',
     ]);
     // Project-line is NOT a Colleague (isColleague: false) -- gets full S10/S11 data
     expect(body.s10[0]).toHaveProperty('leaveType', 'vacation');
     expect(body.s11[0]).toHaveProperty('role', 'Developer');
+    // Project-line DM/PM gets management-level S16 (management audience)
+    const s16Names = body.s16.map((f) => f.name);
+    expect(s16Names).toContain('Internal Grade');
   });
 
-  it('Colleague: neither line qualifies -> exactly s1+s10+s11 (whitelist); s2 absent, leaveType stripped, role/dates stripped', async () => {
+  it('Colleague: neither line qualifies -> exactly s1+s10+s11+s16 (whitelist); s2 absent, leaveType stripped, role/dates stripped; management field absent from s16', async () => {
     const { subject } = await seedSubject();
     currentViewerId = 'viewer-colleague';
     resolveMock.mockResolvedValue({
@@ -378,16 +441,18 @@ describe('Profile (e2e)', () => {
       .get(`/people/${subject.id}/profile`)
       .expect(200);
 
-    // Key-set assertion: exactly s1, s10, s11
+    // COLLEAGUE_WHITELIST_KEYS: exactly s1, s10, s11, s16
     expect(Object.keys(res.body as object).sort()).toEqual([
       's1',
       's10',
       's11',
+      's16',
     ]);
 
     const body = res.body as {
       s10: Array<Record<string, unknown>>;
       s11: Array<Record<string, unknown>>;
+      s16: Array<{ name: string }>;
     };
     // S10: dates present, leaveType absent
     expect(body.s10).toHaveLength(1);
@@ -400,9 +465,14 @@ describe('Profile (e2e)', () => {
     expect(body.s11[0]).not.toHaveProperty('role');
     expect(body.s11[0]).not.toHaveProperty('startDate');
     expect(body.s11[0]).not.toHaveProperty('endDate');
+    // MANAGEMENT_FIELD_COLLEAGUE: management field absent from s16
+    const s16Names = body.s16.map((f) => f.name);
+    expect(s16Names).not.toContain('Internal Grade');
+    // COLLEAGUE_FIELD_ALL: colleague-visibility field present in s16
+    expect(s16Names).toContain('Office Location');
   });
 
-  it('EMPTY_RECORDS: subject with no leaves and no project assignments -> s10:[] and s11:[] both present as empty arrays for Colleague', async () => {
+  it('EMPTY_RECORDS: subject with no leaves, assignments, or custom field values -> s10:[], s11:[], s16:[] all present as empty arrays for Colleague', async () => {
     const { subject } = await seedSubject({}, { seedRecords: false });
     currentViewerId = 'viewer-colleague-empty';
     resolveMock.mockResolvedValue({
@@ -419,16 +489,20 @@ describe('Profile (e2e)', () => {
       's1',
       's10',
       's11',
+      's16',
     ]);
     const body = res.body as {
       s10: unknown[];
       s11: unknown[];
+      s16: unknown[];
     };
     expect(body.s10).toEqual([]);
     expect(body.s11).toEqual([]);
+    // NO_VALUES: s16 always present even when there are no custom field values
+    expect(body.s16).toEqual([]);
   });
 
-  it('Resolver unreachable: resolver rejects/fails closed -> still 200, Colleague whitelist s1+s10+s11, not a 5xx', async () => {
+  it('Resolver unreachable: resolver rejects/fails closed -> still 200, Colleague whitelist s1+s10+s11+s16, not a 5xx', async () => {
     const { subject } = await seedSubject();
     currentViewerId = 'viewer-resolver-down';
     // Matches what HttpAccessRoleResolutionAdapter itself returns after catching a network
@@ -447,6 +521,7 @@ describe('Profile (e2e)', () => {
       's1',
       's10',
       's11',
+      's16',
     ]);
   });
 

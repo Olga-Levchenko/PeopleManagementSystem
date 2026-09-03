@@ -11,8 +11,8 @@ export interface SectionAccess {
 
 /**
  * The subset of access-control-service's `GET /api/v1/access-roles/resolve` response this slice
- * consumes -- only `s1`/`s2`/`s10`/`s11` are read today, but the wire shape carries S1-S16 (see
- * `AccessRolesController.cs`); extra keys are simply ignored by JSON parsing.
+ * consumes -- only `s1`/`s2`/`s10`/`s11`/`s16` are read today, but the wire shape carries S1-S16
+ * (see `AccessRolesController.cs`); extra keys are simply ignored by JSON parsing.
  */
 export interface AccessRoleResolution {
   reportingLine: boolean;
@@ -23,12 +23,14 @@ export interface AccessRoleResolution {
     s2: SectionAccess;
     s10: SectionAccess;
     s11: SectionAccess;
+    s16: SectionAccess;
   } | null;
   peoplePartnerSectionAccess: {
     s1: SectionAccess;
     s2: SectionAccess;
     s10: SectionAccess;
     s11: SectionAccess;
+    s16: SectionAccess;
   } | null;
 }
 
@@ -77,6 +79,7 @@ export function parseAccessRoleResolution(raw: unknown): AccessRoleResolution {
       s2: parseSectionAccess(o['s2']),
       s10: parseSectionAccess(o['s10']),
       s11: parseSectionAccess(o['s11']),
+      s16: parseSectionAccess(o['s16']),
     };
   };
 
@@ -89,6 +92,13 @@ export function parseAccessRoleResolution(raw: unknown): AccessRoleResolution {
       r['peoplePartnerSectionAccess'],
     ),
   };
+}
+
+/** One visible custom field entry surfaced in the S16 section of a profile response. */
+export interface S16CustomField {
+  fieldId: string;
+  name: string;
+  value: string;
 }
 
 export interface AccessRoleResolutionPort {
