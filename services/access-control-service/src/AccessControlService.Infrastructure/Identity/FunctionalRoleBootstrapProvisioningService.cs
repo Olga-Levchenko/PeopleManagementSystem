@@ -3,6 +3,7 @@ using System.Text.Json;
 using AccessControlService.Domain.Identity;
 using AccessControlService.Domain.Permissions;
 using AccessControlService.Infrastructure.Persistence;
+using AccessControlService.Infrastructure.Permissions;
 using Microsoft.EntityFrameworkCore;
 
 namespace AccessControlService.Infrastructure.Identity;
@@ -13,13 +14,16 @@ public sealed class FunctionalRoleBootstrapProvisioningService : IBootstrapProvi
 
     private readonly AccessControlDbContext dbContext;
     private readonly IPrincipalPersonResolver principalResolver;
+    private readonly FunctionalRoleReconciliationService reconciliationService;
 
     public FunctionalRoleBootstrapProvisioningService(
         AccessControlDbContext dbContext,
-        IPrincipalPersonResolver principalResolver)
+        IPrincipalPersonResolver principalResolver,
+        FunctionalRoleReconciliationService reconciliationService)
     {
         this.dbContext = dbContext;
         this.principalResolver = principalResolver;
+        this.reconciliationService = reconciliationService;
     }
 
     public async Task<BootstrapProvisioningResult> ProvisionAsync(
@@ -56,8 +60,10 @@ public sealed class FunctionalRoleBootstrapProvisioningService : IBootstrapProvi
                     IsolationLevel.ReadCommitted,
                     cancellationToken);
 
+            await reconciliationService.ReconcileWithinTransactionAsync(cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
             FunctionalRole? role = await dbContext.FunctionalRoles
-                .AsNoTracking()
                 .SingleOrDefaultAsync(
                     candidate => candidate.RoleKey == SEEDED_ADMINISTRATOR_ROLE_KEY &&
                                  candidate.IsSeeded &&

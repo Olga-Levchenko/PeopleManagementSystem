@@ -20,6 +20,7 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
     private AccessControlDbContext dbContext = null!;
     private DbContextOptions<AccessControlDbContext> dbOptions = null!;
     private FunctionalRoleAdministrationService service = null!;
+    private FunctionalRoleReconciliationService reconciliationService = null!;
 
     public async Task InitializeAsync()
     {
@@ -42,6 +43,7 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
         service = new FunctionalRoleAdministrationService(
             dbContext,
             new UnavailablePrincipalPersonResolver());
+        reconciliationService = new FunctionalRoleReconciliationService(dbContext);
     }
 
     public async Task DisposeAsync()
@@ -519,6 +521,156 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CleanMigration_ContainsCompleteCanonicalCatalogue()
+    {
+        Assert.Equal(PermissionCatalogue.Definitions.Count, await dbContext.Permissions.CountAsync());
+        Assert.Equal(FixtureSeedData.FunctionalRoles.Count, await dbContext.FunctionalRoles.CountAsync());
+        Assert.Equal(
+            FixtureSeedData.FunctionalRolePermissionGrants.Count,
+            await dbContext.FunctionalRolePermissionGrants.CountAsync());
+    }
+
+    [Fact]
+    public async Task Reconciliation_RestoresMissingCanonicalEntriesAndPreservesCustomData()
+    {
+        FunctionalRole customRole = new()
+        {
+            Id = Guid.NewGuid(),
+            RoleKey = "custom-preserved-role",
+            DisplayName = "Custom Preserved Role",
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow,
+        };
+        Permission customPermission = await dbContext.Permissions
+            .SingleAsync(permission => permission.Key == PermissionCatalogue.CREATE_ACTION_ITEMS);
+        FunctionalRolePermissionGrant customGrant = new()
+        {
+            Id = Guid.NewGuid(),
+            FunctionalRoleId = customRole.Id,
+            PermissionId = customPermission.Id,
+            GrantedAtUtc = DateTime.UtcNow,
+        };
+        PersonFunctionalRoleAssignment customAssignment = new()
+        {
+            Id = Guid.NewGuid(),
+            PersonId = FixtureSeedData.EngineerId,
+            FunctionalRoleId = customRole.Id,
+            IsActive = true,
+            AssignedAtUtc = DateTime.UtcNow,
+        };
+        AuthorizationAdministrationAudit customAudit = new()
+        {
+            AuditId = Guid.NewGuid(),
+            Action = "custom-preserved",
+            TargetType = "custom-role",
+            TargetId = customRole.Id,
+            OccurredAtUtc = DateTime.UtcNow,
+            CorrelationId = "custom-preserved-correlation",
+        };
+        dbContext.AddRange(customRole, customGrant, customAssignment, customAudit);
+
+        Permission removedPermission = await dbContext.Permissions
+            .SingleAsync(permission => permission.Key == PermissionCatalogue.RECORD_DEPARTURE);
+        Guid manageDepartmentsPermissionId = (await dbContext.Permissions
+            .SingleAsync(permission => permission.Key == PermissionCatalogue.MANAGE_DEPARTMENTS)).Id;
+        FunctionalRolePermissionGrant removedGrant = await dbContext.FunctionalRolePermissionGrants
+            .SingleAsync(grant => grant.FunctionalRoleId == FixtureSeedData.HrAdminRoleId &&
+                                  grant.PermissionId == manageDepartmentsPermissionId);
+        dbContext.FunctionalRolePermissionGrants.Remove(removedGrant);
+        dbContext.Permissions.Remove(removedPermission);
+        await dbContext.SaveChangesAsync();
+
+        FunctionalRoleReconciliationResult result = await reconciliationService.ReconcileAsync();
+
+        Assert.Equal(1, result.CreatedPermissions);
+        Assert.Equal(1, result.CreatedGrants);
+        Assert.True(await dbContext.Permissions.AnyAsync(
+            permission => permission.Key == PermissionCatalogue.RECORD_DEPARTURE));
+        Assert.True(await dbContext.FunctionalRolePermissionGrants.AnyAsync(
+            grant => grant.FunctionalRoleId == FixtureSeedData.HrAdminRoleId &&
+                     grant.PermissionId == manageDepartmentsPermissionId));
+        Assert.True(await dbContext.FunctionalRoles.AnyAsync(
+            role => role.Id == customRole.Id && role.DisplayName == customRole.DisplayName));
+        Assert.True(await dbContext.FunctionalRolePermissionGrants.AnyAsync(
+            grant => grant.Id == customGrant.Id));
+        Assert.True(await dbContext.PersonFunctionalRoleAssignments.AnyAsync(
+            assignment => assignment.Id == customAssignment.Id));
+        Assert.True(await dbContext.AuthorizationAdministrationAudits.AnyAsync(
+            audit => audit.AuditId == customAudit.AuditId));
+    }
+
+    [Fact]
+    public async Task Reconciliation_IsIdempotentAndDoesNotDuplicateEquivalentScopes()
+    {
+        FunctionalRoleReconciliationResult first = await reconciliationService.ReconcileAsync();
+        FunctionalRoleReconciliationResult second = await reconciliationService.ReconcileAsync();
+
+        Assert.Equal(FunctionalRoleReconciliationStatus.AlreadyPresent, first.Status);
+        Assert.Equal(FunctionalRoleReconciliationStatus.AlreadyPresent, second.Status);
+        int grantCount = await dbContext.FunctionalRolePermissionGrants.CountAsync();
+
+        await service.GrantPermissionAsync(
+            FixtureSeedData.ExecutiveId,
+            "unit-manager",
+            PermissionCatalogue.VIEW_DASHBOARD,
+            """{ "dashboardType": "unit-manager" }""",
+            "equivalent-scope-correlation",
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(grantCount, await dbContext.FunctionalRolePermissionGrants.CountAsync());
+    }
+
+    [Fact]
+    public async Task BootstrapProvisioning_RestoresMissingHrAdminGrantsBeforeAssignment()
+    {
+        dbContext.FunctionalRolePermissionGrants.RemoveRange(
+            await dbContext.FunctionalRolePermissionGrants
+                .Where(grant => grant.FunctionalRoleId == FixtureSeedData.HrAdminRoleId)
+                .ToListAsync());
+        await dbContext.SaveChangesAsync();
+
+        BootstrapProvisioningResult result = await CreateProvisioning(
+            new PrincipalPersonResolution.Resolved(FixtureSeedData.EngineerId)).ProvisionAsync(
+                new BootstrapProvisioningRequest("trusted-bootstrap-sub"),
+                "bootstrap-restores-grants",
+                CancellationToken.None);
+
+        Assert.Equal(BootstrapProvisioningStatus.Provisioned, result.Status);
+        Assert.Equal(
+            5,
+            await dbContext.FunctionalRolePermissionGrants.CountAsync(
+                grant => grant.FunctionalRoleId == FixtureSeedData.HrAdminRoleId));
+        Assert.True(await service.CheckPermissionAsync(
+            FixtureSeedData.EngineerId,
+            PermissionCatalogue.MANAGE_FUNCTIONAL_ROLES_AND_PERMISSIONS,
+            null,
+            CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task BootstrapProvisioning_ReconciliationFailureRollsBackAllChanges()
+    {
+        dbContext.FunctionalRolePermissionGrants.RemoveRange(
+            await dbContext.FunctionalRolePermissionGrants
+                .Where(grant => grant.FunctionalRoleId == FixtureSeedData.HrAdminRoleId)
+                .ToListAsync());
+        await dbContext.SaveChangesAsync();
+        int grantCount = await dbContext.FunctionalRolePermissionGrants.CountAsync();
+        int assignmentCount = await dbContext.PersonFunctionalRoleAssignments.CountAsync();
+
+        BootstrapProvisioningResult result = await CreateProvisioning(
+            new PrincipalPersonResolution.Resolved(FixtureSeedData.EngineerId)).ProvisionAsync(
+                new BootstrapProvisioningRequest("trusted-bootstrap-sub"),
+                new string('c', 101),
+                CancellationToken.None);
+
+        Assert.Equal(BootstrapProvisioningStatus.PersistenceOrAuditFailure, result.Status);
+        Assert.Equal(grantCount, await dbContext.FunctionalRolePermissionGrants.CountAsync());
+        Assert.Equal(assignmentCount, await dbContext.PersonFunctionalRoleAssignments.CountAsync());
+    }
+
+    [Fact]
     public async Task BootstrapProvisioning_DistinguishesUnavailableAndAmbiguousIdentity()
     {
         BootstrapProvisioningResult unavailable = await CreateProvisioning(
@@ -537,24 +689,21 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task BootstrapProvisioning_MissingRoleAndAuditFailureWriteNothing()
+    public async Task BootstrapProvisioning_RestoresInactiveSeededRole()
     {
         FunctionalRole role = await dbContext.FunctionalRoles.SingleAsync(
             candidate => candidate.Id == FixtureSeedData.HrAdminRoleId);
         role.IsActive = false;
         await dbContext.SaveChangesAsync();
-        int assignmentCount = await dbContext.PersonFunctionalRoleAssignments.CountAsync();
-        int auditCount = await dbContext.AuthorizationAdministrationAudits.CountAsync();
-
-        BootstrapProvisioningResult missing = await CreateProvisioning(
+        BootstrapProvisioningResult result = await CreateProvisioning(
             new PrincipalPersonResolution.Resolved(FixtureSeedData.EngineerId)).ProvisionAsync(
                 new BootstrapProvisioningRequest("trusted-bootstrap-sub"),
                 "bootstrap-correlation",
                 CancellationToken.None);
 
-        Assert.Equal(BootstrapProvisioningStatus.MissingSeededRole, missing.Status);
-        Assert.Equal(assignmentCount, await dbContext.PersonFunctionalRoleAssignments.CountAsync());
-        Assert.Equal(auditCount, await dbContext.AuthorizationAdministrationAudits.CountAsync());
+        Assert.Equal(BootstrapProvisioningStatus.Provisioned, result.Status);
+        Assert.True(await dbContext.FunctionalRoles.AnyAsync(
+            candidate => candidate.Id == FixtureSeedData.HrAdminRoleId && candidate.IsActive));
     }
 
     [Fact]
@@ -608,7 +757,8 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
             FunctionalRoleBootstrapProvisioningService provisioning = new(
                 context,
                 new StubPrincipalResolver(
-                    new PrincipalPersonResolution.Resolved(FixtureSeedData.EngineerId)));
+                    new PrincipalPersonResolution.Resolved(FixtureSeedData.EngineerId)),
+                new FunctionalRoleReconciliationService(context));
             return await provisioning.ProvisionAsync(
                 new BootstrapProvisioningRequest("trusted-bootstrap-sub"),
                 "bootstrap-correlation",
@@ -633,7 +783,7 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
 
     private FunctionalRoleBootstrapProvisioningService CreateProvisioning(
         PrincipalPersonResolution resolution) =>
-        new(dbContext, new StubPrincipalResolver(resolution));
+        new(dbContext, new StubPrincipalResolver(resolution), reconciliationService);
 
     private sealed class StubPrincipalResolver : IPrincipalPersonResolver
     {

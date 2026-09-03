@@ -57,6 +57,7 @@ builder.Services.AddDbContext<AccessControlDbContext>(options =>
 builder.Services.AddScoped<IRelationshipRepository, EfRelationshipRepository>();
 builder.Services.AddScoped<AccessRoleResolver>();
 builder.Services.AddScoped<FunctionalRoleAdministrationService>();
+builder.Services.AddScoped<FunctionalRoleReconciliationService>();
 builder.Services.AddScoped<IPrincipalPersonResolver, UnavailablePrincipalPersonResolver>();
 builder.Services.AddScoped<
     IBootstrapProvisioningService,
