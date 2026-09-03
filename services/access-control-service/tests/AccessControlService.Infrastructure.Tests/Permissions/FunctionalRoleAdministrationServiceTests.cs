@@ -1,10 +1,13 @@
 using System.Text.Json;
+using AccessControlService.Domain;
 using AccessControlService.Domain.Identity;
 using AccessControlService.Domain.Permissions;
 using AccessControlService.Infrastructure.Identity;
 using AccessControlService.Infrastructure.Persistence;
 using AccessControlService.Infrastructure.Permissions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Logging.Abstractions;
 using Testcontainers.PostgreSql;
 
 namespace AccessControlService.Infrastructure.Tests.Permissions;
@@ -492,6 +495,135 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ProjectManagerFunctionalRole_DoesNotCreateRelationshipAccess()
+    {
+        EfRelationshipRepository repository = new(
+            dbContext,
+            NullLogger<EfRelationshipRepository>.Instance);
+        AccessRoleResolver resolver = new(
+            repository,
+            NullLogger<AccessRoleResolver>.Instance);
+        AccessRole before = await resolver.ResolveAsync(
+            FixtureSeedData.HrDirectorId,
+            FixtureSeedData.ProjectAssigneeId,
+            CancellationToken.None);
+
+        await service.AssignRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            FixtureSeedData.HrDirectorId,
+            "project-manager",
+            "project-manager-non-expansion",
+            null,
+            CancellationToken.None);
+
+        AccessRole after = await resolver.ResolveAsync(
+            FixtureSeedData.HrDirectorId,
+            FixtureSeedData.ProjectAssigneeId,
+            CancellationToken.None);
+        Assert.False(await dbContext.ProjectAssignments.AnyAsync(
+            assignment => assignment.PersonId == FixtureSeedData.HrDirectorId));
+        Assert.True(await service.CheckPermissionAsync(
+            FixtureSeedData.HrDirectorId,
+            PermissionCatalogue.CREATE_RESOURCING_REQUESTS,
+            null,
+            CancellationToken.None));
+        Assert.False(await service.CheckPermissionAsync(
+            FixtureSeedData.HrDirectorId,
+            PermissionCatalogue.MANAGE_FUNCTIONAL_ROLES_AND_PERMISSIONS,
+            null,
+            CancellationToken.None));
+        Assert.Equal(before.ReportingLine, after.ReportingLine);
+        Assert.Equal(before.ProjectLine, after.ProjectLine);
+        Assert.Equal(before.PeoplePartnerLine, after.PeoplePartnerLine);
+        Assert.False(after.ReportingLine);
+        Assert.False(after.ProjectLine);
+        Assert.False(after.PeoplePartnerLine);
+    }
+
+    [Fact]
+    public async Task RevokeRole_ForUnknownPerson_ReturnsNotFound()
+    {
+        int auditCountBefore = await dbContext.AuthorizationAdministrationAudits.CountAsync();
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            service.RevokeRoleAsync(
+                FixtureSeedData.ExecutiveId,
+                Guid.Parse("22222222-0000-0000-0000-00000000ffff"),
+                "hr-admin",
+                "unknown-person-revoke",
+                CancellationToken.None));
+
+        Assert.Equal(
+            auditCountBefore,
+            await dbContext.AuthorizationAdministrationAudits.CountAsync());
+    }
+
+    [Fact]
+    public async Task RevokeRole_ForExistingPersonWithoutAssignment_IsIdempotent()
+    {
+        FunctionalRole role = await service.CreateRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            "unassigned-revoke-role",
+            "Unassigned Revoke Role",
+            "unassigned-revoke",
+            null,
+            CancellationToken.None);
+        int auditCountBefore = await dbContext.AuthorizationAdministrationAudits.CountAsync();
+
+        await service.RevokeRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            FixtureSeedData.EngineerId,
+            role.RoleKey,
+            "unassigned-revoke",
+            CancellationToken.None);
+
+        Assert.False(await dbContext.PersonFunctionalRoleAssignments.AnyAsync(
+            assignment => assignment.PersonId == FixtureSeedData.EngineerId &&
+                          assignment.FunctionalRoleId == role.Id &&
+                          assignment.IsActive));
+        Assert.Equal(
+            auditCountBefore,
+            await dbContext.AuthorizationAdministrationAudits.CountAsync());
+    }
+
+    [Fact]
+    public async Task RevokePermission_FromInactiveRole_ReturnsConflictAndPreservesGrant()
+    {
+        FunctionalRole role = await service.CreateRoleAsync(
+            FixtureSeedData.ExecutiveId,
+            "inactive-revoke-role",
+            "Inactive Revoke Role",
+            "inactive-revoke",
+            null,
+            CancellationToken.None);
+        await service.GrantPermissionAsync(
+            FixtureSeedData.ExecutiveId,
+            role.RoleKey,
+            PermissionCatalogue.CREATE_ACTION_ITEMS,
+            null,
+            "inactive-revoke",
+            null,
+            CancellationToken.None);
+        FunctionalRole storedRole = await dbContext.FunctionalRoles
+            .SingleAsync(candidate => candidate.Id == role.Id);
+        storedRole.IsActive = false;
+        await dbContext.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<RoleConflictException>(() =>
+            service.RevokePermissionAsync(
+                FixtureSeedData.ExecutiveId,
+                role.RoleKey,
+                PermissionCatalogue.CREATE_ACTION_ITEMS,
+                null,
+                "inactive-revoke",
+                CancellationToken.None));
+
+        Assert.True(await dbContext.FunctionalRolePermissionGrants.AnyAsync(
+            grant => grant.FunctionalRoleId == role.Id &&
+                     grant.Scope == null));
+    }
+
+    [Fact]
     public async Task RolePermissions_OrderByCanonicalNormalizedScope()
     {
         FunctionalRole role = await service.CreateRoleAsync(
@@ -556,6 +688,35 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
         Assert.Equal(
             auditCountBefore,
             await dbContext.AuthorizationAdministrationAudits.CountAsync());
+    }
+
+    [Fact]
+    public async Task GeneralMutation_AuditWriteFailure_RollsBackDomainMutation()
+    {
+        DbContextOptions<AccessControlDbContext> options =
+            new DbContextOptionsBuilder<AccessControlDbContext>()
+                .UseNpgsql(postgresContainer.GetConnectionString())
+                .AddInterceptors(new AuditWriteFailureInterceptor())
+                .Options;
+        await using AccessControlDbContext context = new(options);
+        FunctionalRoleAdministrationService administration = new(
+            context,
+            new UnavailablePrincipalPersonResolver());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            administration.CreateRoleAsync(
+                FixtureSeedData.ExecutiveId,
+                "audit-failure-role",
+                "Audit Failure Role",
+                "audit-failure",
+                null,
+                CancellationToken.None));
+
+        Assert.False(await context.FunctionalRoles.AnyAsync(
+            role => role.RoleKey == "audit-failure-role"));
+        Assert.Empty(await context.AuthorizationAdministrationAudits
+            .Where(audit => audit.CorrelationId == "audit-failure")
+            .ToListAsync());
     }
 
     [Fact]
@@ -1218,6 +1379,24 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
         catch (Exception exception)
         {
             return exception;
+        }
+    }
+
+    private sealed class AuditWriteFailureInterceptor : SaveChangesInterceptor
+    {
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (eventData.Context?.ChangeTracker
+                    .Entries<AuthorizationAdministrationAudit>()
+                    .Any() == true)
+            {
+                throw new InvalidOperationException("Forced audit write failure.");
+            }
+
+            return base.SavingChangesAsync(eventData, result, cancellationToken);
         }
     }
 

@@ -35,12 +35,44 @@ public sealed class ApiExceptionMapperTests
     }
 
     [Fact]
-    public void DbUpdateException_MapsToConflict()
+    public void DbUpdateException_WithUniqueConstraint_MapsToConflict()
     {
-        ApiExceptionMapper.TryMap(new DbUpdateException("database constraint details"), out ApiError error);
+        ApiExceptionMapper.TryMap(
+            new DbUpdateException(
+                "database constraint details",
+                new PostgresException("duplicate", "ERROR", "ERROR", "23505")),
+            out ApiError error);
 
         Assert.Equal(409, error.Status);
         Assert.DoesNotContain("database constraint details", error.Detail);
+    }
+
+    [Fact]
+    public void DbUpdateException_WithNestedConnectivityFailure_MapsToUnavailable()
+    {
+        Exception exception = new DbUpdateException(
+            "database details",
+            new InvalidOperationException(
+                "provider details",
+                new NpgsqlException("connection details")));
+
+        ApiExceptionMapper.TryMap(exception, out ApiError error);
+
+        Assert.Equal(503, error.Status);
+        Assert.DoesNotContain("database details", error.Detail);
+        Assert.DoesNotContain("connection details", error.Detail);
+    }
+
+    [Fact]
+    public void DbUpdateException_WithUnknownFailure_MapsToGenericServerError()
+    {
+        ApiExceptionMapper.TryMap(
+            new DbUpdateException("unknown database details"),
+            out ApiError error);
+
+        Assert.Equal(500, error.Status);
+        Assert.Equal("Internal Server Error", error.Title);
+        Assert.DoesNotContain("unknown database details", error.Detail);
     }
 
     [Fact]
@@ -50,6 +82,21 @@ public sealed class ApiExceptionMapperTests
 
         Assert.Equal(503, error.Status);
         Assert.DoesNotContain("connection details", error.Detail);
+    }
+
+    [Fact]
+    public void NestedPostgresConstraintFailure_MapsToConflict()
+    {
+        Exception exception = new DbUpdateException(
+            "database details",
+            new InvalidOperationException(
+                "provider details",
+                new PostgresException("duplicate", "ERROR", "ERROR", "23505")));
+
+        ApiExceptionMapper.TryMap(exception, out ApiError error);
+
+        Assert.Equal(409, error.Status);
+        Assert.DoesNotContain("duplicate", error.Detail);
     }
 
     [Fact]

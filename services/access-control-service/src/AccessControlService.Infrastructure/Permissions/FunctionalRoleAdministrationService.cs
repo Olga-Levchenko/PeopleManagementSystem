@@ -377,9 +377,13 @@ public sealed class FunctionalRoleAdministrationService
             await BeginAdministrationTransactionAsync(actorPersonId, cancellationToken);
         await LockFunctionalRoleAsync(roleKey, cancellationToken);
         FunctionalRole? role = await GetLockedRoleAsync(roleKey, cancellationToken);
-        if (role is null || !role.IsActive)
+        if (role is null)
         {
             throw new NotFoundException("The functional role was not found.");
+        }
+        if (!role.IsActive)
+        {
+            throw new RoleConflictException("Inactive roles cannot be modified.");
         }
 
         await LockPermissionAsync(permissionKey, cancellationToken);
@@ -534,6 +538,12 @@ public sealed class FunctionalRoleAdministrationService
         if (role is null)
         {
             throw new NotFoundException("The functional role was not found.");
+        }
+        if (!await dbContext.People.AnyAsync(
+                person => person.Id == personId,
+                cancellationToken))
+        {
+            throw new NotFoundException("The person was not found.");
         }
         PersonFunctionalRoleAssignment? assignment = await dbContext.PersonFunctionalRoleAssignments
             .SingleOrDefaultAsync(

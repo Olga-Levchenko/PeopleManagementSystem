@@ -27,7 +27,18 @@ public static class ApiExceptionMapper
                 409,
                 "Conflict",
                 "The operation conflicts with current state."),
-            DbUpdateException => new(409, "Conflict", "The operation conflicts with current state."),
+            DbUpdateException databaseException when IsUnavailable(databaseException) => new(
+                503,
+                "Service Unavailable",
+                "A required dependency is unavailable."),
+            DbUpdateException databaseException when IsConstraintViolation(databaseException) => new(
+                409,
+                "Conflict",
+                "The operation conflicts with current state."),
+            DbUpdateException => new(
+                500,
+                "Internal Server Error",
+                "An unexpected error occurred."),
             PostgresException postgresException when
                 postgresException.SqlState?.StartsWith("23", StringComparison.Ordinal) == true =>
                 new(409, "Conflict", "The operation conflicts with current state."),
@@ -58,6 +69,20 @@ public static class ApiExceptionMapper
             }
 
             if (current is NpgsqlException && current is not PostgresException)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsConstraintViolation(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is PostgresException postgresException &&
+                postgresException.SqlState?.StartsWith("23", StringComparison.Ordinal) == true)
             {
                 return true;
             }

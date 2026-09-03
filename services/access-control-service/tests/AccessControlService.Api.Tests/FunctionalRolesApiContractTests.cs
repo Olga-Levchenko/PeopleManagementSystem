@@ -187,6 +187,7 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
     public async Task RevokeAndDeactivateRoutes_ReturnNoContentAndConflict()
     {
         const string roleKey = "api-contract-revoke-role";
+        int auditCountBefore = await GetAuditCountAsync();
         using HttpResponseMessage roleResponse = await SendAsync(
             HttpMethod.Post,
             "/api/v1/functional-roles",
@@ -198,12 +199,20 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
             HttpMethod.Delete,
             $"/api/v1/functional-roles/{roleKey}/permissions/create-action-items",
             FixtureSeedData.ExecutiveId);
+        using HttpResponseMessage absentRevokeReplay = await SendAsync(
+            HttpMethod.Delete,
+            $"/api/v1/functional-roles/{roleKey}/permissions/create-action-items",
+            FixtureSeedData.ExecutiveId);
         using HttpResponseMessage grantResponse = await SendAsync(
             HttpMethod.Put,
             $"/api/v1/functional-roles/{roleKey}/permissions/create-action-items",
             FixtureSeedData.ExecutiveId,
             """{"scope":null}""");
         using HttpResponseMessage revoke = await SendAsync(
+            HttpMethod.Delete,
+            $"/api/v1/functional-roles/{roleKey}/permissions/create-action-items",
+            FixtureSeedData.ExecutiveId);
+        using HttpResponseMessage revokeReplay = await SendAsync(
             HttpMethod.Delete,
             $"/api/v1/functional-roles/{roleKey}/permissions/create-action-items",
             FixtureSeedData.ExecutiveId);
@@ -228,14 +237,23 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
             $"/api/v1/functional-roles/{deactivatableRoleKey}/deactivate",
             FixtureSeedData.ExecutiveId,
             """{"reason":"contract test deactivation"}""");
+        using HttpResponseMessage deactivatedReplay = await SendAsync(
+            HttpMethod.Post,
+            $"/api/v1/functional-roles/{deactivatableRoleKey}/deactivate",
+            FixtureSeedData.ExecutiveId,
+            """{"reason":"contract test deactivation replay"}""");
 
         Assert.Equal(HttpStatusCode.NoContent, absentRevoke.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, absentRevokeReplay.StatusCode);
         Assert.Equal(HttpStatusCode.OK, grantResponse.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, revoke.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, revokeReplay.StatusCode);
         Assert.Equal(HttpStatusCode.Created, assignmentResponse.StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
         Assert.Equal(HttpStatusCode.Created, deactivatableRole.StatusCode);
         Assert.Equal(HttpStatusCode.OK, deactivated.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, deactivatedReplay.StatusCode);
+        Assert.Equal(auditCountBefore + 6, await GetAuditCountAsync());
     }
 
     [Fact]
@@ -271,6 +289,37 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DatabaseConnectivityFailure_ReturnsSafe503FromRunningApi()
+    {
+        await postgresContainer.StopAsync();
+
+        using HttpResponseMessage response = await SendAsync(
+            HttpMethod.Get,
+            "/api/v1/functional-roles",
+            FixtureSeedData.ExecutiveId);
+        string body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.DoesNotContain("Host=", body);
+        Assert.DoesNotContain("postgres", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("stack", body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PermissionCheck_WithInvalidScope_ReturnsBadRequestWithoutWrite()
+    {
+        int auditCountBefore = await GetAuditCountAsync();
+        using HttpResponseMessage response = await SendAsync(
+            HttpMethod.Post,
+            "/api/v1/permissions/check",
+            FixtureSeedData.ExecutiveId,
+            """{"permissionKey":"view-dashboard","scope":{"dashboardType":"invalid"}}""");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(auditCountBefore, await GetAuditCountAsync());
+    }
+
+    [Fact]
     public async Task RevokeAssignmentAndListAssignments_ReturnDocumentedResponses()
     {
         const string roleKey = "api-contract-assignment-revoke-role";
@@ -302,6 +351,112 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.NoContent, revokeAssignment.StatusCode);
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, revoke.StatusCode);
+    }
+
+    [Fact]
+    public async Task RevokeRole_ForUnknownPerson_ReturnsNotFound()
+    {
+        using HttpResponseMessage response = await SendAsync(
+            HttpMethod.Delete,
+            "/api/v1/people/22222222-0000-0000-0000-00000000ffff/functional-roles/hr-admin",
+            FixtureSeedData.ExecutiveId);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RevokePermission_FromInactiveRole_ReturnsConflictWithoutChangingGrant()
+    {
+        const string roleKey = "api-contract-inactive-revoke-role";
+        using HttpResponseMessage roleResponse = await SendAsync(
+            HttpMethod.Post,
+            "/api/v1/functional-roles",
+            FixtureSeedData.ExecutiveId,
+            $$"""{"roleKey":"{{roleKey}}","displayName":"API Contract Inactive Revoke Role"}""");
+        using HttpResponseMessage grantResponse = await SendAsync(
+            HttpMethod.Put,
+            $"/api/v1/functional-roles/{roleKey}/permissions/create-action-items",
+            FixtureSeedData.ExecutiveId,
+            """{"scope":null}""");
+        using HttpResponseMessage deactivateResponse = await SendAsync(
+            HttpMethod.Post,
+            $"/api/v1/functional-roles/{roleKey}/deactivate",
+            FixtureSeedData.ExecutiveId,
+            """{"reason":"inactive revoke contract test"}""");
+        int auditCountBefore = await GetAuditCountAsync();
+
+        using HttpResponseMessage revokeResponse = await SendAsync(
+            HttpMethod.Delete,
+            $"/api/v1/functional-roles/{roleKey}/permissions/create-action-items",
+            FixtureSeedData.ExecutiveId);
+
+        Assert.Equal(HttpStatusCode.Created, roleResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, grantResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, deactivateResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, revokeResponse.StatusCode);
+        Assert.Equal(auditCountBefore, await GetAuditCountAsync());
+    }
+
+    [Fact]
+    public async Task AllProtectedRoutes_WithoutPrincipal_ReturnUnauthorized()
+    {
+        (HttpMethod Method, string Path, string? Body)[] routes =
+        [
+            (HttpMethod.Get, "/api/v1/permissions/catalogue", null),
+            (HttpMethod.Get, "/api/v1/functional-roles", null),
+            (HttpMethod.Get, "/api/v1/functional-roles/hr-admin", null),
+            (HttpMethod.Get, "/api/v1/functional-roles/hr-admin/permissions", null),
+            (HttpMethod.Post, "/api/v1/functional-roles", """{"roleKey":"matrix-role","displayName":"Matrix Role"}"""),
+            (HttpMethod.Patch, "/api/v1/functional-roles/hr-admin", """{"displayName":"Updated"}"""),
+            (HttpMethod.Post, "/api/v1/functional-roles/hr-admin/deactivate", """{"reason":"matrix"}"""),
+            (HttpMethod.Put, "/api/v1/functional-roles/hr-admin/permissions/create-action-items", """{"scope":null}"""),
+            (HttpMethod.Delete, "/api/v1/functional-roles/hr-admin/permissions/create-action-items", null),
+            (HttpMethod.Post, $"/api/v1/people/{FixtureSeedData.EngineerId}/functional-roles", """{"roleKey":"hr-admin"}"""),
+            (HttpMethod.Delete, $"/api/v1/people/{FixtureSeedData.EngineerId}/functional-roles/hr-admin", null),
+            (HttpMethod.Get, $"/api/v1/people/{FixtureSeedData.EngineerId}/functional-roles", null),
+            (HttpMethod.Post, "/api/v1/permissions/check", """{"permissionKey":"view-dashboard","scope":null}"""),
+        ];
+
+        foreach ((HttpMethod Method, string Path, string? Body) route in routes)
+        {
+            using HttpResponseMessage response = await SendAsync(
+                route.Method,
+                route.Path,
+                json: route.Body);
+
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task AllAdministrationRoutesWithoutPermission_ReturnForbidden()
+    {
+        (HttpMethod Method, string Path, string? Body)[] routes =
+        [
+            (HttpMethod.Get, "/api/v1/permissions/catalogue", null),
+            (HttpMethod.Get, "/api/v1/functional-roles", null),
+            (HttpMethod.Get, "/api/v1/functional-roles/hr-admin", null),
+            (HttpMethod.Get, "/api/v1/functional-roles/hr-admin/permissions", null),
+            (HttpMethod.Post, "/api/v1/functional-roles", """{"roleKey":"matrix-role","displayName":"Matrix Role"}"""),
+            (HttpMethod.Patch, "/api/v1/functional-roles/hr-admin", """{"displayName":"Updated"}"""),
+            (HttpMethod.Post, "/api/v1/functional-roles/hr-admin/deactivate", """{"reason":"matrix"}"""),
+            (HttpMethod.Put, "/api/v1/functional-roles/hr-admin/permissions/create-action-items", """{"scope":null}"""),
+            (HttpMethod.Delete, "/api/v1/functional-roles/hr-admin/permissions/create-action-items", null),
+            (HttpMethod.Post, $"/api/v1/people/{FixtureSeedData.EngineerId}/functional-roles", """{"roleKey":"hr-admin"}"""),
+            (HttpMethod.Delete, $"/api/v1/people/{FixtureSeedData.EngineerId}/functional-roles/hr-admin", null),
+            (HttpMethod.Get, $"/api/v1/people/{FixtureSeedData.EngineerId}/functional-roles", null),
+        ];
+
+        foreach ((HttpMethod Method, string Path, string? Body) route in routes)
+        {
+            using HttpResponseMessage response = await SendAsync(
+                route.Method,
+                route.Path,
+                FixtureSeedData.EngineerId,
+                route.Body);
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
     }
 
     private async Task<int> GetAuditCountAsync()
