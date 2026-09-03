@@ -252,7 +252,7 @@ test.describe('App', () => {
             id: 'grant-1',
             roleKey: 'security-owner',
             permissionKey: 'view-dashboard',
-            scope: { dashboardType: 'unit-manager' },
+            scope: '{"dashboardType":"unit-manager"}',
           }),
         })
         return
@@ -439,6 +439,211 @@ test.describe('App', () => {
 
     await expect(page.getByText('view-dashboard (unit-manager)')).toBeVisible()
     expect(permissionReads).toBeGreaterThan(1)
+  })
+
+  test('should ignore a late grant response for a previously selected role', async ({ page }) => {
+    const roles = [
+      {
+        id: 'role-a',
+        roleKey: 'role-a',
+        displayName: 'Role A',
+        isSeeded: false,
+        isActive: true,
+      },
+      {
+        id: 'role-b',
+        roleKey: 'role-b',
+        displayName: 'Role B',
+        isSeeded: false,
+        isActive: true,
+      },
+    ]
+    let releaseRoleA: () => void = () => undefined
+    const roleAReady = new Promise<void>(resolve => {
+      releaseRoleA = resolve
+    })
+
+    await page.route('**/api/v1/permissions/catalogue', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          permissions: [
+            { permissionKey: 'view-dashboard', requiresScope: true },
+            { permissionKey: 'create-action-items', requiresScope: false },
+          ],
+        }),
+      })
+    )
+    await page.route('**/api/v1/functional-roles**', async route => {
+      const path = new URL(route.request().url()).pathname.replace('/api/v1', '')
+      if (route.request().method() === 'GET' && path === '/functional-roles') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ roles }),
+        })
+        return
+      }
+
+      const roleKey = path.split('/')[2]
+      const role = roles.find(candidate => candidate.roleKey === roleKey)
+      if (!role) {
+        await route.fulfill({ status: 404 })
+        return
+      }
+      if (roleKey === 'role-a') {
+        await roleAReady
+      }
+      if (path.endsWith('/permissions')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            grants: [
+              {
+                id: `grant-${roleKey}`,
+                roleKey,
+                permissionKey: roleKey === 'role-a' ? 'view-dashboard' : 'create-action-items',
+                scope: roleKey === 'role-a' ? '{"dashboardType":"unit-manager"}' : null,
+              },
+            ],
+          }),
+        })
+        return
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(role),
+      })
+    })
+
+    await page.goto('/administration/functional-roles')
+    await expect(page.getByRole('button', { name: /Role B/ })).toBeVisible()
+    await page.getByRole('button', { name: /Role B/ }).click()
+    await expect(page.getByRole('heading', { name: 'Role B', exact: true })).toBeVisible()
+    await expect(
+      page
+        .getByRole('list', { name: 'Permissions changed in this session' })
+        .getByText('create-action-items')
+    ).toBeVisible()
+
+    releaseRoleA()
+
+    await expect(page.getByRole('heading', { name: 'Role B', exact: true })).toBeVisible()
+    await expect(page.getByText('view-dashboard (unit-manager)')).toHaveCount(0)
+    await expect(page.getByRole('alert')).toHaveCount(0)
+  })
+
+  test('should clean up pending role requests when the page unmounts', async ({ page }) => {
+    const role = {
+      id: 'role-unmount',
+      roleKey: 'unmount-owner',
+      displayName: 'Unmount Owner',
+      isSeeded: false,
+      isActive: true,
+    }
+    let releasePermissions: () => void = () => undefined
+    const permissionsReady = new Promise<void>(resolve => {
+      releasePermissions = resolve
+    })
+
+    await page.route('**/api/v1/permissions/catalogue', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ permissions: [] }),
+      })
+    )
+    await page.route('**/api/v1/functional-roles**', async route => {
+      const path = new URL(route.request().url()).pathname.replace('/api/v1', '')
+      if (route.request().method() === 'GET' && path === '/functional-roles') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ roles: [role] }),
+        })
+        return
+      }
+      if (path.endsWith('/permissions')) {
+        await permissionsReady
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ grants: [] }),
+        })
+        return
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(role),
+      })
+    })
+
+    await page.goto('/administration/functional-roles')
+    await expect(page.getByRole('heading', { name: 'Unmount Owner', exact: true })).toBeVisible()
+    await page.goto('/')
+    releasePermissions()
+    await expect(page.getByTestId('home-title')).toBeVisible()
+  })
+
+  test('should show a safe state for invalid grant scope JSON', async ({ page }) => {
+    const role = {
+      id: 'role-invalid-scope',
+      roleKey: 'invalid-scope-owner',
+      displayName: 'Invalid Scope Owner',
+      isSeeded: false,
+      isActive: true,
+    }
+
+    await page.route('**/api/v1/permissions/catalogue', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          permissions: [{ permissionKey: 'view-dashboard', requiresScope: true }],
+        }),
+      })
+    )
+    await page.route('**/api/v1/functional-roles**', async route => {
+      const path = new URL(route.request().url()).pathname.replace('/api/v1', '')
+      if (route.request().method() === 'GET' && path === '/functional-roles') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ roles: [role] }),
+        })
+        return
+      }
+      if (path.endsWith('/permissions')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            grants: [
+              {
+                id: 'invalid-grant',
+                roleKey: role.roleKey,
+                permissionKey: 'view-dashboard',
+                scope: 'not-json',
+              },
+            ],
+          }),
+        })
+        return
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(role),
+      })
+    })
+
+    await page.goto('/administration/functional-roles')
+    await expect(page.getByRole('alert')).toHaveText('The change could not be completed.')
+    await expect(page.getByRole('alert')).not.toContainText('not-json')
   })
 
   test('should protect seeded roles', async ({ page }) => {

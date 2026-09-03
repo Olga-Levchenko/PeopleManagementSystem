@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import axios from 'axios'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   assignFunctionalRole,
   createFunctionalRole,
@@ -37,15 +38,20 @@ export const useFunctionalRoles = () => {
   const [loadError, setLoadError] = useState<FunctionalRoleError | null>(null)
   const [mutation, setMutation] = useState<AsyncState>(initialAsyncState)
   const [assignmentState, setAssignmentState] = useState<AsyncState>(initialAsyncState)
+  const roleRequestVersion = useRef(0)
+  const selectedRoleKeyRef = useRef<string | undefined>(undefined)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true)
     setLoadError(null)
     try {
       const [roleResponse, catalogueResponse] = await Promise.all([
-        getFunctionalRoles(),
-        getPermissionCatalogue(),
+        getFunctionalRoles(signal),
+        getPermissionCatalogue(signal),
       ])
+      if (signal?.aborted) {
+        return
+      }
       setRoles(roleResponse.roles)
       setCatalogue(catalogueResponse.permissions)
       setSelectedRole(current =>
@@ -54,23 +60,52 @@ export const useFunctionalRoles = () => {
           : (roleResponse.roles[0] ?? null)
       )
     } catch (error) {
+      if (signal?.aborted || axios.isCancel(error)) {
+        return
+      }
       setLoadError(getFunctionalRoleError(error))
     } finally {
-      setLoading(false)
+      if (!signal?.aborted) {
+        setLoading(false)
+      }
     }
   }, [])
 
   useEffect(() => {
-    void Promise.resolve().then(load)
+    const controller = new AbortController()
+    void Promise.resolve().then(() => load(controller.signal))
+    return () => controller.abort()
   }, [load])
 
   const selectedRoleKey = selectedRole?.roleKey
+  const selectRole = useCallback((role: FunctionalRole) => {
+    setLoadError(null)
+    setSelectedRole(role)
+  }, [])
+
+  useEffect(() => {
+    selectedRoleKeyRef.current = selectedRoleKey
+  }, [selectedRoleKey])
 
   const loadRolePermissions = useCallback(async (roleKey: string) => {
+    const requestVersion = ++roleRequestVersion.current
     try {
       const result = await getFunctionalRolePermissions(roleKey)
+      if (
+        requestVersion !== roleRequestVersion.current ||
+        selectedRoleKeyRef.current !== roleKey
+      ) {
+        return
+      }
       setGrants(result.grants)
     } catch (error) {
+      if (
+        axios.isCancel(error) ||
+        requestVersion !== roleRequestVersion.current ||
+        selectedRoleKeyRef.current !== roleKey
+      ) {
+        return
+      }
       setLoadError(getFunctionalRoleError(error))
     }
   }, [])
@@ -80,15 +115,42 @@ export const useFunctionalRoles = () => {
       return
     }
 
-    const refresh = window.setTimeout(() => {
-      void getFunctionalRole(selectedRoleKey)
-        .then(setSelectedRole)
-        .catch(error => setLoadError(getFunctionalRoleError(error)))
-      void loadRolePermissions(selectedRoleKey)
-    }, 0)
+    const controller = new AbortController()
+    const requestVersion = ++roleRequestVersion.current
+    const roleKey = selectedRoleKey
 
-    return () => window.clearTimeout(refresh)
-  }, [loadRolePermissions, selectedRoleKey])
+    const loadSelectedRole = async () => {
+      try {
+        const [role, permissionResponse] = await Promise.all([
+          getFunctionalRole(roleKey, controller.signal),
+          getFunctionalRolePermissions(roleKey, controller.signal),
+        ])
+        if (
+          controller.signal.aborted ||
+          requestVersion !== roleRequestVersion.current ||
+          selectedRoleKeyRef.current !== roleKey
+        ) {
+          return
+        }
+        setSelectedRole(role)
+        setGrants(permissionResponse.grants)
+      } catch (error) {
+        if (
+          controller.signal.aborted ||
+          axios.isCancel(error) ||
+          requestVersion !== roleRequestVersion.current ||
+          selectedRoleKeyRef.current !== roleKey
+        ) {
+          return
+        }
+        setLoadError(getFunctionalRoleError(error))
+      }
+    }
+
+    void loadSelectedRole()
+
+    return () => controller.abort()
+  }, [selectedRoleKey])
 
   const runMutation = async (operation: () => Promise<unknown>) => {
     setMutation({ busy: true, error: null })
@@ -195,7 +257,7 @@ export const useFunctionalRoles = () => {
     revokeAssignment,
     roles,
     selectedRole,
-    selectRole: setSelectedRole,
+    selectRole,
     grants,
     updateRole,
   }

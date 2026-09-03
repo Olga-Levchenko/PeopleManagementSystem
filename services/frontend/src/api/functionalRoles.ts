@@ -82,19 +82,66 @@ export const getFunctionalRoleError = (error: unknown): FunctionalRoleError => {
   }
 }
 
-export const getPermissionCatalogue = () =>
-  apiClient.get<PermissionCatalogueResponse>('/api/v1/permissions/catalogue')
-
-export const getFunctionalRoles = () =>
-  apiClient.get<FunctionalRoleListResponse>('/api/v1/functional-roles')
-
-export const getFunctionalRole = (roleKey: string) =>
-  apiClient.get<FunctionalRole>(`/api/v1/functional-roles/${encodeURIComponent(roleKey)}`)
-
-export const getFunctionalRolePermissions = (roleKey: string) =>
-  apiClient.get<FunctionalRolePermissionListResponse>(
-    `/api/v1/functional-roles/${encodeURIComponent(roleKey)}/permissions`,
+export const getPermissionCatalogue = (signal?: AbortSignal) =>
+  apiClient.get<PermissionCatalogueResponse>(
+    '/api/v1/permissions/catalogue',
+    { signal },
   )
+
+export const getFunctionalRoles = (signal?: AbortSignal) =>
+  apiClient.get<FunctionalRoleListResponse>(
+    '/api/v1/functional-roles',
+    { signal },
+  )
+
+export const getFunctionalRole = (roleKey: string, signal?: AbortSignal) =>
+  apiClient.get<FunctionalRole>(
+    `/api/v1/functional-roles/${encodeURIComponent(roleKey)}`,
+    { signal },
+  )
+
+const normalizeScope = (scope: unknown): string | null => {
+  if (scope === null) {
+    return null
+  }
+  if (typeof scope !== 'string') {
+    throw new Error('Invalid permission scope.')
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(scope)
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      throw new Error('Invalid permission scope.')
+    }
+    const values = parsed as Record<string, unknown>
+    if (
+      Object.keys(values).length !== 1 ||
+      typeof values.dashboardType !== 'string'
+    ) {
+      throw new Error('Invalid permission scope.')
+    }
+    return JSON.stringify(parsed)
+  } catch {
+    throw new Error('Invalid permission scope.')
+  }
+}
+
+export const getFunctionalRolePermissions = async (
+  roleKey: string,
+  signal?: AbortSignal,
+): Promise<FunctionalRolePermissionListResponse> => {
+  const response = await apiClient.get<FunctionalRolePermissionListResponse>(
+    `/api/v1/functional-roles/${encodeURIComponent(roleKey)}/permissions`,
+    { signal },
+  )
+
+  return {
+    grants: response.grants.map(grant => ({
+      ...grant,
+      scope: normalizeScope(grant.scope),
+    })),
+  }
+}
 
 export const createFunctionalRole = (roleKey: string, displayName: string) =>
   apiClient.post<FunctionalRole>(
