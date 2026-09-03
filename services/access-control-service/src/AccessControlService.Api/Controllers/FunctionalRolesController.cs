@@ -2,10 +2,10 @@ using System.Security.Claims;
 using System.Text.Json;
 using AccessControlService.Domain.Identity;
 using AccessControlService.Domain.Permissions;
+using AccessControlService.Api.ErrorHandling;
 using AccessControlService.Infrastructure.Persistence;
 using AccessControlService.Infrastructure.Permissions;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace AccessControlService.Api.Controllers;
 
@@ -339,40 +339,16 @@ public sealed class FunctionalRolesController : ControllerBase
 
     private static bool TryMap(Exception exception, out ActionResult? result)
     {
-        result = exception switch
+        if (!ApiExceptionMapper.TryMap(exception, out ApiError error))
         {
-            UnauthorizedException => ToProblemDetails(401, "Unauthorized", "Authentication is required."),
-            ForbiddenException forbidden => ToProblemDetails(403, "Forbidden", forbidden.Message),
-            ServiceUnavailableException => ToProblemDetails(503, "Service Unavailable", "A required authorization dependency is unavailable."),
-            ValidationException validation => ToProblemDetails(400, "Bad Request", validation.Message),
-            NotFoundException notFound => ToProblemDetails(404, "Not Found", notFound.Message),
-            RoleConflictException conflict => ToProblemDetails(409, "Conflict", conflict.Message),
-            IdempotencyConflictException idempotencyConflict => ToProblemDetails(409, "Conflict", idempotencyConflict.Message),
-            ArgumentException argument => new ObjectResult(new ProblemDetails
-            {
-                Status = StatusCodes.Status400BadRequest,
-                Title = "Bad Request",
-                Detail = argument.Message,
-            })
-            {
-                StatusCode = StatusCodes.Status400BadRequest,
-            },
-            DbUpdateException => ToProblemDetails(409, "Conflict", "The operation conflicts with current state."),
-            _ => null,
-        };
-        return result is not null;
+            result = null;
+            return false;
+        }
+
+        result = ApiExceptionMapper.ToProblemDetails(error);
+        return true;
     }
 
-    private static ObjectResult ToProblemDetails(int status, string title, string detail) =>
-        new(new ProblemDetails
-        {
-            Status = status,
-            Title = title,
-            Detail = detail,
-        })
-        {
-            StatusCode = status,
-        };
 }
 
 public sealed record PermissionCatalogueResponse(IReadOnlyList<PermissionResponse> Permissions);

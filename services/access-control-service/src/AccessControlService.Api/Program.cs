@@ -1,4 +1,5 @@
 using AccessControlService.Api.Configuration;
+using AccessControlService.Api.ErrorHandling;
 using AccessControlService.Api.Health;
 using AccessControlService.Api.Middleware;
 using AccessControlService.Domain;
@@ -97,6 +98,7 @@ if (app.Environment.IsDevelopment())
 app.UseCors();
 
 app.UseMiddleware<CorrelationIdMiddleware>();
+app.UseMiddleware<SafeExceptionHandlingMiddleware>();
 
 app.MapControllers();
 
