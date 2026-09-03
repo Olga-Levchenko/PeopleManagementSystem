@@ -348,6 +348,123 @@ test.describe('App', () => {
     ).toBeTruthy()
   })
 
+  test('should prevent stale assignment actions after changing the person', async ({ page }) => {
+    const personA = '22222222-2222-4222-8222-222222222222'
+    const personB = '33333333-3333-4333-8333-333333333333'
+    const roles = [
+      {
+        id: 'role-a',
+        roleKey: 'security-owner',
+        displayName: 'Security Owner',
+        isSeeded: false,
+        isActive: true,
+      },
+    ]
+    const deletes: string[] = []
+    let personAReads = 0
+    let releaseLatePersonA: () => void = () => undefined
+    let personAReadStarted: () => void = () => undefined
+    const latePersonAReadStarted = new Promise<void>(resolve => {
+      personAReadStarted = resolve
+    })
+    const latePersonAResponse = new Promise<void>(resolve => {
+      releaseLatePersonA = resolve
+    })
+
+    await page.on('dialog', dialog => dialog.accept())
+    await page.route('**/api/v1/permissions/catalogue', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          permissions: [{ permissionKey: 'create-action-items', requiresScope: false }],
+        }),
+      })
+    )
+    await page.route('**/api/v1/functional-roles**', async route => {
+      const request = route.request()
+      const path = new URL(request.url()).pathname.replace('/api/v1', '')
+      if (request.method() === 'GET' && path === '/functional-roles') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ roles }),
+        })
+        return
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(path.endsWith('/permissions') ? { grants: [] } : roles[0]),
+      })
+    })
+    await page.route('**/api/v1/people/**', async route => {
+      const request = route.request()
+      const path = new URL(request.url()).pathname.replace('/api/v1', '')
+      if (request.method() === 'DELETE') {
+        deletes.push(path)
+        await route.fulfill({ status: 204 })
+        return
+      }
+      if (request.method() !== 'GET') {
+        await route.fulfill({ status: 201, contentType: 'application/json', body: '{}' })
+        return
+      }
+      if (path.includes(`/people/${personA}/`)) {
+        personAReads += 1
+        if (personAReads > 1) {
+          personAReadStarted()
+          await latePersonAResponse
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            assignments: [
+              {
+                id: 'assignment-a',
+                personId: personA,
+                roleKey: 'security-owner',
+                isActive: true,
+              },
+            ],
+          }),
+        })
+        return
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ assignments: [] }),
+      })
+    })
+
+    await page.goto('/administration/functional-roles')
+    await page.getByLabel('Person ID').fill(personA)
+    await page.getByRole('button', { name: 'Load active assignments' }).click()
+    await expect(
+      page.getByRole('list', { name: 'Active functional-role assignments' })
+    ).toBeVisible()
+
+    await page.getByRole('button', { name: 'Load active assignments' }).click()
+    await latePersonAReadStarted
+    await page.getByLabel('Person ID').fill(personB)
+    await expect(
+      page.getByRole('list', { name: 'Active functional-role assignments' })
+    ).toHaveCount(0)
+
+    releaseLatePersonA()
+    await expect(
+      page.getByRole('list', { name: 'Active functional-role assignments' })
+    ).toHaveCount(0)
+    await page.getByRole('button', { name: 'Load active assignments' }).click()
+    await expect(
+      page.getByRole('list', { name: 'Active functional-role assignments' })
+    ).toHaveCount(0)
+    await expect(page.getByRole('alert')).toHaveCount(0)
+    expect(deletes).toEqual([])
+  })
+
   test('should reconstruct normalized grants from the authoritative response after reload', async ({
     page,
   }) => {

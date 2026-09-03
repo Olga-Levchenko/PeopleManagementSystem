@@ -33,12 +33,15 @@ export const useFunctionalRoles = () => {
   const [catalogue, setCatalogue] = useState<Permission[]>([])
   const [selectedRole, setSelectedRole] = useState<FunctionalRole | null>(null)
   const [assignments, setAssignments] = useState<FunctionalRoleAssignment[]>([])
+  const [assignmentPersonId, setAssignmentPersonId] = useState<string | null>(null)
   const [grants, setGrants] = useState<FunctionalRolePermission[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<FunctionalRoleError | null>(null)
   const [mutation, setMutation] = useState<AsyncState>(initialAsyncState)
   const [assignmentState, setAssignmentState] = useState<AsyncState>(initialAsyncState)
   const roleRequestVersion = useRef(0)
+  const assignmentRequestVersion = useRef(0)
+  const assignmentRequestController = useRef<AbortController | null>(null)
   const selectedRoleKeyRef = useRef<string | undefined>(undefined)
 
   const load = useCallback(async (signal?: AbortSignal) => {
@@ -212,18 +215,52 @@ export const useFunctionalRoles = () => {
     return success
   }
 
-  const loadAssignments = async (personId: string) => {
+  const resetAssignments = useCallback(() => {
+    assignmentRequestVersion.current += 1
+    assignmentRequestController.current?.abort()
+    assignmentRequestController.current = null
+    setAssignments([])
+    setAssignmentPersonId(null)
+    setAssignmentState(initialAsyncState)
+  }, [])
+
+  const loadAssignments = useCallback(async (personId: string) => {
+    const requestVersion = ++assignmentRequestVersion.current
+    assignmentRequestController.current?.abort()
+    const controller = new AbortController()
+    assignmentRequestController.current = controller
     setAssignmentState({ busy: true, error: null })
     try {
-      const result = await getFunctionalRoleAssignments(personId)
+      const result = await getFunctionalRoleAssignments(personId, controller.signal)
+      if (
+        controller.signal.aborted ||
+        requestVersion !== assignmentRequestVersion.current
+      ) {
+        return false
+      }
       setAssignments(result.assignments)
+      setAssignmentPersonId(personId)
     } catch (error) {
+      if (
+        controller.signal.aborted ||
+        requestVersion !== assignmentRequestVersion.current ||
+        axios.isCancel(error)
+      ) {
+        return false
+      }
       setAssignmentState({ busy: false, error: getFunctionalRoleError(error) })
       return false
+    } finally {
+      if (
+        !controller.signal.aborted &&
+        requestVersion === assignmentRequestVersion.current
+      ) {
+        assignmentRequestController.current = null
+      }
     }
     setAssignmentState(initialAsyncState)
     return true
-  }
+  }, [])
 
   const assign = async (personId: string, roleKey: string) => {
     const success = await runAssignmentMutation(() => assignFunctionalRole(personId, roleKey))
@@ -234,6 +271,9 @@ export const useFunctionalRoles = () => {
   }
 
   const revokeAssignment = async (personId: string, roleKey: string) => {
+    if (assignmentPersonId !== personId) {
+      return false
+    }
     const success = await runAssignmentMutation(() => revokeFunctionalRole(personId, roleKey))
     if (success) {
       await loadAssignments(personId)
@@ -245,6 +285,7 @@ export const useFunctionalRoles = () => {
     assignments,
     assign,
     assignmentState,
+    assignmentPersonId,
     catalogue,
     createRole,
     deactivateRole,
@@ -255,6 +296,7 @@ export const useFunctionalRoles = () => {
     mutation,
     revoke,
     revokeAssignment,
+    resetAssignments,
     roles,
     selectedRole,
     selectRole,

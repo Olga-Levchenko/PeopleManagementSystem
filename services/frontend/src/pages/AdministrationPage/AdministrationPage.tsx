@@ -49,6 +49,7 @@ export const AdministrationPage = () => {
   const roleGrants = state.grants.filter(
     grantValue => grantValue.roleKey === selectedRole?.roleKey
   )
+  const assignmentsAreCurrent = state.assignmentPersonId === personId
   const scope = selectedPermission?.requiresScope
     ? dashboardType
       ? { dashboardType }
@@ -327,7 +328,10 @@ export const AdministrationPage = () => {
             <input
               className="w-full rounded-md border border-input bg-background px-3 py-2"
               value={personId}
-              onChange={event => setPersonId(event.target.value)}
+              onChange={event => {
+                state.resetAssignments()
+                setPersonId(event.target.value)
+              }}
               aria-label={t('administration.fields.personId')}
             />
           </label>
@@ -364,7 +368,7 @@ export const AdministrationPage = () => {
             {errorMessage(state.assignmentState.error)}
           </p>
         )}
-        {state.assignments.length > 0 && (
+        {assignmentsAreCurrent && state.assignments.length > 0 && (
           <ul className="space-y-2" aria-label={t('administration.assignments.current')}>
             {state.assignments.map(assignment => (
               <li

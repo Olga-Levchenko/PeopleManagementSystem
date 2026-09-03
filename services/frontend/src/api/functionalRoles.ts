@@ -194,7 +194,8 @@ export const revokeFunctionalRole = (personId: string, roleKey: string) =>
     `/api/v1/people/${encodeURIComponent(personId)}/functional-roles/${encodeURIComponent(roleKey)}`
   )
 
-export const getFunctionalRoleAssignments = (personId: string) =>
+export const getFunctionalRoleAssignments = (personId: string, signal?: AbortSignal) =>
   apiClient.get<FunctionalRoleAssignmentListResponse>(
-    `/api/v1/people/${encodeURIComponent(personId)}/functional-roles`
+    `/api/v1/people/${encodeURIComponent(personId)}/functional-roles`,
+    { signal }
   )
