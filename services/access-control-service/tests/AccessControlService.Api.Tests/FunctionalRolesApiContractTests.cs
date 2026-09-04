@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Claims;
 using System.Text;
 using AccessControlService.Domain.Identity;
+using AccessControlService.Infrastructure.Identity;
 using AccessControlService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
@@ -19,6 +20,7 @@ namespace AccessControlService.Api.Tests;
 [Collection("HealthEndpointTests")]
 public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
 {
+    private const string TEST_ISSUER = "https://id.example.test/realms/people-management";
     private const string TEST_SUB_HEADER = "X-Test-Sub";
     private readonly PostgreSqlContainer postgresContainer = new PostgreSqlBuilder("postgres:16-alpine")
         .WithDatabase("access_control_service_api_test")
@@ -27,6 +29,7 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
         .Build();
 
     private WebApplicationFactory<Program> factory = null!;
+    private WebApplicationFactory<Program> registeredResolverFactory = null!;
     private HttpClient client = null!;
 
     public async Task InitializeAsync()
@@ -74,11 +77,23 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
             });
         });
         client = factory.CreateClient();
+        registeredResolverFactory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddSingleton<IStartupFilter, TestAuthenticationStartupFilter>();
+                services.AddAuthentication(TestAuthenticationHandler.SchemeName)
+                    .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(
+                        TestAuthenticationHandler.SchemeName,
+                        _ => { });
+            });
+        });
     }
 
     public async Task DisposeAsync()
     {
         client.Dispose();
+        await registeredResolverFactory.DisposeAsync();
         await factory.DisposeAsync();
         Environment.SetEnvironmentVariable("PORT", null);
         Environment.SetEnvironmentVariable("CORS_ORIGIN", null);
@@ -349,6 +364,27 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RegisteredPeopleResolver_FailsClosedWhenAllowlistIsMissing()
+    {
+        using IServiceScope scope = registeredResolverFactory.Services.CreateScope();
+        IPrincipalPersonResolver registeredResolver =
+            scope.ServiceProvider.GetRequiredService<IPrincipalPersonResolver>();
+        PeopleIdentityResolverOptions options =
+            scope.ServiceProvider.GetRequiredService<PeopleIdentityResolverOptions>();
+        using HttpClient registeredClient = registeredResolverFactory.CreateClient();
+        using HttpRequestMessage request = new(
+            HttpMethod.Get,
+            "/api/v1/functional-roles");
+        request.Headers.Add(TEST_SUB_HEADER, FixtureSeedData.ExecutiveId.ToString());
+
+        using HttpResponseMessage response = await registeredClient.SendAsync(request);
+
+        Assert.IsType<PeoplePrincipalPersonResolver>(registeredResolver);
+        Assert.Empty(options.AllowedIssuers!);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+    }
+
+    [Fact]
     public async Task DatabaseConnectivityFailure_ReturnsSafe503FromRunningApi()
     {
         await postgresContainer.StopAsync();
@@ -604,7 +640,10 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
             }
 
             ClaimsIdentity identity = new(
-                [new Claim("sub", values.First()!)],
+                [
+                    new Claim("iss", TEST_ISSUER),
+                    new Claim("sub", values.First()!),
+                ],
                 SchemeName);
             return Task.FromResult(
                 AuthenticateResult.Success(new AuthenticationTicket(
@@ -626,12 +665,12 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
     private sealed class TestPrincipalPersonResolver : IPrincipalPersonResolver
     {
         public Task<PrincipalPersonResolution> ResolvePersonAsync(
-            string principalSub,
+            OidcPrincipalIdentity identity,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<PrincipalPersonResolution>(
-                principalSub == "unavailable"
+                identity.Subject == "unavailable"
                     ? new PrincipalPersonResolution.Unavailable()
-                    : Guid.TryParse(principalSub, out Guid personId)
+                    : Guid.TryParse(identity.Subject, out Guid personId)
                         ? new PrincipalPersonResolution.Resolved(personId)
                         : new PrincipalPersonResolution.Ambiguous());
     }
@@ -653,6 +692,7 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
                     ? new TrustedPermissionCheckAuthorization.Authorized(
                         new TrustedPermissionCheckContext(
                             "trusted-test-service",
+                            TEST_ISSUER,
                             httpContextAccessor.HttpContext.Request.Headers["X-Test-Delegated-Sub"]
                                 .FirstOrDefault() ?? string.Empty))
                     : new TrustedPermissionCheckAuthorization.Unauthorized());

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using AccessControlService.Api.Configuration;
 using AccessControlService.Domain.Identity;
 using AccessControlService.Domain.Permissions;
 using AccessControlService.Api.ErrorHandling;
@@ -16,15 +17,18 @@ public sealed class FunctionalRolesController : ControllerBase
     private readonly FunctionalRoleAdministrationService service;
     private readonly IPrincipalPersonResolver principalResolver;
     private readonly ITrustedServicePrincipalAuthorizer trustedServicePrincipalAuthorizer;
+    private readonly AppConfig appConfig;
 
     public FunctionalRolesController(
         FunctionalRoleAdministrationService service,
         IPrincipalPersonResolver principalResolver,
-        ITrustedServicePrincipalAuthorizer trustedServicePrincipalAuthorizer)
+        ITrustedServicePrincipalAuthorizer trustedServicePrincipalAuthorizer,
+        AppConfig appConfig)
     {
         this.service = service;
         this.principalResolver = principalResolver;
         this.trustedServicePrincipalAuthorizer = trustedServicePrincipalAuthorizer;
+        this.appConfig = appConfig;
     }
 
     [HttpGet("permissions/catalogue")]
@@ -318,19 +322,25 @@ public sealed class FunctionalRolesController : ControllerBase
             throw new UnauthorizedException();
         }
 
-        string? sub = User.FindFirstValue("sub");
-        if (string.IsNullOrWhiteSpace(sub))
+        if (!OidcPrincipalIdentity.TryCreate(
+                User.FindFirstValue("iss"),
+                User.FindFirstValue("sub"),
+                appConfig.AllowInsecureOidcHttp,
+                out OidcPrincipalIdentity? identity) ||
+            identity is null)
         {
             throw new UnauthorizedException();
         }
 
         PrincipalPersonResolution resolution =
-            await principalResolver.ResolvePersonAsync(sub, cancellationToken);
+            await principalResolver.ResolvePersonAsync(identity, cancellationToken);
         return resolution switch
         {
             PrincipalPersonResolution.Resolved resolved => resolved.PersonId,
             PrincipalPersonResolution.Unavailable => throw new ServiceUnavailableException(),
             PrincipalPersonResolution.Ambiguous => throw new ServiceUnavailableException(),
+            PrincipalPersonResolution.Missing => throw new UnauthorizedException(),
+            PrincipalPersonResolution.InvalidIdentity => throw new UnauthorizedException(),
             _ => throw new ServiceUnavailableException(),
         };
     }
@@ -340,20 +350,27 @@ public sealed class FunctionalRolesController : ControllerBase
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(context.ServiceIdentity) ||
-            string.IsNullOrWhiteSpace(context.DelegatedActorSub))
+            !OidcPrincipalIdentity.TryCreate(
+                context.DelegatedActorIssuer,
+                context.DelegatedActorSub,
+                appConfig.AllowInsecureOidcHttp,
+                out OidcPrincipalIdentity? identity) ||
+            identity is null)
         {
             throw new UnauthorizedException();
         }
 
         PrincipalPersonResolution resolution =
             await principalResolver.ResolvePersonAsync(
-                context.DelegatedActorSub,
+                identity,
                 cancellationToken);
         return resolution switch
         {
             PrincipalPersonResolution.Resolved resolved => resolved.PersonId,
             PrincipalPersonResolution.Unavailable => throw new ServiceUnavailableException(),
             PrincipalPersonResolution.Ambiguous => throw new UnauthorizedException(),
+            PrincipalPersonResolution.Missing => throw new UnauthorizedException(),
+            PrincipalPersonResolution.InvalidIdentity => throw new UnauthorizedException(),
             _ => throw new UnauthorizedException(),
         };
     }

@@ -14,6 +14,8 @@ namespace AccessControlService.Infrastructure.Tests.Permissions;
 
 public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
 {
+    private const string TEST_ISSUER = "https://id.example.test/realms/people-management";
+
     private readonly PostgreSqlContainer postgresContainer = new PostgreSqlBuilder("postgres:16-alpine")
         .WithDatabase("access_control_service_permissions_test")
         .WithUsername("postgres")
@@ -962,14 +964,14 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    [InlineData("invalid sub")]
+    [InlineData("   ")]
     public async Task BootstrapProvisioning_InvalidSub_ReturnsInvalidInput(string? sub)
     {
         FunctionalRoleBootstrapProvisioningService provisioning = CreateProvisioning(
             new PrincipalPersonResolution.Resolved(FixtureSeedData.EngineerId));
 
         BootstrapProvisioningResult result = await provisioning.ProvisionAsync(
-            new BootstrapProvisioningRequest(sub), "bootstrap-correlation", CancellationToken.None);
+            new BootstrapProvisioningRequest(TEST_ISSUER, sub), "bootstrap-correlation", CancellationToken.None);
 
         Assert.Equal(BootstrapProvisioningStatus.InvalidInput, result.Status);
     }
@@ -979,7 +981,7 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
     {
         FunctionalRoleBootstrapProvisioningService provisioning = CreateProvisioning(
             new PrincipalPersonResolution.Resolved(FixtureSeedData.EngineerId));
-        BootstrapProvisioningRequest request = new("trusted-bootstrap-sub");
+        BootstrapProvisioningRequest request = new(TEST_ISSUER, "trusted-bootstrap-sub");
 
         BootstrapProvisioningResult first = await provisioning.ProvisionAsync(
             request, "bootstrap-correlation-1", CancellationToken.None);
@@ -988,8 +990,11 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
 
         Assert.Equal(BootstrapProvisioningStatus.Provisioned, first.Status);
         Assert.Equal(BootstrapProvisioningStatus.AlreadyProvisioned, second.Status);
-        Assert.Equal(1, await dbContext.AuthorizationAdministrationAudits.CountAsync(
-            audit => audit.Action == "bootstrap"));
+        AuthorizationAdministrationAudit audit = await dbContext.AuthorizationAdministrationAudits
+            .SingleAsync(candidate => candidate.Action == "bootstrap");
+        Assert.Equal("system:bootstrap-provisioning", audit.TrustedProvisioningActor);
+        Assert.DoesNotContain("trusted-bootstrap-sub", audit.TrustedProvisioningActor);
+        Assert.DoesNotContain(TEST_ISSUER, audit.TrustedProvisioningActor);
     }
 
     [Fact]
@@ -1104,7 +1109,7 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
 
         BootstrapProvisioningResult result = await CreateProvisioning(
             new PrincipalPersonResolution.Resolved(FixtureSeedData.EngineerId)).ProvisionAsync(
-                new BootstrapProvisioningRequest("trusted-bootstrap-sub"),
+                new BootstrapProvisioningRequest(TEST_ISSUER, "trusted-bootstrap-sub"),
                 "bootstrap-restores-grants",
                 CancellationToken.None);
 
@@ -1133,7 +1138,7 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
 
         BootstrapProvisioningResult result = await CreateProvisioning(
             new PrincipalPersonResolution.Resolved(FixtureSeedData.EngineerId)).ProvisionAsync(
-                new BootstrapProvisioningRequest("trusted-bootstrap-sub"),
+                new BootstrapProvisioningRequest(TEST_ISSUER, "trusted-bootstrap-sub"),
                 new string('c', 101),
                 CancellationToken.None);
 
@@ -1147,12 +1152,12 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
     {
         BootstrapProvisioningResult unavailable = await CreateProvisioning(
             new PrincipalPersonResolution.Unavailable()).ProvisionAsync(
-                new BootstrapProvisioningRequest("trusted-bootstrap-sub"),
+                new BootstrapProvisioningRequest(TEST_ISSUER, "trusted-bootstrap-sub"),
                 "bootstrap-correlation",
                 CancellationToken.None);
         BootstrapProvisioningResult ambiguous = await CreateProvisioning(
             new PrincipalPersonResolution.Ambiguous()).ProvisionAsync(
-                new BootstrapProvisioningRequest("trusted-bootstrap-sub"),
+                new BootstrapProvisioningRequest(TEST_ISSUER, "trusted-bootstrap-sub"),
                 "bootstrap-correlation",
                 CancellationToken.None);
 
@@ -1169,7 +1174,7 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
         await dbContext.SaveChangesAsync();
         BootstrapProvisioningResult result = await CreateProvisioning(
             new PrincipalPersonResolution.Resolved(FixtureSeedData.EngineerId)).ProvisionAsync(
-                new BootstrapProvisioningRequest("trusted-bootstrap-sub"),
+                new BootstrapProvisioningRequest(TEST_ISSUER, "trusted-bootstrap-sub"),
                 "bootstrap-correlation",
                 CancellationToken.None);
 
@@ -1209,7 +1214,7 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
 
         BootstrapProvisioningResult result = await CreateProvisioning(
             new PrincipalPersonResolution.Resolved(FixtureSeedData.EngineerId)).ProvisionAsync(
-                new BootstrapProvisioningRequest("trusted-bootstrap-sub"),
+                new BootstrapProvisioningRequest(TEST_ISSUER, "trusted-bootstrap-sub"),
                 new string('c', 101),
                 CancellationToken.None);
 
@@ -1240,7 +1245,7 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
 
         RecoveryProvisioningResult result =
             await recovery.RecoverBootstrapAdministratorAsync(
-                new DeploymentAuthenticatedRecoveryRequest("trusted-recovery-sub"),
+                new DeploymentAuthenticatedRecoveryRequest(TEST_ISSUER, "trusted-recovery-sub"),
                 "recovery-denied",
                 CancellationToken.None);
 
@@ -1261,7 +1266,7 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
                     new PrincipalPersonResolution.Resolved(FixtureSeedData.EngineerId)),
                 new FunctionalRoleReconciliationService(context));
             return await provisioning.ProvisionAsync(
-                new BootstrapProvisioningRequest("trusted-bootstrap-sub"),
+                new BootstrapProvisioningRequest(TEST_ISSUER, "trusted-bootstrap-sub"),
                 "bootstrap-correlation",
                 CancellationToken.None);
         }
@@ -1305,7 +1310,7 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
                     new PrincipalPersonResolution.Resolved(FixtureSeedData.EngineerId)),
                 new FunctionalRoleReconciliationService(context));
             return await provisioning.ProvisionAsync(
-                new BootstrapProvisioningRequest("trusted-bootstrap-sub"),
+                new BootstrapProvisioningRequest(TEST_ISSUER, "trusted-bootstrap-sub"),
                 "bootstrap-correlation",
                 CancellationToken.None);
         }
@@ -1617,7 +1622,7 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
     private sealed class ThrowingPrincipalResolver : IPrincipalPersonResolver
     {
         public Task<PrincipalPersonResolution> ResolvePersonAsync(
-            string principalSub,
+            OidcPrincipalIdentity identity,
             CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("Recovery must authorize before resolution.");
     }
@@ -1632,7 +1637,7 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
         }
 
         public Task<PrincipalPersonResolution> ResolvePersonAsync(
-            string principalSub,
+            OidcPrincipalIdentity identity,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(resolution);
     }

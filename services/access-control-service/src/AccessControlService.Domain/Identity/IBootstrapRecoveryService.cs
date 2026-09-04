@@ -15,10 +15,13 @@ public interface IDeploymentRecoveryAuthorizer
         CancellationToken cancellationToken = default);
 }
 
-public sealed record DeploymentAuthenticatedRecoveryRequest(string? PrincipalSub);
+public sealed record DeploymentAuthenticatedRecoveryRequest(
+    string? PrincipalIssuer,
+    string? PrincipalSub);
 
 public sealed record DeploymentRecoveryAuthorizationContext(
     string OperatorIdentity,
+    string PrincipalIssuer,
     string PrincipalSub);
 
 public abstract record DeploymentRecoveryAuthorization

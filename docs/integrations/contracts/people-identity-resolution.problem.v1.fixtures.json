@@ -1,0 +1,50 @@
+{
+  "badRequest": {
+    "type": "about:blank",
+    "title": "Identity resolution request is invalid",
+    "status": 400,
+    "detail": "Identity resolution request is invalid",
+    "instance": "/api/v1/internal/identity-mappings/resolve",
+    "correlationId": "fabricated-correlation-400"
+  },
+  "unauthorized": {
+    "type": "about:blank",
+    "title": "Internal service authentication is required",
+    "status": 401,
+    "detail": "Internal service authentication is required",
+    "instance": "/api/v1/internal/identity-mappings/resolve",
+    "correlationId": "fabricated-correlation-401"
+  },
+  "forbidden": {
+    "type": "about:blank",
+    "title": "Internal service is not authorized",
+    "status": 403,
+    "detail": "Internal service is not authorized",
+    "instance": "/api/v1/internal/identity-mappings/resolve",
+    "correlationId": "fabricated-correlation-403"
+  },
+  "notFound": {
+    "type": "about:blank",
+    "title": "Identity mapping was not found",
+    "status": 404,
+    "detail": "Identity mapping was not found",
+    "instance": "/api/v1/internal/identity-mappings/resolve",
+    "correlationId": "fabricated-correlation-404"
+  },
+  "conflict": {
+    "type": "about:blank",
+    "title": "Identity mapping is ambiguous",
+    "status": 409,
+    "detail": "Identity mapping is ambiguous",
+    "instance": "/api/v1/internal/identity-mappings/resolve",
+    "correlationId": "fabricated-correlation-409"
+  },
+  "unavailable": {
+    "type": "about:blank",
+    "title": "Identity resolution is unavailable",
+    "status": 503,
+    "detail": "Identity resolution is unavailable",
+    "instance": "/api/v1/internal/identity-mappings/resolve",
+    "correlationId": "fabricated-correlation-503"
+  }
+}

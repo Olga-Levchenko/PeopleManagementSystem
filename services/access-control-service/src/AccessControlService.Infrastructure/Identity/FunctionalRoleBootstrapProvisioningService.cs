@@ -11,6 +11,7 @@ namespace AccessControlService.Infrastructure.Identity;
 public sealed class FunctionalRoleBootstrapProvisioningService : IBootstrapProvisioningService
 {
     private const string SEEDED_ADMINISTRATOR_ROLE_KEY = "hr-admin";
+    private const string SYSTEM_BOOTSTRAP_ACTOR = "system:bootstrap-provisioning";
 
     private readonly AccessControlDbContext dbContext;
     private readonly IPrincipalPersonResolver principalResolver;
@@ -31,13 +32,17 @@ public sealed class FunctionalRoleBootstrapProvisioningService : IBootstrapProvi
         string correlationId,
         CancellationToken cancellationToken = default)
     {
-        if (!IsValidPrincipalSub(request.PrincipalSub))
+        if (!OidcPrincipalIdentity.TryCreate(
+                request.PrincipalIssuer,
+                request.PrincipalSub,
+                out OidcPrincipalIdentity? identity) ||
+            identity is null)
         {
             return BootstrapProvisioningResult.InvalidInput();
         }
 
         PrincipalPersonResolution resolution =
-            await principalResolver.ResolvePersonAsync(request.PrincipalSub!, cancellationToken);
+            await principalResolver.ResolvePersonAsync(identity, cancellationToken);
         if (resolution is PrincipalPersonResolution.Unavailable)
         {
             return BootstrapProvisioningResult.UnavailableIdentity();
@@ -111,7 +116,7 @@ public sealed class FunctionalRoleBootstrapProvisioningService : IBootstrapProvi
                     Action = "bootstrap",
                     TargetType = "person-functional-role-assignment",
                     TargetId = assignment.Id,
-                    TrustedProvisioningActor = request.PrincipalSub,
+                    TrustedProvisioningActor = SYSTEM_BOOTSTRAP_ACTOR,
                     After = JsonSerializer.Serialize(new
                     {
                         assignment.Id,
@@ -133,8 +138,4 @@ public sealed class FunctionalRoleBootstrapProvisioningService : IBootstrapProvi
         }
     }
 
-    private static bool IsValidPrincipalSub(string? principalSub) =>
-        !string.IsNullOrWhiteSpace(principalSub) &&
-        principalSub.Length <= 255 &&
-        principalSub.All(character => !char.IsWhiteSpace(character));
 }
