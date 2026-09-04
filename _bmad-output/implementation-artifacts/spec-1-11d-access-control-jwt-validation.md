@@ -2,7 +2,8 @@
 title: 'Story 1.11d: Access Control JWT authentication for Administration routes'
 type: 'feature'
 created: '2026-09-04'
-status: 'ready-for-dev'
+status: 'in-progress'
+baseline_commit: 'd3a5db73336e4590b196d75af0a5559a52d0c037'
 review_loop_iteration: 0
 context:
   - '{project-root}/docs/requirements/project-requirements.md'
@@ -171,13 +172,19 @@ secrets, or JWKS responses.
 
 ## Verification levels
 
-1. **Real JWT validation:** disposable Keycloak issues signed tokens; the real Access Control HTTP
-   pipeline proves valid, missing, malformed, expired, invalid-signature, wrong-issuer,
-   wrong-audience, disallowed-algorithm, missing-`sub`, and blank-`sub` cases.
-2. **Controlled O4-142 resolution:** HTTP tests replace the resolver through a controlled test
+1. **Real JWT validation:** disposable Keycloak proves the real discovery/JWKS pipeline and issues
+   a valid signed token; the real Access Control HTTP pipeline proves the valid-token case and
+   feasible negative cases using Keycloak-issued tokens, including expired, invalid-signature,
+   wrong-issuer, and wrong-audience cases where technically possible.
+2. **Controlled cryptographic JWT validation:** missing-`sub`, blank-`sub`, and
+   disallowed-algorithm cases use narrowly scoped, cryptographically signed test tokens with
+   test-only signing material and a controlled test issuer/JWKS configuration. These are real JWT
+   cryptographic-validation tests, but are not described as Keycloak-issued evidence. No unsigned
+   token, disabled signature validation, production test key, or authentication bypass is allowed.
+3. **Controlled O4-142 resolution:** HTTP tests replace the resolver through a controlled test
    seam to prove resolved, missing, ambiguous, and unavailable outcomes. These tests do not prove
    live People communication.
-3. **Live Access Control → People integration:** explicitly excluded and blocked until trusted
+4. **Live Access Control → People integration:** explicitly excluded and blocked until trusted
    service authentication exists. A valid JWT test must not claim this evidence.
 
 ## Dependency and External-Blocker Table
