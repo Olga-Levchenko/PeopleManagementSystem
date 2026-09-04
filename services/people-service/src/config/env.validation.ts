@@ -28,6 +28,10 @@ export const envValidationSchema = Joi.object({
   KEYCLOAK_REALM: Joi.string()
     .pattern(/^[A-Za-z0-9_-]+$/)
     .required(),
+  // Optional so ordinary service startup remains available before identity-link key provisioning.
+  // Identity-link mutations fail closed when this protected deployment value is absent or invalid.
+  IDENTITY_FINGERPRINT_KEYS: Joi.string().optional(),
+  OIDC_ALLOWED_ISSUERS: Joi.string().optional(),
   // No .default(...), same reasoning as KEYCLOAK_BASE_URL: ProfileService's audience resolution
   // fails closed to Colleague when this call fails, but a missing base URL must still fail fast
   // at startup rather than silently resolving every non-Self profile request as Colleague forever.
