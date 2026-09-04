@@ -47,7 +47,7 @@ development_status:
   1-9-project-line-narrowing-vs-reporting-line: done
   1-10-custom-field-visibility-enforcement: done
   1-11-platform-authentication-via-keycloak: done
-  1-11d-access-control-jwt-validation: ready-for-dev
+  1-11d-access-control-jwt-validation: in-progress
   epic-1-retrospective: optional
 
   epic-2: backlog
