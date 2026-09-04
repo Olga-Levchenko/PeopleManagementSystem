@@ -901,6 +901,19 @@ unauthenticated or self-asserted one
 **Then** it is rejected the same way a never-authenticated request would be — no stale session
 grants continued access
 
+### Story 1.11d: Access Control JWT authentication for Administration routes
+
+Jira: O4-156
+
+As the Access Control service,
+I want to validate end-user JWT bearer tokens on Administration routes,
+So that administrative authorization uses only cryptographically verified identity.
+
+Depends on completed Story 1.11 / O4-87 and completed O4-142 principal-to-PersonId mapping.
+Story 1.4 consumes this story as its production Administration authentication dependency.
+The approved implementation specification is
+`_bmad-output/implementation-artifacts/spec-1-11d-access-control-jwt-validation.md`.
+
 ---
 
 ## Epic 2: All Employees List & Self-Service
