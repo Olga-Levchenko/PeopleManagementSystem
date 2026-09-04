@@ -778,4 +778,83 @@ public class AccessRoleResolverTests
             logger.Entries,
             entry => entry.Level == LogLevel.Warning && entry.Message.Contains("Department-ancestor walk"));
     }
+
+    // -- spec-1-5: FullProfileAccessLine -- I/O & Edge-Case Matrix coverage below. --
+
+    [Fact]
+    public async Task ResolveAsync_ViewerIsHolder_FullProfileAccessLineTrue()
+    {
+        var viewer = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+
+        var fpaRepository = new FakeFullProfileAccessRepository().AddHolder(viewer);
+        var resolver = new AccessRoleResolver(
+            new FakeRelationshipRepository(),
+            fpaRepository,
+            NullLogger<AccessRoleResolver>.Instance);
+
+        var result = await resolver.ResolveAsync(viewer, subject);
+
+        Assert.True(result.FullProfileAccessLine);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ViewerIsNotHolder_FullProfileAccessLineFalse()
+    {
+        var viewer = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+
+        var resolver = new AccessRoleResolver(
+            new FakeRelationshipRepository(),
+            new FakeFullProfileAccessRepository(), // no holders seeded
+            NullLogger<AccessRoleResolver>.Instance);
+
+        var result = await resolver.ResolveAsync(viewer, subject);
+
+        Assert.False(result.FullProfileAccessLine);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_HolderViewingOwnProfile_FullProfileAccessLineTrueAndRelationshipFlagsFalse()
+    {
+        // FullProfileAccessLine is viewer-only (spec §2.4): it is resolved before the self-view
+        // guard and is preserved even when viewerId == subjectId. All relationship-derived flags
+        // (ReportingLine, ProjectLine, PeoplePartnerLine) must be false for self-view.
+        var viewer = Guid.NewGuid();
+
+        var fpaRepository = new FakeFullProfileAccessRepository().AddHolder(viewer);
+        var resolver = new AccessRoleResolver(
+            new FakeRelationshipRepository(),
+            fpaRepository,
+            NullLogger<AccessRoleResolver>.Instance);
+
+        var result = await resolver.ResolveAsync(viewer, viewer);
+
+        Assert.True(result.FullProfileAccessLine);
+        Assert.False(result.ReportingLine);
+        Assert.False(result.ProjectLine);
+        Assert.False(result.PeoplePartnerLine);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_HolderWithNoRelationships_FullProfileAccessLineTrueAndOtherFlagsFalse()
+    {
+        // Isolation: FullProfileAccessLine must be independent of the three relationship-derived
+        // lines -- a holder with no reporting/project/PP relationship still gets FullProfileAccessLine=true.
+        var viewer = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+
+        var fpaRepository = new FakeFullProfileAccessRepository().AddHolder(viewer);
+        var resolver = new AccessRoleResolver(
+            new FakeRelationshipRepository(), // no relationships configured
+            fpaRepository,
+            NullLogger<AccessRoleResolver>.Instance);
+
+        var result = await resolver.ResolveAsync(viewer, subject);
+
+        Assert.True(result.FullProfileAccessLine);
+        Assert.False(result.ReportingLine);
+        Assert.False(result.ProjectLine);
+        Assert.False(result.PeoplePartnerLine);
+    }
 }

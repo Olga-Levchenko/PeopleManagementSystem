@@ -77,10 +77,10 @@ public sealed class FullProfileAccessTests : IAsyncLifetime
             .UseNpgsql(_postgresConnectionString)
             .Options);
 
-    // -- Startup check: zero-holder scenario is not exercised here because deleting the seed row
-    //    while the factory is starting is a race condition. It is instead covered by the Domain
-    //    layer's FakeFullProfileAccessRepository (GetActiveCountAsync returns 0) and by a separate
-    //    dedicated test in AccessRoleResolverCompositionTests that exercises the hosted service. --
+    // -- Startup check: zero-holder scenario is tested in FullProfileAccessStartupValidationTests
+    //    (unit test using a stub IFullProfileAccessRepository returning count=0) rather than here,
+    //    because deleting the bootstrap seed row from a live WebApplicationFactory while it is
+    //    starting introduces a race between the migration/seed and the test's own delete. --
 
     // -- I/O matrix row: "Non-holder attempts grant" --
 
@@ -189,6 +189,22 @@ public sealed class FullProfileAccessTests : IAsyncLifetime
                 && e.Action == FullProfileAccessAction.Revoke)
             .SingleOrDefaultAsync();
         Assert.NotNull(journalEntry);
+    }
+
+    // -- Revoke: subject is not a holder → 404 --
+
+    [Fact]
+    public async Task Revoke_SubjectIsNotHolder_Returns404()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        // EngineerId is not a holder (only PlatformLeadId is seeded). A revoke where the subject
+        // is not a holder must return 404, not 200 or 500.
+        var body = new { actorId = FixtureSeedData.PlatformLeadId, subjectId = FixtureSeedData.EngineerId };
+        using var response = await client.PostAsJsonAsync("/api/v1/full-profile-access/revoke", body);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     // -- I/O matrix row: "Resolve - holder" (via GET /api/v1/access-roles/resolve) --

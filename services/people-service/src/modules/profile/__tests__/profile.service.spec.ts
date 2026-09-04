@@ -100,13 +100,13 @@ describe('ProfileService', () => {
     jest.clearAllMocks();
   });
 
-  it('Self: short-circuits before calling the resolver and returns full s1+s2+s10+s11+s16', async () => {
-    const resolve = jest.fn();
+  it('Self: non-FPA self-view calls resolver then returns full s1+s2+s10+s11+s16 with employee-level s16', async () => {
+    const resolve = jest.fn().mockResolvedValue(NEITHER_LINE_RESOLUTION);
     const { service } = createService({ resolve });
 
     const result = await service.getProfile(SUBJECT_ID, SUBJECT_ID);
 
-    expect(resolve).not.toHaveBeenCalled();
+    expect(resolve).toHaveBeenCalledWith(SUBJECT_ID, SUBJECT_ID);
     expect(Object.keys(result).sort()).toEqual([
       's1',
       's10',
@@ -711,6 +711,61 @@ describe('ProfileService', () => {
     expect(result.s2).toBeUndefined();
   });
 
+  it('Full profile access: FPA holder viewing their own profile gets management-level S16, not employee-level', async () => {
+    // Verifies the fix for the self-view short-circuit bug: the resolver must be called before
+    // the self-view guard so FPA is checked first (spec §2.4: FullProfileAccessLine is viewer-only
+    // and preserved for self-view; the resolver returns fullProfileAccessLine=true even when
+    // viewerPersonId === subjectPersonId).
+    const resolve = jest.fn().mockResolvedValue({
+      reportingLine: false,
+      projectLine: false,
+      peoplePartnerLine: false,
+      fullProfileAccessLine: true,
+      managerSectionAccess: null,
+      peoplePartnerSectionAccess: null,
+      fullProfileAccessSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'ReadWrite' },
+        s10: { level: 'ReadWrite' },
+        s11: { level: 'ReadWrite' },
+        s16: { level: 'ReadWrite' },
+      },
+    });
+    const { service } = createService({ resolve });
+
+    // Self-view: viewerPersonId === subjectPersonId
+    const result = await service.getProfile(VIEWER_ID, VIEWER_ID);
+
+    // FPA path: all sections present and S16 includes management-level field
+    expect(Object.keys(result).sort()).toEqual(['s1', 's10', 's11', 's16', 's2']);
+    const s16FieldIds = (result.s16 as Array<{ fieldId: string }>).map((f) => f.fieldId);
+    expect(s16FieldIds).toContain(MGMT_FIELD_ID);
+    // Resolver was called with the same ID for both viewer and subject
+    expect(resolve).toHaveBeenCalledWith(VIEWER_ID, VIEWER_ID);
+  });
+
+  it('Full profile access: non-FPA self-view still returns employee-level S16', async () => {
+    // After the fix, non-FPA self-view falls through to the self-view short-circuit as before.
+    const resolve = jest.fn().mockResolvedValue({
+      reportingLine: false,
+      projectLine: false,
+      peoplePartnerLine: false,
+      fullProfileAccessLine: false,
+      managerSectionAccess: null,
+      peoplePartnerSectionAccess: null,
+      fullProfileAccessSectionAccess: null,
+    });
+    const { service } = createService({ resolve });
+
+    const result = await service.getProfile(VIEWER_ID, VIEWER_ID);
+
+    // Self-view path: S16 absent management field
+    expect(Object.keys(result).sort()).toEqual(['s1', 's10', 's11', 's16', 's2']);
+    const s16FieldIds = (result.s16 as Array<{ fieldId: string }>).map((f) => f.fieldId);
+    expect(s16FieldIds).not.toContain(MGMT_FIELD_ID);
+    expect(s16FieldIds).toContain(EMPLOYEE_FIELD_ID);
+  });
+
   // --- S16 dedicated scenario tests (Story 1.10) ---
 
   it('INACTIVE_DEFINITION: inactive field definition is absent from s16 for all audiences', async () => {
@@ -764,13 +819,12 @@ describe('ProfileService', () => {
         },
       ],
     };
-    const resolve = jest.fn();
+    const resolve = jest.fn().mockResolvedValue(NEITHER_LINE_RESOLUTION);
     const { service } = createService({ resolve }, mgmtOnlyRow);
 
     const result = await service.getProfile(SUBJECT_ID, SUBJECT_ID);
 
     expect(result.s16).toEqual([]);
-    expect(resolve).not.toHaveBeenCalled();
   });
 
   it('EMPLOYEE_FIELD_SELF: employee-visibility field present in s16 for Self audience', async () => {
@@ -788,7 +842,7 @@ describe('ProfileService', () => {
         },
       ],
     };
-    const resolve = jest.fn();
+    const resolve = jest.fn().mockResolvedValue(NEITHER_LINE_RESOLUTION);
     const { service } = createService({ resolve }, employeeOnlyRow);
 
     const result = await service.getProfile(SUBJECT_ID, SUBJECT_ID);

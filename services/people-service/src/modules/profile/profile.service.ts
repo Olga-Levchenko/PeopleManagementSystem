@@ -252,18 +252,21 @@ export class ProfileService {
   }
 
   /**
-   * Self short-circuits before ever calling the resolver -- never call
-   * `AccessRoleResolutionPort.resolve` for a person against themselves. Otherwise, Manager
-   * (Reporting-line/Project-line, via `managerSectionAccess`) and PP-line (via
-   * `peoplePartnerSectionAccess`) are two independent, simultaneously-possible qualifying lines --
-   * per-section, the most-permissive level across whichever lines qualify wins (matching
-   * `ManagerSectionAccessPolicy`'s own most-permissive-path-wins rule one level up: a narrowed
-   * Project-line-only viewer who is also the subject's PP must still get PP's ReadWrite on S2,
-   * not the narrowed Project-line Read/None -- checking Manager first and returning immediately
-   * would silently drop that). A malformed section object (present but missing a `level` key) is
-   * treated as absent, not dereferenced -- fails closed, never throws. No line qualifying at all
-   * resolves to the Colleague whitelist (S1 read-only, no S2; S10/S11 read with field
-   * restrictions).
+   * The resolver is always called first -- including for self-view -- because
+   * `FullProfileAccessLine` is viewer-only (not relationship-derived) and is preserved by the
+   * resolver even for self-view (spec §2.4). An FPA holder viewing their own profile must
+   * receive `'management'` customFieldAudienceLevel, not the default `'employee'` that the
+   * self-view short-circuit would produce. For non-FPA self-view the short-circuit below still
+   * applies after the FPA check. Manager (Reporting-line/Project-line, via `managerSectionAccess`)
+   * and PP-line (via `peoplePartnerSectionAccess`) are two independent, simultaneously-possible
+   * qualifying lines -- per-section, the most-permissive level across whichever lines qualify wins
+   * (matching `ManagerSectionAccessPolicy`'s own most-permissive-path-wins rule one level up: a
+   * narrowed Project-line-only viewer who is also the subject's PP must still get PP's ReadWrite
+   * on S2, not the narrowed Project-line Read/None -- checking Manager first and returning
+   * immediately would silently drop that). A malformed section object (present but missing a
+   * `level` key) is treated as absent, not dereferenced -- fails closed, never throws. No line
+   * qualifying at all resolves to the Colleague whitelist (S1 read-only, no S2; S10/S11 read
+   * with field restrictions).
    *
    * `isColleague` flag is distinct from `s2 === 'None'`: a narrowed Project-line-only viewer also
    * has `s2 === 'None'` per the section matrix but is entitled to full (unrestricted) S10/S11 data.
@@ -280,27 +283,15 @@ export class ProfileService {
     isColleague: boolean;
     customFieldAudienceLevel: CustomFieldAudienceLevel;
   }> {
-    if (viewerPersonId === subjectPersonId) {
-      return {
-        s1: 'ReadWrite',
-        s2: 'ReadWrite',
-        s10: 'ReadWrite',
-        s11: 'ReadWrite',
-        isColleague: false,
-        // Self sees employee + colleague fields; management fields are not for the subject
-        // about themselves per the S16 section-matrix row.
-        customFieldAudienceLevel: 'employee',
-      };
-    }
-
     const resolution = await this.accessRoleResolution.resolve(
       viewerPersonId,
       subjectPersonId,
     );
 
-    // Full-profile-access is the maximum possible access -- takes precedence over all other lines.
-    // Checked first so a viewer who is also a Manager/PP doesn't accidentally get a narrower view
-    // from a most-permissive-wins calculation that didn't include the full-access tier.
+    // Full-profile-access is the maximum possible access -- takes precedence over all other lines,
+    // including self-view. Checked before the self-view short-circuit because FullProfileAccessLine
+    // is viewer-only (spec §2.4): an FPA holder viewing their own profile gets 'management'
+    // customFieldAudienceLevel, not the 'employee' the self-view short-circuit would produce.
     const fullAccess =
       resolution.fullProfileAccessLine &&
       resolution.fullProfileAccessSectionAccess != null
@@ -314,6 +305,21 @@ export class ProfileService {
         s11: this.mostPermissive(fullAccess.s11?.level),
         isColleague: false,
         customFieldAudienceLevel: 'management',
+      };
+    }
+
+    // Non-FPA self-view: the resolver's relationship-derived flags are all false for self-view
+    // (a person is never their own manager/PP), so short-circuit here rather than falling through
+    // to the colleague branch. Self sees employee + colleague fields; management fields are not
+    // for the subject about themselves per the S16 section-matrix row.
+    if (viewerPersonId === subjectPersonId) {
+      return {
+        s1: 'ReadWrite',
+        s2: 'ReadWrite',
+        s10: 'ReadWrite',
+        s11: 'ReadWrite',
+        isColleague: false,
+        customFieldAudienceLevel: 'employee',
       };
     }
 

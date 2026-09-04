@@ -147,6 +147,28 @@ public sealed class EfFullProfileAccessRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RevokeAsync_SubjectIsNotHolder_EarlyReturnsWithoutWritingJournalEntry()
+    {
+        // The controller's subject-is-holder guard is the primary defence, but RevokeAsync has its
+        // own early-return guard to ensure the journal is never written without a corresponding
+        // grant-row removal -- verified here directly at the repository layer.
+        var count = await _repository.GetActiveCountAsync();
+
+        // EngineerId has no grant row (only PlatformLeadId is seeded). Call RevokeAsync directly,
+        // bypassing the controller's subject-is-holder check.
+        await _repository.RevokeAsync(FixtureSeedData.PlatformLeadId, FixtureSeedData.EngineerId);
+
+        // Count unchanged -- no grant row was removed.
+        Assert.Equal(count, await _repository.GetActiveCountAsync());
+
+        // No journal entry written for a no-op revoke.
+        var journalEntry = await _dbContext.FullProfileAccessJournalEntries
+            .Where(e => e.SubjectId == FixtureSeedData.EngineerId && e.Action == FullProfileAccessAction.Revoke)
+            .FirstOrDefaultAsync();
+        Assert.Null(journalEntry);
+    }
+
+    [Fact]
     public async Task GrantAsync_DuplicateHolder_SaveChangesThrowsOnUniqueConstraintViolation()
     {
         // PlatformLeadId is already a holder from the bootstrap seed -- a second grant for the

@@ -102,6 +102,18 @@ context:
 - [x] [Review][Defer] TOCTOU on last-holder revoke guard — deferred, pre-existing; tracked in O4-157 [`FullProfileAccessController.cs:117-123`]
 - [x] [Review][Defer] Down() migration drops `full_profile_access_grants` before `full_profile_access_journal_entries` with no FK integrity; a rolled-back migration leaves orphaned journal rows — deferred, pre-existing; low risk (rollback-only scenario, no runtime impact) [`20260904144036_AddFullProfileAccess.cs:62-68`]
 
+_Round 2 (blind-hunter + verification-gap + acceptance-auditor):_
+
+- [x] [Review][Patch] FPA self-view bug: `profile.service.ts:283` short-circuits before the resolver is called; FPA holders viewing their own profile get `customFieldAudienceLevel: 'employee'` instead of `'management'`, violating AC6 — fix: call resolver before self-view guard, check FPA first [`profile.service.ts:283-294`]
+- [x] [Review][Patch] Startup validation: false comment in `FullProfileAccessTests.cs:80-83` claims a non-existent "separate dedicated test in AccessRoleResolverCompositionTests"; no test for the zero-holder fail-fast path exists anywhere — fix: remove false comment; add unit test for `FullProfileAccessStartupValidation` [`FullProfileAccessTests.cs:80-83`] [`FullProfileAccessStartupValidation.cs`]
+- [x] [Review][Patch] `FakeFullProfileAccessRepository.AddHolder` is never called in any domain test; `FullProfileAccessLine` is never exercised as `true` in unit tests — fix: add holder/non-holder/self-view/isolation cases to `AccessRoleResolverTests.cs` [`AccessRoleResolverTests.cs`]
+- [x] [Review][Patch] I/O matrix row "Revoke — subject is not a holder → 404" has no integration test [`FullProfileAccessTests.cs`]
+- [x] [Review][Patch] `RevokeAsync` early-return when subject has no grant row is untested at repository level [`EfFullProfileAccessRepositoryTests.cs`]
+- [x] [Review][Patch] `docs/access-control/section-matrix.md` test coverage note not updated for Story 1.5 FPA additions
+- [x] [Review][Defer] `actorId` sourced from request body rather than JWT sub claim — documented deviation in controller doc comment; JWT infra not yet present in this service; pre-existing pattern across all controllers [`FullProfileAccessController.cs:14-26`]
+- [x] [Review][Defer] `HolderId`/`ActorId`/`SubjectId` columns have no FK to `people` table — consistent with existing codebase pattern (see CLAUDE.md Gotchas); deferral is deliberate [`AccessControlDbContext.cs:154-208`]
+- [x] [Review][Defer] Only s1/s2/s10/s11/s16 assembled in profile response; FPA holders cannot receive all 16 sections until remaining sections are implemented — future story scope; MAINTENANCE comment in `profile.ports.ts` is the guardrail [`profile.ports.ts:46-52`]
+
 **Acceptance Criteria:**
 - Given the platform starts up with zero rows in `full_profile_access_grants`, then the application fails to start with a logged error naming the missing bootstrap state
 - Given a user who does not currently hold Full profile access, when they attempt to grant it to themselves or anyone else via `POST /api/v1/full-profile-access/grant`, then the request is rejected 403
