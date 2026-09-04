@@ -78,9 +78,12 @@ export class IdentityValidationService {
       throw new BadRequestException('Identity issuer is malformed');
     }
 
+    const isLocalEnvironment = ['development', 'test', 'local'].includes(
+      this.nodeEnvironment,
+    );
     if (
       parsed.protocol !== 'https:' &&
-      !['development', 'test', 'local'].includes(this.nodeEnvironment)
+      !(isLocalEnvironment && parsed.protocol === 'http:')
     ) {
       throw new BadRequestException('Identity issuer must use HTTPS');
     }

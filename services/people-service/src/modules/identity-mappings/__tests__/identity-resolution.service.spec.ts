@@ -72,7 +72,10 @@ describe('IdentityResolutionService', () => {
   });
 
   it('maps persistence failures to unavailable and performs no writes', async () => {
-    const findMany = jest.fn().mockRejectedValue(new Error('database details'));
+    const persistenceError = Object.assign(new Error('database unavailable'), {
+      code: 'P1001',
+    });
+    const findMany = jest.fn().mockRejectedValue(persistenceError);
     const service = createService(findMany);
 
     await expect(
@@ -80,6 +83,29 @@ describe('IdentityResolutionService', () => {
     ).resolves.toEqual({
       outcome: 'unavailable',
     });
+  });
+
+  it('preserves cancellation instead of converting it to unavailable', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const findMany = jest.fn();
+    const service = createService(findMany);
+
+    await expect(
+      service.resolve(ISSUER, 'cancelled-subject', controller.signal),
+    ).rejects.toThrow('cancelled');
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  it('does not hide unexpected programming failures as dependency failures', async () => {
+    const findMany = jest
+      .fn()
+      .mockRejectedValue(new Error('unexpected failure'));
+    const service = createService(findMany);
+
+    await expect(service.resolve(ISSUER, 'unexpected-subject')).rejects.toThrow(
+      'unexpected failure',
+    );
   });
 
   it.each([

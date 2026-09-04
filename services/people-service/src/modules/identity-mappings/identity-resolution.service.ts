@@ -16,8 +16,12 @@ export class IdentityResolutionService {
   async resolve(
     issuer: string,
     subject: string,
+    cancellationToken?: AbortSignal,
   ): Promise<IdentityResolutionResult> {
     const identity = this.validate(issuer, subject);
+    if (cancellationToken?.aborted) {
+      throw new Error('Identity resolution was cancelled');
+    }
 
     try {
       const links = await this.prisma.personExternalIdentityLink.findMany({
@@ -29,6 +33,9 @@ export class IdentityResolutionService {
         select: { personId: true },
         take: 2,
       });
+      if (cancellationToken?.aborted) {
+        throw new Error('Identity resolution was cancelled');
+      }
 
       if (links.length === 0) {
         return { outcome: 'missing' };
@@ -38,9 +45,25 @@ export class IdentityResolutionService {
       }
 
       return { outcome: 'resolved', personId: links[0].personId };
-    } catch {
+    } catch (error) {
+      if (cancellationToken?.aborted) {
+        throw error;
+      }
+      if (!this.isPersistenceFailure(error)) {
+        throw error;
+      }
       return { outcome: 'unavailable' };
     }
+  }
+
+  private isPersistenceFailure(error: unknown): boolean {
+    return (
+      error instanceof Error &&
+      (error.constructor.name.startsWith('PrismaClient') ||
+        ('code' in error &&
+          typeof error.code === 'string' &&
+          error.code.startsWith('P')))
+    );
   }
 
   private validate(issuer: string, subject: string): CanonicalIdentity {

@@ -53,16 +53,10 @@ describe('Identity mapping persistence migration', () => {
   }, 120_000);
 
   afterAll(async () => {
+    await prisma?.$executeRawUnsafe('DROP SCHEMA public CASCADE');
     await prisma?.$disconnect();
     await container?.stop();
   }, 120_000);
-
-  beforeEach(async () => {
-    await prisma.identityLinkAudit.deleteMany();
-    await prisma.identityLinkOperation.deleteMany();
-    await prisma.personExternalIdentityLink.deleteMany();
-    await prisma.person.deleteMany();
-  });
 
   async function createPerson() {
     return prisma.person.create({ data: { fullName: 'Schema Test Person' } });
@@ -228,6 +222,51 @@ describe('Identity mapping persistence migration', () => {
     expect(link.status).toBe('ACTIVE');
   });
 
+  it('allows audit inserts but rejects update, delete, and truncate without changing rows', async () => {
+    const person = await createPerson();
+    const audit = await prisma.identityLinkAudit.create({
+      data: {
+        action: 'LINK',
+        personId: person.id,
+        canonicalIssuer: ISSUER,
+        subjectFingerprint: 'audit-subject-fingerprint',
+        fingerprintKeyVersion: 'test-v1',
+        actorType: 'test',
+        actorIdentifier: 'audit-actor',
+        correlationId: 'audit-correlation',
+        idempotencyKey: 'audit-idempotency-key',
+        beforeState: {},
+        afterState: {},
+      },
+    });
+
+    await expect(
+      prisma.$executeRaw`
+        UPDATE "identity_link_audits"
+        SET "actorIdentifier" = 'changed'
+        WHERE "auditId" = ${audit.auditId}
+      `,
+    ).rejects.toThrow(/append-only/i);
+    await expect(
+      prisma.$executeRaw`
+        DELETE FROM "identity_link_audits"
+        WHERE "auditId" = ${audit.auditId}
+      `,
+    ).rejects.toThrow(/append-only/i);
+    await expect(
+      prisma.$executeRaw`TRUNCATE TABLE "identity_link_audits"`,
+    ).rejects.toThrow(/append-only/i);
+
+    const unchanged = await prisma.identityLinkAudit.findUnique({
+      where: { auditId: audit.auditId },
+    });
+    expect(unchanged).toMatchObject({
+      auditId: audit.auditId,
+      actorIdentifier: 'audit-actor',
+      correlationId: 'audit-correlation',
+    });
+  });
+
   it('refuses duplicate active data before creating partial indexes', async () => {
     const person = await createPerson();
     const link = await prisma.personExternalIdentityLink.create({
@@ -251,21 +290,15 @@ describe('Identity mapping persistence migration', () => {
           VALUES
             (${randomUUID()}::uuid, ${person.id}, ${ISSUER}, ${link.opaqueSubject}, CURRENT_TIMESTAMP)
         `;
-        await tx.$executeRaw`
-          DO $$
-          BEGIN
-            IF EXISTS (
-              SELECT 1
-              FROM "person_external_identity_links"
-              WHERE "status" = 'ACTIVE'
-              GROUP BY "canonicalIssuer", "opaqueSubject"
-              HAVING COUNT(*) > 1
-            ) THEN
-              RAISE EXCEPTION USING
-                MESSAGE = 'Cannot create active identity uniqueness index: duplicate (canonicalIssuer, opaqueSubject) data exists';
-            END IF;
-          END $$;
-        `;
+        const migration = await readFile(MIGRATION_PATH, 'utf8');
+        const preflightStart = migration.indexOf('DO $$');
+        const preflightEnd =
+          migration.indexOf('END $$;', preflightStart) + 'END $$;'.length;
+        expect(preflightStart).toBeGreaterThanOrEqual(0);
+        expect(preflightEnd).toBeGreaterThan(preflightStart);
+        await tx.$executeRawUnsafe(
+          migration.slice(preflightStart, preflightEnd),
+        );
       }),
     ).rejects.toThrow(/duplicate \(canonicalIssuer, opaqueSubject\)/i);
 

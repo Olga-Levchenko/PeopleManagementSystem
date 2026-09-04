@@ -116,7 +116,10 @@ public sealed class PeoplePrincipalPersonResolverTests
         using HttpClient httpClient = new(handler);
         PeoplePrincipalPersonResolver resolver = new(
             httpClient,
-            new PeopleIdentityResolverOptions(null, TimeSpan.FromSeconds(1)),
+            new PeopleIdentityResolverOptions(
+                null,
+                TimeSpan.FromSeconds(1),
+                new HashSet<string> { IDENTITY.Issuer }),
             new StubCredentialProvider(new InternalServiceCredentialResult.Available(
                 "Bearer",
                 "fabricated-test-service-credential")),
@@ -143,6 +146,44 @@ public sealed class PeoplePrincipalPersonResolverTests
     }
 
     [Fact]
+    public async Task ResolveAsync_WhenResponseContainsUnexpectedProperty_FailsClosed()
+    {
+        using StubHandler handler = new(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                """{"personId":"11111111-1111-4111-8111-111111111111","extra":"unexpected"}"""),
+        });
+        using HttpClient httpClient = new(handler);
+        PeoplePrincipalPersonResolver resolver = CreateResolver(httpClient);
+
+        PrincipalPersonResolution result = await resolver.ResolvePersonAsync(IDENTITY);
+
+        Assert.IsType<PrincipalPersonResolution.Unavailable>(result);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_WhenCredentialHeaderIsMalformed_FailsClosedWithoutSending()
+    {
+        int requestCount = 0;
+        using StubHandler handler = new(_ =>
+        {
+            requestCount++;
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+        using HttpClient httpClient = new(handler);
+        PeoplePrincipalPersonResolver resolver = CreateResolver(
+            httpClient,
+            new StubCredentialProvider(new InternalServiceCredentialResult.Available(
+                "Bearer\n",
+                "fabricated-test-service-credential")));
+
+        PrincipalPersonResolution result = await resolver.ResolvePersonAsync(IDENTITY);
+
+        Assert.IsType<PrincipalPersonResolution.Unavailable>(result);
+        Assert.Equal(0, requestCount);
+    }
+
+    [Fact]
     public async Task ResolveAsync_WhenUpstreamTimesOut_ReturnsUnavailable()
     {
         using StubHandler handler = new(async (_, cancellationToken) =>
@@ -153,7 +194,10 @@ public sealed class PeoplePrincipalPersonResolverTests
         using HttpClient httpClient = new(handler);
         PeoplePrincipalPersonResolver resolver = new(
             httpClient,
-            new PeopleIdentityResolverOptions(BASE_ADDRESS, TimeSpan.FromMilliseconds(10)),
+            new PeopleIdentityResolverOptions(
+                BASE_ADDRESS,
+                TimeSpan.FromMilliseconds(10),
+                new HashSet<string> { IDENTITY.Issuer }),
             new StubCredentialProvider(new InternalServiceCredentialResult.Available(
                 "Bearer",
                 "fabricated-test-service-credential")),
@@ -164,12 +208,39 @@ public sealed class PeoplePrincipalPersonResolverTests
         Assert.IsType<PrincipalPersonResolution.Unavailable>(result);
     }
 
+    [Fact]
+    public async Task ResolveAsync_WhenCallerCancels_PropagatesCancellation()
+    {
+        TaskCompletionSource<bool> requestStarted = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        using StubHandler handler = new(async (_, cancellationToken) =>
+        {
+            requestStarted.SetResult(true);
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+        using HttpClient httpClient = new(handler);
+        PeoplePrincipalPersonResolver resolver = CreateResolver(httpClient);
+        using CancellationTokenSource cancellation = new();
+
+        Task<PrincipalPersonResolution> result =
+            resolver.ResolvePersonAsync(IDENTITY, cancellation.Token);
+        await requestStarted.Task;
+        await cancellation.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            async () => await result);
+    }
+
     private static PeoplePrincipalPersonResolver CreateResolver(
         HttpClient httpClient,
         IInternalServiceCredentialProvider? credentialProvider = null) =>
         new(
             httpClient,
-            new PeopleIdentityResolverOptions(BASE_ADDRESS, TimeSpan.FromSeconds(1)),
+            new PeopleIdentityResolverOptions(
+                BASE_ADDRESS,
+                TimeSpan.FromSeconds(1),
+                new HashSet<string> { IDENTITY.Issuer }),
             credentialProvider ?? new StubCredentialProvider(
                 new InternalServiceCredentialResult.Available(
                     "Bearer",

@@ -1,4 +1,5 @@
 using AccessControlService.Infrastructure.Messaging;
+using AccessControlService.Domain.Identity;
 
 namespace AccessControlService.Api.Configuration;
 
@@ -17,6 +18,8 @@ public sealed class AppConfig
     public string RabbitMqUser { get; }
     public string RabbitMqPassword { get; }
     public Uri? PeopleServiceBaseUrl { get; }
+    public IReadOnlySet<string> AllowedOidcIssuers { get; }
+    public bool AllowInsecureOidcHttp { get; }
 
     private AppConfig(
         int port,
@@ -26,7 +29,9 @@ public sealed class AppConfig
         int rabbitMqPort,
         string rabbitMqUser,
         string rabbitMqPassword,
-        Uri? peopleServiceBaseUrl)
+        Uri? peopleServiceBaseUrl,
+        IReadOnlySet<string> allowedOidcIssuers,
+        bool allowInsecureOidcHttp)
     {
         Port = port;
         CorsOrigin = corsOrigin;
@@ -36,6 +41,8 @@ public sealed class AppConfig
         RabbitMqUser = rabbitMqUser;
         RabbitMqPassword = rabbitMqPassword;
         PeopleServiceBaseUrl = peopleServiceBaseUrl;
+        AllowedOidcIssuers = allowedOidcIssuers;
+        AllowInsecureOidcHttp = allowInsecureOidcHttp;
     }
 
     /// <summary>
@@ -50,7 +57,9 @@ public sealed class AppConfig
     /// check reporting accordingly) when RabbitMQ itself is unreachable, mirroring the existing
     /// Postgres contract.
     /// </summary>
-    public static AppConfig Load(IConfiguration configuration)
+    public static AppConfig Load(
+        IConfiguration configuration,
+        string environmentName = "Production")
     {
         var portRaw = RequireNonBlank(configuration, "PORT");
         var corsOrigin = RequireNonBlank(configuration, "CORS_ORIGIN");
@@ -62,6 +71,11 @@ public sealed class AppConfig
         Uri? peopleServiceBaseUrl = OptionalHttpUri(
             configuration,
             "PEOPLE_SERVICE_BASE_URL");
+        bool allowInsecureOidcHttp =
+            environmentName is "Development" or "Test" or "Local";
+        IReadOnlySet<string> allowedOidcIssuers = ReadAllowedOidcIssuers(
+            configuration,
+            allowInsecureOidcHttp);
 
         var port = ParsePort(portRaw, "PORT");
         var rabbitMqPort = ParsePort(rabbitMqPortRaw, "RABBITMQ_PORT");
@@ -74,7 +88,9 @@ public sealed class AppConfig
             rabbitMqPort,
             rabbitMqUser,
             rabbitMqPassword,
-            peopleServiceBaseUrl);
+            peopleServiceBaseUrl,
+            allowedOidcIssuers,
+            allowInsecureOidcHttp);
     }
 
     private static int ParsePort(string raw, string key)
@@ -129,5 +145,34 @@ public sealed class AppConfig
         }
 
         return uri;
+    }
+
+    private static IReadOnlySet<string> ReadAllowedOidcIssuers(
+        IConfiguration configuration,
+        bool allowInsecureHttp)
+    {
+        string? configuredIssuers = configuration["OIDC_ALLOWED_ISSUERS"];
+        HashSet<string> issuers = new(StringComparer.Ordinal);
+        if (string.IsNullOrWhiteSpace(configuredIssuers))
+        {
+            return issuers;
+        }
+
+        foreach (string configuredIssuer in configuredIssuers.Split(','))
+        {
+            if (!OidcPrincipalIdentity.TryCreate(
+                    configuredIssuer,
+                    "configuration-subject",
+                    allowInsecureHttp,
+                    out OidcPrincipalIdentity? identity) ||
+                identity is null)
+            {
+                return new HashSet<string>(StringComparer.Ordinal);
+            }
+
+            issuers.Add(identity.Issuer);
+        }
+
+        return issuers;
     }
 }

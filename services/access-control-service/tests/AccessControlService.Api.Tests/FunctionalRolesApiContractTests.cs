@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Claims;
 using System.Text;
 using AccessControlService.Domain.Identity;
+using AccessControlService.Infrastructure.Identity;
 using AccessControlService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
@@ -28,6 +29,7 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
         .Build();
 
     private WebApplicationFactory<Program> factory = null!;
+    private WebApplicationFactory<Program> registeredResolverFactory = null!;
     private HttpClient client = null!;
 
     public async Task InitializeAsync()
@@ -75,11 +77,23 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
             });
         });
         client = factory.CreateClient();
+        registeredResolverFactory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddSingleton<IStartupFilter, TestAuthenticationStartupFilter>();
+                services.AddAuthentication(TestAuthenticationHandler.SchemeName)
+                    .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(
+                        TestAuthenticationHandler.SchemeName,
+                        _ => { });
+            });
+        });
     }
 
     public async Task DisposeAsync()
     {
         client.Dispose();
+        await registeredResolverFactory.DisposeAsync();
         await factory.DisposeAsync();
         Environment.SetEnvironmentVariable("PORT", null);
         Environment.SetEnvironmentVariable("CORS_ORIGIN", null);
@@ -347,6 +361,27 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
         Assert.Equal(HttpStatusCode.ServiceUnavailable, unavailable.StatusCode);
         Assert.DoesNotContain("Host=", await unavailable.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task RegisteredPeopleResolver_FailsClosedWhenAllowlistIsMissing()
+    {
+        using IServiceScope scope = registeredResolverFactory.Services.CreateScope();
+        IPrincipalPersonResolver registeredResolver =
+            scope.ServiceProvider.GetRequiredService<IPrincipalPersonResolver>();
+        PeopleIdentityResolverOptions options =
+            scope.ServiceProvider.GetRequiredService<PeopleIdentityResolverOptions>();
+        using HttpClient registeredClient = registeredResolverFactory.CreateClient();
+        using HttpRequestMessage request = new(
+            HttpMethod.Get,
+            "/api/v1/functional-roles");
+        request.Headers.Add(TEST_SUB_HEADER, FixtureSeedData.ExecutiveId.ToString());
+
+        using HttpResponseMessage response = await registeredClient.SendAsync(request);
+
+        Assert.IsType<PeoplePrincipalPersonResolver>(registeredResolver);
+        Assert.Empty(options.AllowedIssuers!);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
     }
 
     [Fact]

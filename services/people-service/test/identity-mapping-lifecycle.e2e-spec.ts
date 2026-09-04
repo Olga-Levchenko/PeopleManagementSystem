@@ -35,6 +35,7 @@ describe('Identity mapping lifecycle', () => {
   let prisma: PrismaService;
   let service: IdentityMappingService;
   let authorizer: jest.Mocked<IIdentityLinkProvisioningAuthorizer>;
+  let databaseUrl: string;
 
   beforeAll(async () => {
     container = await new PostgreSqlContainer('postgres:18-alpine')
@@ -42,7 +43,7 @@ describe('Identity mapping lifecycle', () => {
       .withUsername('postgres')
       .withPassword('postgres')
       .start();
-    const databaseUrl = container.getConnectionUri();
+    databaseUrl = container.getConnectionUri();
 
     await execFileAsync(
       process.execPath,
@@ -73,10 +74,18 @@ describe('Identity mapping lifecycle', () => {
   }, 120_000);
 
   beforeEach(async () => {
-    await prisma.identityLinkAudit.deleteMany();
-    await prisma.identityLinkOperation.deleteMany();
-    await prisma.personExternalIdentityLink.deleteMany();
-    await prisma.person.deleteMany();
+    await prisma.$executeRawUnsafe(
+      'DROP SCHEMA public CASCADE; CREATE SCHEMA public;',
+    );
+    await execFileAsync(
+      process.execPath,
+      [require.resolve('prisma/build/index.js'), 'migrate', 'deploy'],
+      {
+        cwd: SERVICE_ROOT,
+        env: { ...process.env, DATABASE_URL: databaseUrl },
+        shell: false,
+      },
+    );
     authorizer.authorize.mockResolvedValue({
       actorType: 'test-service',
       actorIdentifier: 'fabricated-actor',
@@ -185,6 +194,33 @@ describe('Identity mapping lifecycle', () => {
     ).rejects.toThrow('Person not found');
 
     expect(await prisma.identityLinkOperation.count()).toBe(0);
+  });
+
+  it('rejects oversized idempotency keys and revoke reasons without truncation', async () => {
+    const person = await createPerson();
+
+    await expect(
+      service.LinkIdentityAsync(
+        linkRequest(person.id, 'oversized-key-subject', 'k'.repeat(201)),
+      ),
+    ).rejects.toThrow('at most 200 characters');
+    expect(await prisma.personExternalIdentityLink.count()).toBe(0);
+
+    const linked = await service.LinkIdentityAsync(
+      linkRequest(person.id, 'oversized-reason-subject'),
+    );
+    await expect(
+      service.RevokeIdentityAsync({
+        linkId: linked.linkId,
+        reason: 'r'.repeat(1001),
+        idempotencyKey: 'oversized-reason-key',
+      }),
+    ).rejects.toThrow('at most 1000 characters');
+    expect(
+      await prisma.personExternalIdentityLink.findUniqueOrThrow({
+        where: { id: linked.linkId },
+      }),
+    ).toMatchObject({ status: 'ACTIVE' });
   });
 
   it('rejects both active uniqueness conflicts', async () => {
@@ -366,6 +402,96 @@ describe('Identity mapping lifecycle', () => {
     expect(results[0]).toEqual(results[1]);
     expect(await prisma.personExternalIdentityLink.count()).toBe(1);
     expect(await prisma.identityLinkOperation.count()).toBe(1);
+  });
+
+  it('serializes concurrent revokes and preserves the first revoke state', async () => {
+    const person = await createPerson();
+    const linked = await service.LinkIdentityAsync(
+      linkRequest(person.id, 'concurrent-revoke-subject'),
+    );
+    const first = createService(databaseUrl, authorizer);
+    const second = createService(databaseUrl, authorizer);
+
+    const results = await Promise.all([
+      first.RevokeIdentityAsync({
+        linkId: linked.linkId,
+        reason: 'first revoke reason',
+        idempotencyKey: 'concurrent-revoke-first',
+      }),
+      second.RevokeIdentityAsync({
+        linkId: linked.linkId,
+        reason: 'second revoke reason',
+        idempotencyKey: 'concurrent-revoke-second',
+      }),
+    ]);
+
+    const stored = await prisma.personExternalIdentityLink.findUniqueOrThrow({
+      where: { id: linked.linkId },
+    });
+    const revokeAudits = await prisma.identityLinkAudit.findMany({
+      where: { action: 'REVOKE' },
+    });
+
+    expect(results).toEqual([
+      { linkId: linked.linkId, status: 'REVOKED' },
+      { linkId: linked.linkId, status: 'REVOKED' },
+    ]);
+    expect(['first revoke reason', 'second revoke reason']).toContain(
+      stored.revocationReason,
+    );
+    expect(revokeAudits).toHaveLength(1);
+    expect(
+      await prisma.identityLinkOperation.count({
+        where: { operationType: 'REVOKE' },
+      }),
+    ).toBe(1);
+  });
+
+  it('allows only one concurrent relink to replace the original link', async () => {
+    const person = await createPerson();
+    const old = await service.LinkIdentityAsync(
+      linkRequest(person.id, 'concurrent-relink-old-subject'),
+    );
+    const first = createService(databaseUrl, authorizer);
+    const second = createService(databaseUrl, authorizer);
+
+    const outcomes = await Promise.allSettled([
+      first.RelinkIdentityAsync({
+        existingLinkId: old.linkId,
+        newIssuer: ISSUER,
+        newSubject: 'concurrent-relink-first',
+        idempotencyKey: 'concurrent-relink-first-key',
+      }),
+      second.RelinkIdentityAsync({
+        existingLinkId: old.linkId,
+        newIssuer: ISSUER,
+        newSubject: 'concurrent-relink-second',
+        idempotencyKey: 'concurrent-relink-second-key',
+      }),
+    ]);
+
+    const links = await prisma.personExternalIdentityLink.findMany({
+      where: { personId: person.id },
+      orderBy: { createdAtUtc: 'asc' },
+    });
+    const relinkAudits = await prisma.identityLinkAudit.findMany({
+      where: { action: 'RELINK' },
+    });
+
+    expect(
+      outcomes.filter((outcome) => outcome.status === 'fulfilled'),
+    ).toHaveLength(1);
+    expect(
+      outcomes.filter((outcome) => outcome.status === 'rejected'),
+    ).toHaveLength(1);
+    expect(links.filter((link) => link.status === 'ACTIVE')).toHaveLength(1);
+    expect(links.filter((link) => link.status === 'REVOKED')).toHaveLength(1);
+    expect(relinkAudits).toHaveLength(1);
+    expect(
+      await prisma.identityLinkOperation.count({
+        where: { operationType: 'RELINK' },
+      }),
+    ).toBe(1);
   });
 
   it('rolls back the mutation and operation when audit persistence fails', async () => {

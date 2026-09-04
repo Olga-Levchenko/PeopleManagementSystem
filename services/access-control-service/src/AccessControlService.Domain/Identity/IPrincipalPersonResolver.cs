@@ -21,6 +21,13 @@ public sealed record OidcPrincipalIdentity
     public static bool TryCreate(
         string? issuer,
         string? subject,
+        out OidcPrincipalIdentity? identity) =>
+        TryCreate(issuer, subject, allowInsecureHttp: false, out identity);
+
+    public static bool TryCreate(
+        string? issuer,
+        string? subject,
+        bool allowInsecureHttp,
         out OidcPrincipalIdentity? identity)
     {
         identity = null;
@@ -37,9 +44,7 @@ public sealed record OidcPrincipalIdentity
             !string.IsNullOrEmpty(parsedIssuer.Fragment) ||
             parsedIssuer.Host.Length == 0 ||
             (parsedIssuer.Scheme != Uri.UriSchemeHttps &&
-             !(parsedIssuer.Scheme == Uri.UriSchemeHttp &&
-               (parsedIssuer.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
-                parsedIssuer.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)))))
+             !(allowInsecureHttp && parsedIssuer.Scheme == Uri.UriSchemeHttp)))
         {
             return false;
         }

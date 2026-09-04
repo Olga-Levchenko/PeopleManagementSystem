@@ -1,5 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { IdentityValidationService } from '../identity-validation.service';
 
 const ISSUER = 'https://ID.Example.Test:443/Realms/People';
@@ -64,5 +66,56 @@ describe('IdentityValidationService', () => {
     expect(() =>
       service.validateIssuer('http://id.example.test/realms/people'),
     ).toThrow(BadRequestException);
+  });
+
+  it('matches the shared issuer canonicalization fixture', async () => {
+    const fixturePath = path.resolve(
+      __dirname,
+      '../../../../../../docs/integrations/contracts/people-identity-resolution.issuer-cases.v1.json',
+    );
+    const cases = JSON.parse(await readFile(fixturePath, 'utf8')) as Array<{
+      issuer: string;
+      subject: string;
+      canonicalIssuer?: string;
+      validInProduction: boolean;
+      validInLocal: boolean;
+    }>;
+
+    for (const issuerCase of cases) {
+      const environment = issuerCase.validInProduction
+        ? 'production'
+        : issuerCase.validInLocal
+          ? 'test'
+          : 'production';
+      const service = createService({
+        NODE_ENV: environment,
+        OIDC_ALLOWED_ISSUERS:
+          issuerCase.validInProduction || issuerCase.validInLocal
+            ? issuerCase.issuer
+            : ISSUER,
+      });
+
+      if (issuerCase.validInProduction || issuerCase.validInLocal) {
+        const identity = service.validateIdentity(
+          issuerCase.issuer,
+          issuerCase.subject,
+        );
+        expect(identity).toEqual({
+          canonicalIssuer: issuerCase.canonicalIssuer,
+          opaqueSubject: issuerCase.subject,
+        });
+      } else {
+        expect(() => service.validateIssuer(issuerCase.issuer)).toThrow(
+          BadRequestException,
+        );
+        const localService = createService({
+          NODE_ENV: 'test',
+          OIDC_ALLOWED_ISSUERS: ISSUER,
+        });
+        expect(() => localService.validateIssuer(issuerCase.issuer)).toThrow(
+          BadRequestException,
+        );
+      }
+    }
   });
 });

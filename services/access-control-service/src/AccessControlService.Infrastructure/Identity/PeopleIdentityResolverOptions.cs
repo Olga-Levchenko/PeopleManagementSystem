@@ -2,7 +2,9 @@ namespace AccessControlService.Infrastructure.Identity;
 
 public sealed record PeopleIdentityResolverOptions(
     Uri? BaseAddress,
-    TimeSpan Timeout);
+    TimeSpan Timeout,
+    IReadOnlySet<string>? AllowedIssuers = null,
+    bool AllowInsecureHttp = false);
 
 public interface IInternalServiceCredentialProvider
 {

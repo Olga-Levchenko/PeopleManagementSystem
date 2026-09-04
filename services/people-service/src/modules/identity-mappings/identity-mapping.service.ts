@@ -35,6 +35,9 @@ import type {
 
 type TransactionClient = Prisma.TransactionClient;
 
+const MAX_IDEMPOTENCY_KEY_LENGTH = 200;
+const MAX_REVOCATION_REASON_LENGTH = 1000;
+
 @Injectable()
 export class IdentityMappingService {
   constructor(
@@ -260,11 +263,20 @@ export class IdentityMappingService {
       return replay;
     }
 
+    await tx.$executeRaw`
+      SELECT "id"
+      FROM "person_external_identity_links"
+      WHERE "id" = ${linkId}::uuid
+      FOR UPDATE
+    `;
     const link = await tx.personExternalIdentityLink.findUnique({
       where: { id: linkId },
     });
     if (!link) {
       throw new NotFoundException('Identity link not found');
+    }
+    if (link.status === 'REVOKED') {
+      return { linkId: link.id, status: link.status };
     }
 
     const subjectFingerprint = this.fingerprintSubject({
@@ -272,17 +284,14 @@ export class IdentityMappingService {
       opaqueSubject: link.opaqueSubject,
     });
     const beforeState = this.linkState(link);
-    const updatedLink =
-      link.status === 'REVOKED'
-        ? link
-        : await tx.personExternalIdentityLink.update({
-            where: { id: link.id },
-            data: {
-              status: 'REVOKED',
-              revokedAtUtc: new Date(),
-              revocationReason: reason,
-            },
-          });
+    const updatedLink = await tx.personExternalIdentityLink.update({
+      where: { id: link.id },
+      data: {
+        status: 'REVOKED',
+        revokedAtUtc: new Date(),
+        revocationReason: reason,
+      },
+    });
 
     await tx.identityLinkOperation.create({
       data: {
@@ -304,7 +313,7 @@ export class IdentityMappingService {
       actor,
       correlationId,
       beforeState,
-      afterState: this.linkState(updatedLink, reason),
+      afterState: this.linkState(updatedLink),
     });
 
     return { linkId: updatedLink.id, status: updatedLink.status };
@@ -335,6 +344,12 @@ export class IdentityMappingService {
       return replay;
     }
 
+    await tx.$executeRaw`
+      SELECT "id"
+      FROM "person_external_identity_links"
+      WHERE "id" = ${existingLinkId}::uuid
+      FOR UPDATE
+    `;
     const oldLink = await tx.personExternalIdentityLink.findUnique({
       where: { id: existingLinkId },
     });
@@ -343,6 +358,27 @@ export class IdentityMappingService {
     }
     if (oldLink.status !== 'ACTIVE') {
       throw new ConflictException('Identity link is not active');
+    }
+
+    const replacementConflict = await tx.personExternalIdentityLink.findFirst({
+      where: {
+        status: 'ACTIVE',
+        id: { not: oldLink.id },
+        OR: [
+          {
+            canonicalIssuer: identity.canonicalIssuer,
+            opaqueSubject: identity.opaqueSubject,
+          },
+          {
+            personId: oldLink.personId,
+            canonicalIssuer: identity.canonicalIssuer,
+          },
+        ],
+      },
+      select: { id: true },
+    });
+    if (replacementConflict) {
+      throw new ConflictException('Identity link uniqueness conflict');
     }
 
     const oldSubjectFingerprint = this.fingerprintSubject({
@@ -601,15 +637,27 @@ export class IdentityMappingService {
   }
 
   private validateIdempotencyKey(value: string): string {
-    if (typeof value !== 'string' || value.trim().length === 0) {
-      throw new BadRequestException('Idempotency key is required');
+    if (
+      typeof value !== 'string' ||
+      value.trim().length === 0 ||
+      value.length > MAX_IDEMPOTENCY_KEY_LENGTH
+    ) {
+      throw new BadRequestException(
+        `Idempotency key is required and must be at most ${MAX_IDEMPOTENCY_KEY_LENGTH} characters`,
+      );
     }
     return value;
   }
 
   private validateReason(value: string): string {
-    if (typeof value !== 'string' || value.trim().length === 0) {
-      throw new BadRequestException('Revocation reason is required');
+    if (
+      typeof value !== 'string' ||
+      value.trim().length === 0 ||
+      value.length > MAX_REVOCATION_REASON_LENGTH
+    ) {
+      throw new BadRequestException(
+        `Revocation reason is required and must be at most ${MAX_REVOCATION_REASON_LENGTH} characters`,
+      );
     }
     return value;
   }

@@ -990,8 +990,11 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
 
         Assert.Equal(BootstrapProvisioningStatus.Provisioned, first.Status);
         Assert.Equal(BootstrapProvisioningStatus.AlreadyProvisioned, second.Status);
-        Assert.Equal(1, await dbContext.AuthorizationAdministrationAudits.CountAsync(
-            audit => audit.Action == "bootstrap"));
+        AuthorizationAdministrationAudit audit = await dbContext.AuthorizationAdministrationAudits
+            .SingleAsync(candidate => candidate.Action == "bootstrap");
+        Assert.Equal("system:bootstrap-provisioning", audit.TrustedProvisioningActor);
+        Assert.DoesNotContain("trusted-bootstrap-sub", audit.TrustedProvisioningActor);
+        Assert.DoesNotContain(TEST_ISSUER, audit.TrustedProvisioningActor);
     }
 
     [Fact]

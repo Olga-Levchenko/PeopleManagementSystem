@@ -26,7 +26,10 @@ DotNetEnv.Env.NoClobber().Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
-var appConfig = AppConfig.Load(builder.Configuration);
+var appConfig = AppConfig.Load(
+    builder.Configuration,
+    builder.Environment.EnvironmentName);
+builder.Services.AddSingleton(appConfig);
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -62,7 +65,9 @@ builder.Services.AddScoped<FunctionalRoleAdministrationService>();
 builder.Services.AddScoped<FunctionalRoleReconciliationService>();
 builder.Services.AddSingleton(new PeopleIdentityResolverOptions(
     appConfig.PeopleServiceBaseUrl,
-    TimeSpan.FromSeconds(2)));
+    TimeSpan.FromSeconds(2),
+    appConfig.AllowedOidcIssuers,
+    appConfig.AllowInsecureOidcHttp));
 builder.Services.AddHttpClient<PeoplePrincipalPersonResolver>();
 builder.Services.AddScoped<IPrincipalPersonResolver, PeoplePrincipalPersonResolver>();
 builder.Services.AddScoped<ICorrelationIdAccessor, HttpCorrelationIdAccessor>();

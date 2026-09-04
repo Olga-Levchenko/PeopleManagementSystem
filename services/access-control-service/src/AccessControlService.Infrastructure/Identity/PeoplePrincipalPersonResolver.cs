@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AccessControlService.Domain.Identity;
 
 namespace AccessControlService.Infrastructure.Identity;
@@ -8,6 +9,10 @@ namespace AccessControlService.Infrastructure.Identity;
 public sealed class PeoplePrincipalPersonResolver : IPrincipalPersonResolver
 {
     private const string RESOLVE_PATH = "/api/v1/internal/identity-mappings/resolve";
+    private static readonly JsonSerializerOptions JSON_OPTIONS = new(JsonSerializerDefaults.Web)
+    {
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+    };
 
     private readonly HttpClient httpClient;
     private readonly PeopleIdentityResolverOptions options;
@@ -33,15 +38,23 @@ public sealed class PeoplePrincipalPersonResolver : IPrincipalPersonResolver
         if (!OidcPrincipalIdentity.TryCreate(
                 identity.Issuer,
                 identity.Subject,
+                options.AllowInsecureHttp,
                 out OidcPrincipalIdentity? canonicalIdentity) ||
             canonicalIdentity is null)
         {
             return new PrincipalPersonResolution.InvalidIdentity();
         }
 
-        if (options.BaseAddress is null || options.Timeout <= TimeSpan.Zero)
+        if (options.BaseAddress is null ||
+            options.Timeout <= TimeSpan.Zero ||
+            options.AllowedIssuers is null ||
+            options.AllowedIssuers.Count == 0)
         {
             return new PrincipalPersonResolution.Unavailable();
+        }
+        if (!options.AllowedIssuers.Contains(canonicalIdentity.Issuer))
+        {
+            return new PrincipalPersonResolution.InvalidIdentity();
         }
 
         InternalServiceCredentialResult credential =
@@ -53,32 +66,32 @@ public sealed class PeoplePrincipalPersonResolver : IPrincipalPersonResolver
             return new PrincipalPersonResolution.Unavailable();
         }
 
-        using HttpRequestMessage request = new(
-            HttpMethod.Post,
-            new Uri(options.BaseAddress, RESOLVE_PATH));
-        request.Content = JsonContent.Create(new
-        {
-            issuer = canonicalIdentity.Issuer,
-            subject = canonicalIdentity.Subject,
-        });
-        request.Headers.Authorization = new AuthenticationHeaderValue(
-            available.Scheme,
-            available.Credential);
-
-        string? correlationId = correlationIdAccessor.Current;
-        if (!string.IsNullOrWhiteSpace(correlationId))
-        {
-            request.Headers.TryAddWithoutValidation(
-                "x-correlation-id",
-                correlationId);
-        }
-
         using CancellationTokenSource timeoutCancellation =
             CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCancellation.CancelAfter(options.Timeout);
 
         try
         {
+            using HttpRequestMessage request = new(
+                HttpMethod.Post,
+                new Uri(options.BaseAddress, RESOLVE_PATH));
+            request.Content = JsonContent.Create(new
+            {
+                issuer = canonicalIdentity.Issuer,
+                subject = canonicalIdentity.Subject,
+            });
+            request.Headers.Authorization = new AuthenticationHeaderValue(
+                available.Scheme,
+                available.Credential);
+
+            string? correlationId = correlationIdAccessor.Current;
+            if (!string.IsNullOrWhiteSpace(correlationId))
+            {
+                request.Headers.TryAddWithoutValidation(
+                    "x-correlation-id",
+                    correlationId);
+            }
+
             using HttpResponseMessage response = await httpClient.SendAsync(
                 request,
                 HttpCompletionOption.ResponseHeadersRead,
@@ -95,6 +108,10 @@ public sealed class PeoplePrincipalPersonResolver : IPrincipalPersonResolver
             return new PrincipalPersonResolution.Unavailable();
         }
         catch (JsonException)
+        {
+            return new PrincipalPersonResolution.Unavailable();
+        }
+        catch (FormatException)
         {
             return new PrincipalPersonResolution.Unavailable();
         }
@@ -122,6 +139,7 @@ public sealed class PeoplePrincipalPersonResolver : IPrincipalPersonResolver
     {
         ResolvePersonResponse? payload =
             await response.Content.ReadFromJsonAsync<ResolvePersonResponse>(
+                JSON_OPTIONS,
                 cancellationToken);
         return payload?.PersonId is Guid personId && personId != Guid.Empty
             ? new PrincipalPersonResolution.Resolved(personId)

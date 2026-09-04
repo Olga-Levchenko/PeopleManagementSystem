@@ -11,6 +11,7 @@ namespace AccessControlService.Infrastructure.Identity;
 public sealed class FunctionalRoleBootstrapProvisioningService : IBootstrapProvisioningService
 {
     private const string SEEDED_ADMINISTRATOR_ROLE_KEY = "hr-admin";
+    private const string SYSTEM_BOOTSTRAP_ACTOR = "system:bootstrap-provisioning";
 
     private readonly AccessControlDbContext dbContext;
     private readonly IPrincipalPersonResolver principalResolver;
@@ -115,7 +116,7 @@ public sealed class FunctionalRoleBootstrapProvisioningService : IBootstrapProvi
                     Action = "bootstrap",
                     TargetType = "person-functional-role-assignment",
                     TargetId = assignment.Id,
-                    TrustedProvisioningActor = identity.Issuer,
+                    TrustedProvisioningActor = SYSTEM_BOOTSTRAP_ACTOR,
                     After = JsonSerializer.Serialize(new
                     {
                         assignment.Id,

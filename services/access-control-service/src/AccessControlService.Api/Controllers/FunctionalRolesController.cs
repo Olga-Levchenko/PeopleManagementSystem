@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using AccessControlService.Api.Configuration;
 using AccessControlService.Domain.Identity;
 using AccessControlService.Domain.Permissions;
 using AccessControlService.Api.ErrorHandling;
@@ -16,15 +17,18 @@ public sealed class FunctionalRolesController : ControllerBase
     private readonly FunctionalRoleAdministrationService service;
     private readonly IPrincipalPersonResolver principalResolver;
     private readonly ITrustedServicePrincipalAuthorizer trustedServicePrincipalAuthorizer;
+    private readonly AppConfig appConfig;
 
     public FunctionalRolesController(
         FunctionalRoleAdministrationService service,
         IPrincipalPersonResolver principalResolver,
-        ITrustedServicePrincipalAuthorizer trustedServicePrincipalAuthorizer)
+        ITrustedServicePrincipalAuthorizer trustedServicePrincipalAuthorizer,
+        AppConfig appConfig)
     {
         this.service = service;
         this.principalResolver = principalResolver;
         this.trustedServicePrincipalAuthorizer = trustedServicePrincipalAuthorizer;
+        this.appConfig = appConfig;
     }
 
     [HttpGet("permissions/catalogue")]
@@ -321,6 +325,7 @@ public sealed class FunctionalRolesController : ControllerBase
         if (!OidcPrincipalIdentity.TryCreate(
                 User.FindFirstValue("iss"),
                 User.FindFirstValue("sub"),
+                appConfig.AllowInsecureOidcHttp,
                 out OidcPrincipalIdentity? identity) ||
             identity is null)
         {
@@ -348,6 +353,7 @@ public sealed class FunctionalRolesController : ControllerBase
             !OidcPrincipalIdentity.TryCreate(
                 context.DelegatedActorIssuer,
                 context.DelegatedActorSub,
+                appConfig.AllowInsecureOidcHttp,
                 out OidcPrincipalIdentity? identity) ||
             identity is null)
         {
