@@ -65,15 +65,26 @@ public sealed class FullProfileAccessController : ControllerBase
                 statusCode: StatusCodes.Status403Forbidden);
         }
 
+        // Duplicate-grant guard: granting to an existing holder would violate the unique index
+        // on HolderId and propagate as a DbUpdateException (500). Return 409 instead.
+        var subjectAlreadyHolder = await _repository.IsHolderAsync(subjectId, cancellationToken);
+        if (subjectAlreadyHolder)
+        {
+            return Problem(
+                detail: "The specified subject already holds Full-profile-access.",
+                statusCode: StatusCodes.Status409Conflict);
+        }
+
         await _repository.GrantAsync(actorId, subjectId, cancellationToken);
         return StatusCode(StatusCodes.Status201Created);
     }
 
     /// <summary>
     /// Revokes Full-profile-access from the person identified by <see cref="FullProfileAccessRevokeRequest.SubjectId"/>.
-    /// Guards: actor must be an existing holder; actor must not equal subject; at least 2 active
-    /// holders must exist (last-holder guard). Returns 200 on success, 403 when the actor is not a
-    /// holder or attempts self-revoke, 409 when revocation would leave zero holders.
+    /// Guards: actor must be an existing holder; subject must be an existing holder; at least 2
+    /// active holders must exist (last-holder guard). Returns 200 on success, 403 when the actor is
+    /// not a holder, 404 when the subject is not a holder, 409 when revocation would leave zero
+    /// holders.
     /// </summary>
     [HttpPost("revoke")]
     public async Task<IActionResult> Revoke(
@@ -90,6 +101,16 @@ public sealed class FullProfileAccessController : ControllerBase
             return Problem(
                 detail: "Only an existing Full-profile-access holder may revoke this access.",
                 statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        // Subject-is-holder guard: revoke is a no-op (and would corrupt the journal) if the
+        // subject never held the grant.
+        var subjectIsHolder = await _repository.IsHolderAsync(subjectId, cancellationToken);
+        if (!subjectIsHolder)
+        {
+            return Problem(
+                detail: "The specified subject does not currently hold Full-profile-access.",
+                statusCode: StatusCodes.Status404NotFound);
         }
 
         // Last-holder guard: spec §2.4 -- the last holder can never be removed.

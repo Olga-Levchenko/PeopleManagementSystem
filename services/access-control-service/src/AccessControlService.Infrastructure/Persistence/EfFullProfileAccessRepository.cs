@@ -61,10 +61,16 @@ public sealed class EfFullProfileAccessRepository : IFullProfileAccessRepository
             .Where(g => g.HolderId == subjectId)
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (grant is not null)
+        if (grant is null)
         {
-            _dbContext.FullProfileAccessGrants.Remove(grant);
+            // Subject is not a holder; the controller's subject-is-holder guard is the first line
+            // of defence, but this early-return ensures the journal is never written without a
+            // corresponding grant-row removal even if called directly.
+            await transaction.RollbackAsync(cancellationToken);
+            return;
         }
+
+        _dbContext.FullProfileAccessGrants.Remove(grant);
 
         _dbContext.FullProfileAccessJournalEntries.Add(new FullProfileAccessJournalEntry
         {

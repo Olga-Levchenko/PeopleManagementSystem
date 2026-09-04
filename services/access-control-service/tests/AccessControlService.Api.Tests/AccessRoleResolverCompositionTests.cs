@@ -755,6 +755,31 @@ public sealed class AccessRoleResolverCompositionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ResolveEndpoint_FullProfileAccessHolder_WithNoRelationshipToSubject_OnlyFullProfileAccessLineIsTrue()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        // PlatformLeadId is the bootstrap FPA holder. HrDirectorId has no relationship to
+        // PlatformLead in any dimension: HrDirector.ManagerId=null, DepartmentId=null,
+        // ManagesDepartmentId=null, no project assignments, and PlatformLead is not HrDirector's PP.
+        // This isolates the fullProfileAccessLine flag from all three relationship flags -- a
+        // regression that accidentally lets fullProfileAccessLine piggyback on a relationship flag
+        // would fail here even if the holder/non-holder tests pass.
+        using var response = await client.GetAsync(
+            $"/api/v1/access-roles/resolve?viewerPersonId={FixtureSeedData.PlatformLeadId}&subjectPersonId={FixtureSeedData.HrDirectorId}");
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+
+        Assert.True(root.GetProperty("fullProfileAccessLine").GetBoolean());
+        Assert.Equal(JsonValueKind.Object, root.GetProperty("fullProfileAccessSectionAccess").ValueKind);
+        Assert.False(root.GetProperty("reportingLine").GetBoolean());
+        Assert.False(root.GetProperty("projectLine").GetBoolean());
+        Assert.False(root.GetProperty("peoplePartnerLine").GetBoolean());
+    }
+
+    [Fact]
     public async Task ResolveEndpoint_NonHolder_ReturnsFullProfileAccessLineFalse()
     {
         _factory = new WebApplicationFactory<Program>();

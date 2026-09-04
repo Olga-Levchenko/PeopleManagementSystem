@@ -2,7 +2,7 @@
 title: 'Story 1.5: Full profile access as a separate, journaled grant'
 type: 'feature'
 created: '2026-09-04'
-status: 'in-progress'
+status: 'done'
 review_loop_iteration: 0
 baseline_commit: '1c4d9f84b6213e1e9d7399a6c21841c041c379c3'
 context:
@@ -80,21 +80,21 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `src/AccessControlService.Infrastructure/Persistence/FullProfileAccessGrant.cs` — create entity; `FullProfileAccessJournalEntry.cs` — create entity
-- [ ] `src/AccessControlService.Infrastructure/Persistence/AccessControlDbContext.cs` — add both `DbSet`s and model configuration
-- [ ] `src/AccessControlService.Infrastructure/Persistence/Migrations/` — generate migration adding both tables + seed row for `PlatformLeadId`
-- [ ] `src/AccessControlService.Infrastructure/Persistence/IFullProfileAccessRepository.cs` + `EfFullProfileAccessRepository.cs` — create interface and EF Core implementation
-- [ ] `src/AccessControlService.Domain/AccessRole.cs` — add `FullProfileAccessLine` property
-- [ ] `src/AccessControlService.Domain/AccessRoleResolver.cs` — inject `IFullProfileAccessRepository`; populate `FullProfileAccessLine`
-- [ ] `src/AccessControlService.Domain/ManagerSectionAccessPolicy.cs` — add `ForFullProfileAccess()` returning all sections RW
-- [ ] `src/AccessControlService.Api/Controllers/AccessRolesController.cs` — extend `AccessRoleResolveResponse` with new fields; populate them
-- [ ] `src/AccessControlService.Api/Controllers/FullProfileAccessController.cs` — create grant + revoke endpoints with all guards
-- [ ] `src/AccessControlService.Api/Program.cs` — add startup zero-holder validation
-- [ ] `src/modules/profile/adapters/http-access-role-resolution.adapter.ts` — parse new resolve response fields
-- [ ] `src/modules/profile/` (profile assembly) — apply full-profile-access sections when `fullProfileAccessLine=true`
-- [ ] `tests/AccessControlService.Infrastructure.Tests/EfFullProfileAccessRepositoryTests.cs` — create repository unit tests
-- [ ] `tests/AccessControlService.Api.Tests/FullProfileAccessTests.cs` — create endpoint integration tests (all I/O matrix rows)
-- [ ] `tests/AccessControlService.Api.Tests/AccessRoleResolverCompositionTests.cs` — add two resolver composition tests
+- [x] `src/AccessControlService.Infrastructure/Persistence/FullProfileAccessGrant.cs` — create entity; `FullProfileAccessJournalEntry.cs` — create entity
+- [x] `src/AccessControlService.Infrastructure/Persistence/AccessControlDbContext.cs` — add both `DbSet`s and model configuration
+- [x] `src/AccessControlService.Infrastructure/Persistence/Migrations/` — generate migration adding both tables + seed row for `PlatformLeadId`
+- [x] `src/AccessControlService.Infrastructure/Persistence/IFullProfileAccessRepository.cs` + `EfFullProfileAccessRepository.cs` — create interface and EF Core implementation
+- [x] `src/AccessControlService.Domain/AccessRole.cs` — add `FullProfileAccessLine` property
+- [x] `src/AccessControlService.Domain/AccessRoleResolver.cs` — inject `IFullProfileAccessRepository`; populate `FullProfileAccessLine`
+- [x] `src/AccessControlService.Domain/ManagerSectionAccessPolicy.cs` — add `ForFullProfileAccess()` returning all sections RW
+- [x] `src/AccessControlService.Api/Controllers/AccessRolesController.cs` — extend `AccessRoleResolveResponse` with new fields; populate them
+- [x] `src/AccessControlService.Api/Controllers/FullProfileAccessController.cs` — create grant + revoke endpoints with all guards
+- [x] `src/AccessControlService.Api/Program.cs` — add startup zero-holder validation
+- [x] `src/modules/profile/adapters/http-access-role-resolution.adapter.ts` — parse new resolve response fields
+- [x] `src/modules/profile/` (profile assembly) — apply full-profile-access sections when `fullProfileAccessLine=true`
+- [x] `tests/AccessControlService.Infrastructure.Tests/EfFullProfileAccessRepositoryTests.cs` — create repository unit tests
+- [x] `tests/AccessControlService.Api.Tests/FullProfileAccessTests.cs` — create endpoint integration tests (all I/O matrix rows)
+- [x] `tests/AccessControlService.Api.Tests/AccessRoleResolverCompositionTests.cs` — add two resolver composition tests
 
 **Acceptance Criteria:**
 - Given the platform starts up with zero rows in `full_profile_access_grants`, then the application fails to start with a logged error naming the missing bootstrap state
@@ -118,3 +118,72 @@ context:
 - `cd services/access-control-service && dotnet build --configuration Release` — expected: builds clean
 - `cd services/access-control-service && dotnet test --configuration Release` — expected: all tests pass, including the new `EfFullProfileAccessRepositoryTests` and `FullProfileAccessTests` suites
 - `cd services/people-service && npm test` — expected: adapter and profile-assembly tests pass with the new `fullProfileAccessLine` field parsed correctly
+
+## Suggested Review Order
+
+**Domain design — the contract and resolution**
+
+- Port placed in Domain so `AccessRoleResolver` can depend on it without touching Infrastructure (AD-1).
+  [`IFullProfileAccessRepository.cs:1`](../../services/access-control-service/src/AccessControlService.Domain/IFullProfileAccessRepository.cs#L1)
+
+- New `FullProfileAccessLine` flag sits alongside `ReportingLine`/`ProjectLine`/`PeoplePartnerLine` — independent stored-grant flag, never derived.
+  [`AccessRole.cs:78`](../../services/access-control-service/src/AccessControlService.Domain/AccessRole.cs#L78)
+
+- Resolver injects repository, sets the flag independently of all relationship lookups.
+  [`AccessRoleResolver.cs:72`](../../services/access-control-service/src/AccessControlService.Domain/AccessRoleResolver.cs#L72)
+
+- `ForFullProfileAccess()` returns all 16 sections as `ReadWrite`; the entry point for section computation.
+  [`ManagerSectionAccessPolicy.cs:194`](../../services/access-control-service/src/AccessControlService.Domain/ManagerSectionAccessPolicy.cs#L194)
+
+**Schema and persistence**
+
+- Grant entity — unique index on `HolderId` enforces one-grant-per-person at the DB level.
+  [`FullProfileAccessGrant.cs:1`](../../services/access-control-service/src/AccessControlService.Infrastructure/Persistence/FullProfileAccessGrant.cs#L1)
+
+- Journal entity — immutable append-only record per grant/revoke; enum stored as `int` (see deferred-work for string-conversion note).
+  [`FullProfileAccessJournalEntry.cs:1`](../../services/access-control-service/src/AccessControlService.Infrastructure/Persistence/FullProfileAccessJournalEntry.cs#L1)
+
+- EF Core model config: `HolderId` unique index + bootstrap `HasData` seed for `PlatformLeadId`.
+  [`AccessControlDbContext.cs:154`](../../services/access-control-service/src/AccessControlService.Infrastructure/Persistence/AccessControlDbContext.cs#L154)
+
+- Migration adds both tables and seeds the bootstrap holder; the only migration that writes non-zero rows via `HasData`.
+  [`20260904144036_AddFullProfileAccess.cs:14`](../../services/access-control-service/src/AccessControlService.Infrastructure/Persistence/Migrations/20260904144036_AddFullProfileAccess.cs#L14)
+
+- `GrantAsync` wraps grant-row insert and journal-entry insert in one transaction; `RevokeAsync` early-returns with rollback if no grant row exists.
+  [`EfFullProfileAccessRepository.cs:31`](../../services/access-control-service/src/AccessControlService.Infrastructure/Persistence/EfFullProfileAccessRepository.cs#L31)
+
+**HTTP endpoints and startup**
+
+- `POST /grant`: self-grant guard → non-holder guard → duplicate guard → atomic write.
+  [`FullProfileAccessController.cs:44`](../../services/access-control-service/src/AccessControlService.Api/Controllers/FullProfileAccessController.cs#L44)
+
+- `POST /revoke`: non-holder actor → non-holder subject → last-holder guard → atomic removal.
+  [`FullProfileAccessController.cs:90`](../../services/access-control-service/src/AccessControlService.Api/Controllers/FullProfileAccessController.cs#L90)
+
+- Startup validation: `PostgresException` fails fast (schema missing); network errors tolerated so health check stays the signal.
+  [`FullProfileAccessStartupValidation.cs:34`](../../services/access-control-service/src/AccessControlService.Api/FullProfileAccessStartupValidation.cs#L34)
+
+- `FullProfileAccessLine` + `FullProfileAccessSectionAccess` added to the resolve response; section access null when line is false.
+  [`AccessRolesController.cs:64`](../../services/access-control-service/src/AccessControlService.Api/Controllers/AccessRolesController.cs#L64)
+
+- DI registration: repository scoped, startup-validation registered as hosted service (blocks traffic until check passes).
+  [`Program.cs:50`](../../services/access-control-service/src/AccessControlService.Api/Program.cs#L50)
+
+**people-service integration**
+
+- `AccessRoleResolution` extended with new fields; `parseSectionAccessGroup` reused for `fullProfileAccessSectionAccess`.
+  [`profile.ports.ts:22`](../../services/people-service/src/modules/profile/profile.ports.ts#L22)
+
+- FPA line checked first in `resolveAudience`; its all-RW section set takes precedence over all relationship lines.
+  [`profile.service.ts:305`](../../services/people-service/src/modules/profile/profile.service.ts#L305)
+
+**Tests**
+
+- Integration tests for all 9 I/O matrix rows; includes journal-entry assertions to prove atomicity.
+  [`FullProfileAccessTests.cs:88`](../../services/access-control-service/tests/AccessControlService.Api.Tests/FullProfileAccessTests.cs#L88)
+
+- Repository tests: `IsHolderAsync`, `GrantAsync`, `RevokeAsync`, `GetActiveCountAsync` against real migrated Postgres.
+  [`EfFullProfileAccessRepositoryTests.cs:44`](../../services/access-control-service/tests/AccessControlService.Infrastructure.Tests/Persistence/EfFullProfileAccessRepositoryTests.cs#L44)
+
+- Resolver composition: `FullProfileAccessLine=true` for holder; `FullProfileAccessLine=false` for non-holder; isolation test proving FPA flag is independent of all three relationship flags.
+  [`AccessRoleResolverCompositionTests.cs:738`](../../services/access-control-service/tests/AccessControlService.Api.Tests/AccessRoleResolverCompositionTests.cs#L738)

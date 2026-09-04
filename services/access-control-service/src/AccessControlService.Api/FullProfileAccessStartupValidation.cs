@@ -2,6 +2,7 @@ using AccessControlService.Domain;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace AccessControlService.Api;
 
@@ -39,6 +40,19 @@ public sealed class FullProfileAccessStartupValidation : IHostedService
         try
         {
             count = await repository.GetActiveCountAsync(cancellationToken);
+        }
+        catch (PostgresException pgEx)
+        {
+            // The database is reachable but returned a server-side error (e.g. SqlState 42P01 =
+            // relation does not exist, meaning the EF Core migration has not been applied). This
+            // is a deployment misconfiguration — fail fast rather than starting with a broken schema.
+            var message =
+                $"FATAL: Full-profile-access startup validation failed with a database error: " +
+                $"{pgEx.MessageText} (SqlState: {pgEx.SqlState}). " +
+                "Ensure the EF Core migration has been applied (dotnet ef database update) before " +
+                "starting the application.";
+            _logger.LogCritical(pgEx, message);
+            throw new InvalidOperationException(message, pgEx);
         }
         catch (Exception ex)
         {
