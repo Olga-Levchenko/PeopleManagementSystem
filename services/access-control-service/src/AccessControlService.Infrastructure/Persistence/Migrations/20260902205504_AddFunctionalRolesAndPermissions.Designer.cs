@@ -3,6 +3,7 @@ using System;
 using AccessControlService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AccessControlService.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AccessControlDbContext))]
-    partial class AccessControlDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260902205504_AddFunctionalRolesAndPermissions")]
+    partial class AddFunctionalRolesAndPermissions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -154,10 +157,10 @@ namespace AccessControlService.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DisplayName")
+                    b.HasIndex("RoleKey")
                         .IsUnique();
 
-                    b.HasIndex("RoleKey")
+                    b.HasIndex("DisplayName")
                         .IsUnique();
 
                     b.ToTable("functional_roles", (string)null);
@@ -232,14 +235,8 @@ namespace AccessControlService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("PermissionId");
 
-                    b.HasIndex("FunctionalRoleId", "PermissionId")
-                        .IsUnique()
-                        .HasFilter("\"Scope\" IS NULL");
-
                     b.HasIndex("FunctionalRoleId", "PermissionId", "Scope")
-                        .IsUnique()
-                        .HasDatabaseName("IX_functional_role_permission_grants_FunctionalRoleId_Permiss~1")
-                        .HasFilter("\"Scope\" IS NOT NULL");
+                        .IsUnique();
 
                     b.ToTable("functional_role_permission_grants", (string)null);
 

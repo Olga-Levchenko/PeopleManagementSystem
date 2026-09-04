@@ -1,3 +1,4 @@
+using AccessControlService.Domain.Permissions;
 using Microsoft.EntityFrameworkCore;
 
 namespace AccessControlService.Infrastructure.Persistence;
@@ -23,6 +24,11 @@ public sealed class AccessControlDbContext : DbContext
     public DbSet<ProjectAssignment> ProjectAssignments => Set<ProjectAssignment>();
 
     public DbSet<ProjectAssignmentEventWatermark> ProjectAssignmentEventWatermarks => Set<ProjectAssignmentEventWatermark>();
+    public DbSet<Permission> Permissions => Set<Permission>();
+    public DbSet<FunctionalRole> FunctionalRoles => Set<FunctionalRole>();
+    public DbSet<FunctionalRolePermissionGrant> FunctionalRolePermissionGrants => Set<FunctionalRolePermissionGrant>();
+    public DbSet<PersonFunctionalRoleAssignment> PersonFunctionalRoleAssignments => Set<PersonFunctionalRoleAssignment>();
+    public DbSet<AuthorizationAdministrationAudit> AuthorizationAdministrationAudits => Set<AuthorizationAdministrationAudit>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -145,6 +151,87 @@ public sealed class AccessControlDbContext : DbContext
             watermark.HasIndex(w => new { w.OwnedProjectId, w.OwnedPersonId })
                 .IsUnique()
                 .HasFilter("\"OwnedProjectId\" IS NOT NULL AND \"OwnedPersonId\" IS NOT NULL");
+        });
+
+        modelBuilder.Entity<Permission>(permission =>
+        {
+            permission.ToTable("permissions");
+            permission.HasKey(p => p.Id);
+            permission.Property(p => p.Key).HasMaxLength(100).IsRequired();
+            permission.HasIndex(p => p.Key).IsUnique();
+            permission.HasData(FixtureSeedData.Permissions);
+        });
+
+        modelBuilder.Entity<FunctionalRole>(role =>
+        {
+            role.ToTable("functional_roles");
+            role.HasKey(r => r.Id);
+            role.Property(r => r.RoleKey).HasMaxLength(100).IsRequired();
+            role.Property(r => r.DisplayName).HasMaxLength(200).IsRequired();
+            role.HasIndex(r => r.RoleKey).IsUnique();
+            role.HasIndex(r => r.DisplayName).IsUnique();
+            role.HasData(FixtureSeedData.FunctionalRoles);
+        });
+
+        modelBuilder.Entity<FunctionalRolePermissionGrant>(grant =>
+        {
+            grant.ToTable("functional_role_permission_grants");
+            grant.HasKey(g => g.Id);
+            grant.Property(g => g.Scope).HasColumnType("jsonb");
+            grant.HasIndex(g => new { g.FunctionalRoleId, g.PermissionId })
+                .IsUnique()
+                .HasFilter("\"Scope\" IS NULL");
+            grant.HasIndex(g => new { g.FunctionalRoleId, g.PermissionId, g.Scope })
+                .IsUnique()
+                .HasFilter("\"Scope\" IS NOT NULL");
+            grant.HasOne<FunctionalRole>()
+                .WithMany()
+                .HasForeignKey(g => g.FunctionalRoleId)
+                .OnDelete(DeleteBehavior.Restrict);
+            grant.HasOne<Permission>()
+                .WithMany()
+                .HasForeignKey(g => g.PermissionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            grant.HasData(FixtureSeedData.FunctionalRolePermissionGrants);
+        });
+
+        modelBuilder.Entity<PersonFunctionalRoleAssignment>(assignment =>
+        {
+            assignment.ToTable("person_functional_role_assignments");
+            assignment.HasKey(a => a.Id);
+            assignment.HasIndex(a => new { a.PersonId, a.FunctionalRoleId })
+                .IsUnique()
+                .HasFilter("\"IsActive\" = TRUE");
+            assignment.HasOne<Person>()
+                .WithMany()
+                .HasForeignKey(a => a.PersonId)
+                .OnDelete(DeleteBehavior.Restrict);
+            assignment.HasOne<FunctionalRole>()
+                .WithMany()
+                .HasForeignKey(a => a.FunctionalRoleId)
+                .OnDelete(DeleteBehavior.Restrict);
+            assignment.HasData(FixtureSeedData.PersonFunctionalRoleAssignments);
+        });
+
+        modelBuilder.Entity<AuthorizationAdministrationAudit>(audit =>
+        {
+            audit.ToTable("authorization_administration_audits");
+            audit.HasKey(a => a.AuditId);
+            audit.Property(a => a.Action).HasMaxLength(50).IsRequired();
+            audit.Property(a => a.TargetType).HasMaxLength(50).IsRequired();
+            audit.Property(a => a.TrustedProvisioningActor).HasMaxLength(255);
+            audit.Property(a => a.PermissionKey).HasMaxLength(100);
+            audit.Property(a => a.Scope).HasColumnType("jsonb");
+            audit.Property(a => a.Before).HasColumnType("jsonb");
+            audit.Property(a => a.After).HasColumnType("jsonb");
+            audit.Property(a => a.CorrelationId).HasMaxLength(100).IsRequired();
+            audit.Property(a => a.IdempotencyKey).HasMaxLength(255);
+            audit.HasIndex(a => a.IdempotencyKey).IsUnique();
+            audit.HasIndex(a => a.OccurredAtUtc);
+            audit.HasOne<Person>()
+                .WithMany()
+                .HasForeignKey(a => a.ActorPersonId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

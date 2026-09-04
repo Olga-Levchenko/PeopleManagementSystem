@@ -1,11 +1,17 @@
 using AccessControlService.Api.Configuration;
+using AccessControlService.Api.ErrorHandling;
 using AccessControlService.Api.Health;
 using AccessControlService.Api.Middleware;
 using AccessControlService.Domain;
+using AccessControlService.Domain.Identity;
 using AccessControlService.Infrastructure.Messaging;
+using AccessControlService.Infrastructure.Identity;
+using AccessControlService.Infrastructure.Permissions;
 using AccessControlService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 // Load '.env' for local-dev parity with the Node services (committed '.env' is gitignored,
 // '.env.example' is the template). Never clobbers a variable already set in the process
@@ -22,7 +28,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 var appConfig = AppConfig.Load(builder.Configuration);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -47,6 +57,19 @@ builder.Services.AddDbContext<AccessControlDbContext>(options =>
     options.UseNpgsql(appConfig.PostgresConnectionString));
 builder.Services.AddScoped<IRelationshipRepository, EfRelationshipRepository>();
 builder.Services.AddScoped<AccessRoleResolver>();
+builder.Services.AddScoped<FunctionalRoleAdministrationService>();
+builder.Services.AddScoped<FunctionalRoleReconciliationService>();
+builder.Services.AddScoped<IPrincipalPersonResolver, UnavailablePrincipalPersonResolver>();
+builder.Services.AddScoped<
+    IBootstrapProvisioningService,
+    FunctionalRoleBootstrapProvisioningService>();
+builder.Services.AddScoped<IBootstrapRecoveryService, FunctionalRoleRecoveryService>();
+builder.Services.AddScoped<
+    IDeploymentRecoveryAuthorizer,
+    UnavailableDeploymentRecoveryAuthorizer>();
+builder.Services.AddScoped<
+    ITrustedServicePrincipalAuthorizer,
+    UnavailableTrustedServicePrincipalAuthorizer>();
 
 // spec-1-1d: the pure, transport-agnostic project-assignment event processor. Scoped because its
 // DbContext dependency is scoped -- spec-1-1e's consumer below creates one DI scope per message
@@ -79,6 +102,7 @@ if (app.Environment.IsDevelopment())
 app.UseCors();
 
 app.UseMiddleware<CorrelationIdMiddleware>();
+app.UseMiddleware<SafeExceptionHandlingMiddleware>();
 
 app.MapControllers();
 
