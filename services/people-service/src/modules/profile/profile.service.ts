@@ -298,6 +298,25 @@ export class ProfileService {
       subjectPersonId,
     );
 
+    // Full-profile-access is the maximum possible access -- takes precedence over all other lines.
+    // Checked first so a viewer who is also a Manager/PP doesn't accidentally get a narrower view
+    // from a most-permissive-wins calculation that didn't include the full-access tier.
+    const fullAccess =
+      resolution.fullProfileAccessLine &&
+      resolution.fullProfileAccessSectionAccess != null
+        ? resolution.fullProfileAccessSectionAccess
+        : null;
+    if (fullAccess) {
+      return {
+        s1: this.mostPermissive(fullAccess.s1?.level),
+        s2: this.mostPermissive(fullAccess.s2?.level),
+        s10: this.mostPermissive(fullAccess.s10?.level),
+        s11: this.mostPermissive(fullAccess.s11?.level),
+        isColleague: false,
+        customFieldAudienceLevel: 'management',
+      };
+    }
+
     const managerAccess =
       resolution.reportingLine || resolution.projectLine
         ? resolution.managerSectionAccess

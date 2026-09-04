@@ -25,7 +25,7 @@ public class AccessRoleResolverTests
             .SetManager(directManager, managerOfManager)
             .SetManager(managerOfManager, viewer);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -43,7 +43,7 @@ public class AccessRoleResolverTests
             .SetDepartment(subject, department)
             .SetDepartmentManager(department, viewer);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -63,7 +63,7 @@ public class AccessRoleResolverTests
             .SetParentDepartment(subjectDepartment, parentDepartment)
             .SetDepartmentManager(parentDepartment, viewer);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -88,7 +88,7 @@ public class AccessRoleResolverTests
             .SetParentDepartment(parentDepartment, grandparentDepartment)
             .SetDepartmentManager(grandparentDepartment, viewer);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -108,7 +108,7 @@ public class AccessRoleResolverTests
             .SetDepartment(subject, subjectDepartment)
             .SetDepartmentManager(unrelatedDepartment, viewer);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -130,7 +130,7 @@ public class AccessRoleResolverTests
             .SetManager(viewer, sharedManager)
             .SetManager(subject, sharedManager);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -153,7 +153,7 @@ public class AccessRoleResolverTests
             .SetParentDepartment(childDepartment, subjectDepartment)
             .SetDepartmentManager(childDepartment, viewer);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -179,7 +179,7 @@ public class AccessRoleResolverTests
             .SetDepartment(subject, subjectDepartment)
             .SetDepartmentManager(subjectDepartment, viewer);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -194,7 +194,7 @@ public class AccessRoleResolverTests
 
         // Repository knows about neither person -- every lookup returns null.
         var repository = new FakeRelationshipRepository();
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -212,7 +212,7 @@ public class AccessRoleResolverTests
             .SetManager(qualifyingSubject, viewer);
             // nonQualifyingSubject has no relationship data at all.
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         // Sequential resolution against the same resolver instance, as its own doc requires -- not
         // Task.WhenAll. This fake completes synchronously (Task.FromResult), so it can't actually
@@ -239,7 +239,7 @@ public class AccessRoleResolverTests
             .SetManager(personId, personId)
             .SetDepartmentManager(Guid.NewGuid(), personId);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(personId, personId);
 
@@ -262,7 +262,7 @@ public class AccessRoleResolverTests
             .SetProjectsManagedAsDmOrPm(personId, project)
             .SetAssignedProjects(personId, project);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(personId, personId);
 
@@ -287,7 +287,7 @@ public class AccessRoleResolverTests
             .SetManager(personB, personC)
             .SetManager(personC, personA);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, personA);
 
@@ -319,7 +319,7 @@ public class AccessRoleResolverTests
             .SetParentDepartment(deptB, deptC)
             .SetParentDepartment(deptC, deptA);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -342,7 +342,7 @@ public class AccessRoleResolverTests
             .SetProjectsManagedAsDmOrPm(dm, project)
             .SetAssignedProjects(subject, project);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(dm, subject);
 
@@ -361,7 +361,7 @@ public class AccessRoleResolverTests
             .SetProjectsManagedAsDmOrPm(pm, project)
             .SetAssignedProjects(subject, project);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(pm, subject);
 
@@ -382,7 +382,7 @@ public class AccessRoleResolverTests
             .SetProjectsManagedAsDmOrPm(dm, project)
             .SetAssignedProjects(subject, project);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var pmResult = await resolver.ResolveAsync(pm, subject);
         var dmResult = await resolver.ResolveAsync(dm, subject);
@@ -403,7 +403,7 @@ public class AccessRoleResolverTests
             .SetProjectsManagedAsDmOrPm(dm, viewersProject)
             .SetAssignedProjects(subject, subjectsProject);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(dm, subject);
 
@@ -422,7 +422,7 @@ public class AccessRoleResolverTests
             .SetProjectsManagedAsDmOrPm(viewer, project)
             .SetAssignedProjects(subject, project);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -438,7 +438,7 @@ public class AccessRoleResolverTests
 
         // Repository knows about neither person on any relation, including project assignment.
         var repository = new FakeRelationshipRepository();
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -473,7 +473,7 @@ public class AccessRoleResolverTests
             .SetManager(personY, personZ)
             .SetManager(personZ, personX);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -505,7 +505,7 @@ public class AccessRoleResolverTests
             .SetDepartmentManager(parentDepartment, decoyManager)
             .SetDepartmentManager(grandparentDepartment, viewer);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
         Assert.True(result.ReportingLine);
@@ -535,7 +535,7 @@ public class AccessRoleResolverTests
             .SetParentDepartment(siblingDepartment, sharedParentDepartment)
             .SetDepartmentManager(siblingDepartment, viewer);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -557,7 +557,7 @@ public class AccessRoleResolverTests
             .SetAssignedProjects(viewer, sharedProject)
             .SetAssignedProjects(subject, sharedProject);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -590,7 +590,7 @@ public class AccessRoleResolverTests
         }
 
         var logger = new RecordingLogger<AccessRoleResolver>();
-        var resolver = new AccessRoleResolver(repository, logger);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), logger);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -611,7 +611,7 @@ public class AccessRoleResolverTests
         var repository = new FakeRelationshipRepository()
             .SetPeoplePartner(subject, pp);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(pp, subject);
 
@@ -635,7 +635,7 @@ public class AccessRoleResolverTests
             .SetManager(pp, ppManager)
             .SetManager(ppManager, viewer);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -659,7 +659,7 @@ public class AccessRoleResolverTests
             .SetManager(pp, ppManager);
             // ppManager has no manager set -- viewer is never reachable from pp's own chain.
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -675,7 +675,7 @@ public class AccessRoleResolverTests
 
         // No SetPeoplePartner call at all -- subject.peoplePartnerId is null on file.
         var repository = new FakeRelationshipRepository();
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -691,7 +691,7 @@ public class AccessRoleResolverTests
         var repository = new FakeRelationshipRepository()
             .SetPeoplePartner(personId, personId);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(personId, personId);
 
@@ -715,7 +715,7 @@ public class AccessRoleResolverTests
             .SetAssignedProjects(subject, project)
             .SetPeoplePartner(subject, pp);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -736,7 +736,7 @@ public class AccessRoleResolverTests
             .SetAssignedProjects(subject, project)
             .SetPeoplePartner(subject, viewer);
 
-        var resolver = new AccessRoleResolver(repository, NullLogger<AccessRoleResolver>.Instance);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 
@@ -767,7 +767,7 @@ public class AccessRoleResolverTests
         }
 
         var logger = new RecordingLogger<AccessRoleResolver>();
-        var resolver = new AccessRoleResolver(repository, logger);
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), logger);
 
         var result = await resolver.ResolveAsync(viewer, subject);
 

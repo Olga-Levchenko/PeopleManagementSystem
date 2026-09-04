@@ -21,11 +21,16 @@ public sealed class AccessRoleResolver
     private const int MaxHops = 100;
 
     private readonly IRelationshipRepository _repository;
+    private readonly IFullProfileAccessRepository _fullProfileAccessRepository;
     private readonly ILogger<AccessRoleResolver> _logger;
 
-    public AccessRoleResolver(IRelationshipRepository repository, ILogger<AccessRoleResolver> logger)
+    public AccessRoleResolver(
+        IRelationshipRepository repository,
+        IFullProfileAccessRepository fullProfileAccessRepository,
+        ILogger<AccessRoleResolver> logger)
     {
         _repository = repository;
+        _fullProfileAccessRepository = fullProfileAccessRepository;
         _logger = logger;
     }
 
@@ -60,6 +65,12 @@ public sealed class AccessRoleResolver
             return AccessRole.None;
         }
 
+        // Full-profile-access is resolved unconditionally alongside the relationship-derived lines --
+        // it is independent of relationships and does not short-circuit any of the other checks.
+        // All four checks are resolved in sequence (per this method's documented sequential-only
+        // contract -- see Remarks) rather than via Task.WhenAll.
+        var fullProfileAccessLine = await _fullProfileAccessRepository.IsHolderAsync(viewerId, cancellationToken);
+
         var reportingLine =
             await IsTransitiveManagerAsync(viewerId, subjectId, cancellationToken)
             || await ManagesSubjectsDepartmentOrAncestorAsync(viewerId, subjectId, cancellationToken);
@@ -72,13 +83,14 @@ public sealed class AccessRoleResolver
             && (peoplePartnerId == viewerId
                 || await IsTransitiveManagerAsync(viewerId, peoplePartnerId.Value, cancellationToken));
 
-        if (!reportingLine && !projectLine && !peoplePartnerLine)
+        if (!fullProfileAccessLine && !reportingLine && !projectLine && !peoplePartnerLine)
         {
             return AccessRole.None;
         }
 
         return new AccessRole
         {
+            FullProfileAccessLine = fullProfileAccessLine,
             ReportingLine = reportingLine,
             ProjectLine = projectLine,
             PeoplePartnerLine = peoplePartnerLine,

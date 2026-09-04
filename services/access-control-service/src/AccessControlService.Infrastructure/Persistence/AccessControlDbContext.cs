@@ -24,6 +24,10 @@ public sealed class AccessControlDbContext : DbContext
 
     public DbSet<ProjectAssignmentEventWatermark> ProjectAssignmentEventWatermarks => Set<ProjectAssignmentEventWatermark>();
 
+    public DbSet<FullProfileAccessGrant> FullProfileAccessGrants => Set<FullProfileAccessGrant>();
+
+    public DbSet<FullProfileAccessJournalEntry> FullProfileAccessJournalEntries => Set<FullProfileAccessJournalEntry>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Department>(department =>
@@ -145,6 +149,62 @@ public sealed class AccessControlDbContext : DbContext
             watermark.HasIndex(w => new { w.OwnedProjectId, w.OwnedPersonId })
                 .IsUnique()
                 .HasFilter("\"OwnedProjectId\" IS NOT NULL AND \"OwnedPersonId\" IS NOT NULL");
+        });
+
+        modelBuilder.Entity<FullProfileAccessGrant>(grant =>
+        {
+            grant.ToTable("full_profile_access_grants");
+            grant.HasKey(g => g.Id);
+
+            // Application generates the PK (Guid.NewGuid()), not the database -- make that explicit
+            // rather than relying on EF Core's implicit non-default-Guid-key ValueGeneratedOnAdd.
+            grant.Property(g => g.Id).ValueGeneratedNever();
+
+            grant.Property(g => g.HolderId).IsRequired();
+            grant.Property(g => g.GrantedByActorId).IsRequired();
+            grant.Property(g => g.GrantedAtUtc).IsRequired();
+
+            // One person can hold at most one active grant at a time -- enforced as a database
+            // constraint so a duplicate (e.g. from a race between two concurrent grant calls) is
+            // a write-time error rather than a silent duplicate that confuses IsHolderAsync and
+            // GetActiveCountAsync.
+            grant.HasIndex(g => g.HolderId).IsUnique();
+
+            // Bootstrap seed: PlatformLeadId holds Full-profile-access at deployment, granted by
+            // themselves (self-seeded, no prior holder). This is the only self-granted row ever
+            // allowed -- subsequent grants must pass the non-self guard in FullProfileAccessController.
+            grant.HasData(new FullProfileAccessGrant
+            {
+                Id = FixtureSeedData.FullProfileAccessGrantBootstrapId,
+                HolderId = FixtureSeedData.PlatformLeadId,
+                GrantedByActorId = FixtureSeedData.PlatformLeadId,
+                GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            });
+        });
+
+        modelBuilder.Entity<FullProfileAccessJournalEntry>(entry =>
+        {
+            entry.ToTable("full_profile_access_journal_entries");
+            entry.HasKey(e => e.Id);
+
+            // Application generates the PK, not the database.
+            entry.Property(e => e.Id).ValueGeneratedNever();
+
+            entry.Property(e => e.ActorId).IsRequired();
+            entry.Property(e => e.SubjectId).IsRequired();
+            entry.Property(e => e.Action).IsRequired();
+            entry.Property(e => e.OccurredAtUtc).IsRequired();
+
+            // Bootstrap seed: mirrors the FullProfileAccessGrant seed row -- the self-grant action
+            // at deployment is the first journal entry.
+            entry.HasData(new FullProfileAccessJournalEntry
+            {
+                Id = FixtureSeedData.FullProfileAccessJournalBootstrapId,
+                ActorId = FixtureSeedData.PlatformLeadId,
+                SubjectId = FixtureSeedData.PlatformLeadId,
+                Action = FullProfileAccessAction.Grant,
+                OccurredAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            });
         });
     }
 }

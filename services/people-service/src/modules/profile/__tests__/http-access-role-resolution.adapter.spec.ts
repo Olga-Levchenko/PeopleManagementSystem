@@ -49,6 +49,7 @@ describe('HttpAccessRoleResolutionAdapter', () => {
       reportingLine: true,
       projectLine: false,
       peoplePartnerLine: false,
+      fullProfileAccessLine: false,
       managerSectionAccess: {
         s1: { level: 'ReadWrite', restriction: null },
         s2: { level: 'Read', restriction: null },
@@ -57,6 +58,7 @@ describe('HttpAccessRoleResolutionAdapter', () => {
         s16: { level: 'None' },
       },
       peoplePartnerSectionAccess: null,
+      fullProfileAccessSectionAccess: null,
     });
     const [calledUrl, calledInit] = fetchMock.mock.calls[0] as [
       URL,
@@ -82,8 +84,47 @@ describe('HttpAccessRoleResolutionAdapter', () => {
       reportingLine: false,
       projectLine: false,
       peoplePartnerLine: false,
+      fullProfileAccessLine: false,
       managerSectionAccess: null,
       peoplePartnerSectionAccess: null,
+      fullProfileAccessSectionAccess: null,
+    });
+  });
+
+  it('fullProfileAccessLine: parses true and fullProfileAccessSectionAccess correctly', async () => {
+    const body = {
+      reportingLine: false,
+      projectLine: false,
+      peoplePartnerLine: false,
+      fullProfileAccessLine: true,
+      managerSectionAccess: null,
+      peoplePartnerSectionAccess: null,
+      fullProfileAccessSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'ReadWrite' },
+        s10: { level: 'ReadWrite' },
+        s11: { level: 'ReadWrite' },
+        s16: { level: 'ReadWrite' },
+      },
+    };
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue(body),
+    });
+    const adapter = new HttpAccessRoleResolutionAdapter(createConfig());
+
+    const result = await adapter.resolve(VIEWER_ID, SUBJECT_ID);
+
+    expect(result.fullProfileAccessLine).toBe(true);
+    expect(result.fullProfileAccessSectionAccess).not.toBeNull();
+    expect(result.fullProfileAccessSectionAccess!.s1).toEqual({
+      level: 'ReadWrite',
+      restriction: null,
+    });
+    expect(result.fullProfileAccessSectionAccess!.s10).toEqual({
+      level: 'ReadWrite',
+      restriction: null,
     });
   });
 
@@ -97,8 +138,10 @@ describe('HttpAccessRoleResolutionAdapter', () => {
       reportingLine: false,
       projectLine: false,
       peoplePartnerLine: false,
+      fullProfileAccessLine: false,
       managerSectionAccess: null,
       peoplePartnerSectionAccess: null,
+      fullProfileAccessSectionAccess: null,
     });
   });
 });

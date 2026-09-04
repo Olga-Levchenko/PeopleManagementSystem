@@ -18,6 +18,8 @@ export interface AccessRoleResolution {
   reportingLine: boolean;
   projectLine: boolean;
   peoplePartnerLine: boolean;
+  /** True when the viewer holds a Full-profile-access grant (spec §2.4). Maximum possible access. */
+  fullProfileAccessLine: boolean;
   managerSectionAccess: {
     s1: SectionAccess;
     s2: SectionAccess;
@@ -32,6 +34,18 @@ export interface AccessRoleResolution {
     s11: SectionAccess;
     s16: SectionAccess;
   } | null;
+  /**
+   * All 16 sections as ReadWrite when `fullProfileAccessLine` is true; null otherwise.
+   * Takes precedence over all other qualifying lines (most-permissive-path-wins; Full profile
+   * access is the maximum possible access level).
+   */
+  fullProfileAccessSectionAccess: {
+    s1: SectionAccess;
+    s2: SectionAccess;
+    s10: SectionAccess;
+    s11: SectionAccess;
+    s16: SectionAccess;
+  } | null;
 }
 
 /** The fail-closed shape: no line qualifies, matching a Colleague-audience resolution. */
@@ -39,8 +53,10 @@ export const NEITHER_LINE_RESOLUTION: AccessRoleResolution = {
   reportingLine: false,
   projectLine: false,
   peoplePartnerLine: false,
+  fullProfileAccessLine: false,
   managerSectionAccess: null,
   peoplePartnerSectionAccess: null,
+  fullProfileAccessSectionAccess: null,
 };
 
 /**
@@ -89,9 +105,14 @@ export function parseAccessRoleResolution(raw: unknown): AccessRoleResolution {
     reportingLine: r['reportingLine'] === true,
     projectLine: r['projectLine'] === true,
     peoplePartnerLine: r['peoplePartnerLine'] === true,
+    // Full-profile-access: strict === true, same fail-closed pattern as the other boolean flags.
+    fullProfileAccessLine: r['fullProfileAccessLine'] === true,
     managerSectionAccess: parseSectionAccessGroup(r['managerSectionAccess']),
     peoplePartnerSectionAccess: parseSectionAccessGroup(
       r['peoplePartnerSectionAccess'],
+    ),
+    fullProfileAccessSectionAccess: parseSectionAccessGroup(
+      r['fullProfileAccessSectionAccess'],
     ),
   };
 }

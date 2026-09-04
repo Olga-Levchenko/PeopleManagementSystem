@@ -610,6 +610,107 @@ describe('ProfileService', () => {
     expect(result.s2).toBeUndefined();
   });
 
+  // --- Full-profile-access tests (Story 1.5) ---
+
+  it('Full profile access: fullProfileAccessLine true with all-ReadWrite fullProfileAccessSectionAccess -> all four sections present with full data, management-level S16', async () => {
+    const resolve = jest.fn().mockResolvedValue({
+      reportingLine: false,
+      projectLine: false,
+      peoplePartnerLine: false,
+      fullProfileAccessLine: true,
+      managerSectionAccess: null,
+      peoplePartnerSectionAccess: null,
+      fullProfileAccessSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'ReadWrite' },
+        s10: { level: 'ReadWrite' },
+        s11: { level: 'ReadWrite' },
+        s16: { level: 'ReadWrite' },
+      },
+    });
+    const { service } = createService({ resolve });
+
+    const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
+
+    expect(resolve).toHaveBeenCalledWith(VIEWER_ID, SUBJECT_ID);
+    // All four principal sections present (s1+s2+s10+s11) plus s16
+    expect(Object.keys(result).sort()).toEqual([
+      's1',
+      's10',
+      's11',
+      's16',
+      's2',
+    ]);
+    // Gets full (unrestricted) S10 data including leaveType
+    expect(result.s10![0]).toHaveProperty('leaveType', 'vacation');
+    // Gets full S11 data including role and dates
+    expect(result.s11![0]).toHaveProperty('role', 'Member');
+    expect(result.s11![0]).toHaveProperty('projectName', 'Project Alpha');
+    // Management-level S16: all three visibility tiers visible
+    const s16FieldIds = result.s16.map((f) => f.fieldId);
+    expect(s16FieldIds).toContain(MGMT_FIELD_ID);
+    expect(s16FieldIds).toContain(EMPLOYEE_FIELD_ID);
+    expect(s16FieldIds).toContain(COLLEAGUE_FIELD_ID);
+  });
+
+  it('Full profile access: fullProfileAccessLine true takes priority over a narrowed Project-line-only resolution', async () => {
+    const resolve = jest.fn().mockResolvedValue({
+      reportingLine: false,
+      projectLine: true,
+      peoplePartnerLine: false,
+      fullProfileAccessLine: true,
+      managerSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'None' },   // narrowed Project-line would deny S2
+        s10: { level: 'Read' },
+        s11: { level: 'Read' },
+        s16: { level: 'ReadWrite' },
+      },
+      peoplePartnerSectionAccess: null,
+      fullProfileAccessSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'ReadWrite' }, // Full-access overrides the None
+        s10: { level: 'ReadWrite' },
+        s11: { level: 'ReadWrite' },
+        s16: { level: 'ReadWrite' },
+      },
+    });
+    const { service } = createService({ resolve });
+
+    const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
+
+    // Full-profile-access takes priority: S2 must be present despite narrowed Project line
+    expect(Object.keys(result).sort()).toEqual([
+      's1',
+      's10',
+      's11',
+      's16',
+      's2',
+    ]);
+    expect(result.s2).toMatchObject({
+      personalEmail: FULL_PERSON_ROW.personalEmail,
+    });
+  });
+
+  it('Full profile access: fullProfileAccessLine true but fullProfileAccessSectionAccess null falls back gracefully (malformed response)', async () => {
+    const resolve = jest.fn().mockResolvedValue({
+      reportingLine: false,
+      projectLine: false,
+      peoplePartnerLine: false,
+      fullProfileAccessLine: true,
+      managerSectionAccess: null,
+      peoplePartnerSectionAccess: null,
+      fullProfileAccessSectionAccess: null, // malformed: flag true but section access absent
+    });
+    const { service } = createService({ resolve });
+
+    const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
+
+    // Falls back to Colleague whitelist (fail-closed: no access granted on malformed response)
+    expect(Object.keys(result).sort()).toEqual(['s1', 's10', 's11', 's16']);
+    expect(result.s2).toBeUndefined();
+  });
+
   // --- S16 dedicated scenario tests (Story 1.10) ---
 
   it('INACTIVE_DEFINITION: inactive field definition is absent from s16 for all audiences', async () => {
