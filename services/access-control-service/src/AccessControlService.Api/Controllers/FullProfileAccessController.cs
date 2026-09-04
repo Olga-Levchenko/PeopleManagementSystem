@@ -1,5 +1,6 @@
 using AccessControlService.Domain;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace AccessControlService.Api.Controllers;
 
@@ -75,7 +76,20 @@ public sealed class FullProfileAccessController : ControllerBase
                 statusCode: StatusCodes.Status409Conflict);
         }
 
-        await _repository.GrantAsync(actorId, subjectId, cancellationToken);
+        try
+        {
+            await _repository.GrantAsync(actorId, subjectId, cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            // A concurrent grant request committed between the IsHolderAsync duplicate-holder check
+            // above and SaveChangesAsync, hitting the unique index on HolderId. Surface the same
+            // 409 the explicit duplicate-holder guard above would have returned.
+            return Problem(
+                detail: "The specified subject already holds Full-profile-access.",
+                statusCode: StatusCodes.Status409Conflict);
+        }
+
         return StatusCode(StatusCodes.Status201Created);
     }
 

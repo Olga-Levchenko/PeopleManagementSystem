@@ -96,6 +96,12 @@ context:
 - [x] `tests/AccessControlService.Api.Tests/FullProfileAccessTests.cs` — create endpoint integration tests (all I/O matrix rows)
 - [x] `tests/AccessControlService.Api.Tests/AccessRoleResolverCompositionTests.cs` — add two resolver composition tests
 
+### Review Findings
+
+- [x] [Review][Patch] Grant endpoint: concurrent duplicate-grant TOCTOU bubbles as unhandled 500 — two concurrent `POST /grant` calls for the same subject can both pass `IsHolderAsync` before either commits; the second `SaveChangesAsync` then hits the unique index on `HolderId` and throws `DbUpdateException`, which propagates as an unhandled 500 instead of 409. Fix: catch `DbUpdateException` in `GrantAsync` (or in the controller) and return 409. [`FullProfileAccessController.cs:68-79`] [`EfFullProfileAccessRepository.cs:31-54`]
+- [x] [Review][Defer] TOCTOU on last-holder revoke guard — deferred, pre-existing; tracked in O4-157 [`FullProfileAccessController.cs:117-123`]
+- [x] [Review][Defer] Down() migration drops `full_profile_access_grants` before `full_profile_access_journal_entries` with no FK integrity; a rolled-back migration leaves orphaned journal rows — deferred, pre-existing; low risk (rollback-only scenario, no runtime impact) [`20260904144036_AddFullProfileAccess.cs:62-68`]
+
 **Acceptance Criteria:**
 - Given the platform starts up with zero rows in `full_profile_access_grants`, then the application fails to start with a logged error naming the missing bootstrap state
 - Given a user who does not currently hold Full profile access, when they attempt to grant it to themselves or anyone else via `POST /api/v1/full-profile-access/grant`, then the request is rejected 403
