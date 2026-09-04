@@ -8,6 +8,7 @@ public interface ITrustedServicePrincipalAuthorizer
 
 public sealed record TrustedPermissionCheckContext(
     string ServiceIdentity,
+    string DelegatedActorIssuer,
     string DelegatedActorSub);
 
 public abstract record TrustedPermissionCheckAuthorization

@@ -35,6 +35,7 @@ builder.Services.AddControllers()
     });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddCors(options =>
 {
@@ -59,7 +60,15 @@ builder.Services.AddScoped<IRelationshipRepository, EfRelationshipRepository>();
 builder.Services.AddScoped<AccessRoleResolver>();
 builder.Services.AddScoped<FunctionalRoleAdministrationService>();
 builder.Services.AddScoped<FunctionalRoleReconciliationService>();
-builder.Services.AddScoped<IPrincipalPersonResolver, UnavailablePrincipalPersonResolver>();
+builder.Services.AddSingleton(new PeopleIdentityResolverOptions(
+    appConfig.PeopleServiceBaseUrl,
+    TimeSpan.FromSeconds(2)));
+builder.Services.AddHttpClient<PeoplePrincipalPersonResolver>();
+builder.Services.AddScoped<IPrincipalPersonResolver, PeoplePrincipalPersonResolver>();
+builder.Services.AddScoped<ICorrelationIdAccessor, HttpCorrelationIdAccessor>();
+builder.Services.AddScoped<
+    IInternalServiceCredentialProvider,
+    UnavailableInternalServiceCredentialProvider>();
 builder.Services.AddScoped<
     IBootstrapProvisioningService,
     FunctionalRoleBootstrapProvisioningService>();

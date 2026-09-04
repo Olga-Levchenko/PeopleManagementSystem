@@ -52,14 +52,18 @@ public sealed class FunctionalRoleRecoveryService : IBootstrapRecoveryService
             return RecoveryProvisioningResult.Unauthorized();
         }
 
-        if (!IsValidPrincipalSub(authorized.Context.PrincipalSub))
+        if (!OidcPrincipalIdentity.TryCreate(
+                authorized.Context.PrincipalIssuer,
+                authorized.Context.PrincipalSub,
+                out OidcPrincipalIdentity? identity) ||
+            identity is null)
         {
             return RecoveryProvisioningResult.InvalidInput();
         }
 
         PrincipalPersonResolution resolution =
             await principalResolver.ResolvePersonAsync(
-                authorized.Context.PrincipalSub,
+                identity,
                 cancellationToken);
         if (resolution is PrincipalPersonResolution.Unavailable)
         {
@@ -156,8 +160,4 @@ public sealed class FunctionalRoleRecoveryService : IBootstrapRecoveryService
         }
     }
 
-    private static bool IsValidPrincipalSub(string? principalSub) =>
-        !string.IsNullOrWhiteSpace(principalSub) &&
-        principalSub.Length <= 255 &&
-        principalSub.All(character => !char.IsWhiteSpace(character));
 }

@@ -8,7 +8,9 @@ public interface IBootstrapProvisioningService
         CancellationToken cancellationToken = default);
 }
 
-public sealed record BootstrapProvisioningRequest(string? PrincipalSub);
+public sealed record BootstrapProvisioningRequest(
+    string? PrincipalIssuer,
+    string? PrincipalSub);
 
 public enum BootstrapProvisioningStatus
 {

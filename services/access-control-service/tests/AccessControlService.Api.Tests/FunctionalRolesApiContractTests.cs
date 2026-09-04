@@ -19,6 +19,7 @@ namespace AccessControlService.Api.Tests;
 [Collection("HealthEndpointTests")]
 public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
 {
+    private const string TEST_ISSUER = "https://id.example.test/realms/people-management";
     private const string TEST_SUB_HEADER = "X-Test-Sub";
     private readonly PostgreSqlContainer postgresContainer = new PostgreSqlBuilder("postgres:16-alpine")
         .WithDatabase("access_control_service_api_test")
@@ -604,7 +605,10 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
             }
 
             ClaimsIdentity identity = new(
-                [new Claim("sub", values.First()!)],
+                [
+                    new Claim("iss", TEST_ISSUER),
+                    new Claim("sub", values.First()!),
+                ],
                 SchemeName);
             return Task.FromResult(
                 AuthenticateResult.Success(new AuthenticationTicket(
@@ -626,12 +630,12 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
     private sealed class TestPrincipalPersonResolver : IPrincipalPersonResolver
     {
         public Task<PrincipalPersonResolution> ResolvePersonAsync(
-            string principalSub,
+            OidcPrincipalIdentity identity,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<PrincipalPersonResolution>(
-                principalSub == "unavailable"
+                identity.Subject == "unavailable"
                     ? new PrincipalPersonResolution.Unavailable()
-                    : Guid.TryParse(principalSub, out Guid personId)
+                    : Guid.TryParse(identity.Subject, out Guid personId)
                         ? new PrincipalPersonResolution.Resolved(personId)
                         : new PrincipalPersonResolution.Ambiguous());
     }
@@ -653,6 +657,7 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
                     ? new TrustedPermissionCheckAuthorization.Authorized(
                         new TrustedPermissionCheckContext(
                             "trusted-test-service",
+                            TEST_ISSUER,
                             httpContextAccessor.HttpContext.Request.Headers["X-Test-Delegated-Sub"]
                                 .FirstOrDefault() ?? string.Empty))
                     : new TrustedPermissionCheckAuthorization.Unauthorized());

@@ -16,6 +16,7 @@ public sealed class AppConfig
     public int RabbitMqPort { get; }
     public string RabbitMqUser { get; }
     public string RabbitMqPassword { get; }
+    public Uri? PeopleServiceBaseUrl { get; }
 
     private AppConfig(
         int port,
@@ -24,7 +25,8 @@ public sealed class AppConfig
         string rabbitMqHost,
         int rabbitMqPort,
         string rabbitMqUser,
-        string rabbitMqPassword)
+        string rabbitMqPassword,
+        Uri? peopleServiceBaseUrl)
     {
         Port = port;
         CorsOrigin = corsOrigin;
@@ -33,6 +35,7 @@ public sealed class AppConfig
         RabbitMqPort = rabbitMqPort;
         RabbitMqUser = rabbitMqUser;
         RabbitMqPassword = rabbitMqPassword;
+        PeopleServiceBaseUrl = peopleServiceBaseUrl;
     }
 
     /// <summary>
@@ -56,6 +59,9 @@ public sealed class AppConfig
         var rabbitMqPortRaw = RequireNonBlank(configuration, "RABBITMQ_PORT");
         var rabbitMqUser = RequireNonBlank(configuration, "RABBITMQ_USER");
         var rabbitMqPassword = RequireNonBlank(configuration, "RABBITMQ_PASSWORD");
+        Uri? peopleServiceBaseUrl = OptionalHttpUri(
+            configuration,
+            "PEOPLE_SERVICE_BASE_URL");
 
         var port = ParsePort(portRaw, "PORT");
         var rabbitMqPort = ParsePort(rabbitMqPortRaw, "RABBITMQ_PORT");
@@ -67,7 +73,8 @@ public sealed class AppConfig
             rabbitMqHost,
             rabbitMqPort,
             rabbitMqUser,
-            rabbitMqPassword);
+            rabbitMqPassword,
+            peopleServiceBaseUrl);
     }
 
     private static int ParsePort(string raw, string key)
@@ -102,5 +109,25 @@ public sealed class AppConfig
         // downstream (e.g. CORS_ORIGIN silently never matching a real Origin header, which differs
         // from the trimmed value only by whitespace).
         return value.Trim();
+    }
+
+    private static Uri? OptionalHttpUri(
+        IConfiguration configuration,
+        string key)
+    {
+        string? value = configuration[key];
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (!Uri.TryCreate(value.Trim(), UriKind.Absolute, out Uri? uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            throw new InvalidOperationException(
+                $"Configuration value '{key}' must be an absolute HTTP(S) URL.");
+        }
+
+        return uri;
     }
 }
