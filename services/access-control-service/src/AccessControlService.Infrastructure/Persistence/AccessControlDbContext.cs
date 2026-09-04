@@ -192,7 +192,7 @@ public sealed class AccessControlDbContext : DbContext
 
             entry.Property(e => e.ActorId).IsRequired();
             entry.Property(e => e.SubjectId).IsRequired();
-            entry.Property(e => e.Action).IsRequired();
+            entry.Property(e => e.Action).IsRequired().HasConversion<string>();
             entry.Property(e => e.OccurredAtUtc).IsRequired();
 
             // Bootstrap seed: mirrors the FullProfileAccessGrant seed row -- the self-grant action

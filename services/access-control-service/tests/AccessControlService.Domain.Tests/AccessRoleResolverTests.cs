@@ -254,8 +254,9 @@ public class AccessRoleResolverTests
         // Proves the self-resolution short-circuit applies to Project-line too, not just an
         // accident of unpopulated project data: the person is genuinely seeded as DM on a project
         // they're also assigned to (so, absent the self-check, the direct DM/PM-vs-assigned-project
-        // intersection check would find a real overlap and qualify ProjectLine). The self-check
-        // must still win, and must do so without even calling the project-lookup methods.
+        // intersection check would find a real overlap and qualify ProjectLine). The FPA lookup
+        // runs before the self-view check (FullProfileAccessLine is viewer-only), but no
+        // relationship repository lookups (project, manager, department, PP) must happen.
         var personId = Guid.NewGuid();
         var project = Guid.NewGuid();
         var repository = new FakeRelationshipRepository()
@@ -685,8 +686,9 @@ public class AccessRoleResolverTests
     [Fact]
     public async Task ResolveAsync_ViewerEqualsSubject_PeoplePartnerLineFalseHandledByExistingEarlyReturn()
     {
-        // Self is handled by the existing early-return before any repository lookup happens --
-        // even when the person is genuinely (artificially) set up as their own PP.
+        // The FPA repository is looked up before the self-view check (FullProfileAccessLine is
+        // viewer-only, not viewer-to-subject), but the relationship repository must not be called
+        // at all -- the self-view guard returns before any relationship lookups happen.
         var personId = Guid.NewGuid();
         var repository = new FakeRelationshipRepository()
             .SetPeoplePartner(personId, personId);

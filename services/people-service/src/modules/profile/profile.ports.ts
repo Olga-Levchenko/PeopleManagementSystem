@@ -38,6 +38,10 @@ export interface AccessRoleResolution {
    * All 16 sections as ReadWrite when `fullProfileAccessLine` is true; null otherwise.
    * Takes precedence over all other qualifying lines (most-permissive-path-wins; Full profile
    * access is the maximum possible access level).
+   *
+   * MAINTENANCE: this type lists only the sections people-service currently assembles. When a
+   * new section is added to profile assembly (resolveAudience / ProfileService), add it here
+   * too — omitting it silently degrades FPA holders to non-holder access on that section.
    */
   fullProfileAccessSectionAccess: {
     s1: SectionAccess;

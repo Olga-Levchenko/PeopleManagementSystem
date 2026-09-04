@@ -755,6 +755,25 @@ public sealed class AccessRoleResolverCompositionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ResolveEndpoint_FullProfileAccessHolder_ViewingOwnProfile_ReturnsFullProfileAccessLineTrueAndSectionAccess()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        // Self-view: the holder is both viewer and subject. No relationship guard blocks self-view;
+        // fullProfileAccessLine is a viewer-only flag derived from the stored grant, independent of
+        // the subject identity. The full-access section group must still be returned.
+        using var response = await client.GetAsync(
+            $"/api/v1/access-roles/resolve?viewerPersonId={FixtureSeedData.PlatformLeadId}&subjectPersonId={FixtureSeedData.PlatformLeadId}");
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+
+        Assert.True(root.GetProperty("fullProfileAccessLine").GetBoolean());
+        Assert.Equal(JsonValueKind.Object, root.GetProperty("fullProfileAccessSectionAccess").ValueKind);
+    }
+
+    [Fact]
     public async Task ResolveEndpoint_FullProfileAccessHolder_WithNoRelationshipToSubject_OnlyFullProfileAccessLineIsTrue()
     {
         _factory = new WebApplicationFactory<Program>();
