@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
 
 export enum CustomFieldDataType {
   TEXT = 'TEXT',
@@ -21,6 +21,7 @@ export class CreateCustomFieldDefinitionDto {
   })
   @IsString()
   @IsNotEmpty()
+  @Matches(/\S/, { message: 'Field name must not be blank' })
   name!: string;
 
   @ApiProperty({
@@ -50,6 +51,7 @@ export class UpdateCustomFieldDefinitionDto {
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @Matches(/\S/, { message: 'Field name must not be blank' })
   name?: string;
 
   @ApiPropertyOptional({ enum: CustomFieldVisibility })

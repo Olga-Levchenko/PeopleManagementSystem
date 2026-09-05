@@ -67,8 +67,8 @@ export const AdministrationPage = () => {
     const patch: { name?: string; visibility?: import('@/api/customFieldDefinitions').CustomFieldVisibility } = {}
     if (editCfName) patch.name = editCfName
     if (editCfVisibility) patch.visibility = editCfVisibility as import('@/api/customFieldDefinitions').CustomFieldVisibility
-    await cfState.update(id, patch)
-    setEditCfId(null)
+    const success = await cfState.update(id, patch)
+    if (success) setEditCfId(null)
   }
 
   const submitDeactivateCf = async (id: string) => {
@@ -537,7 +537,7 @@ export const AdministrationPage = () => {
                             setEditCfVisibility(def.visibility)
                           }}
                         >
-                          {t('customFields.actions.save')}
+                          {t('customFields.actions.edit')}
                         </Button>
                         <Button
                           variant="destructive"
@@ -587,7 +587,7 @@ export const AdministrationPage = () => {
                         variant="outline"
                         onClick={() => setEditCfId(null)}
                       >
-                        Cancel
+                        {t('customFields.actions.cancel')}
                       </Button>
                     </div>
                   </div>

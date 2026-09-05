@@ -110,7 +110,9 @@
     },
     "actions": {
       "create": "Create definition",
+      "edit": "Edit",
       "save": "Save changes",
+      "cancel": "Cancel",
       "deactivate": "Deactivate"
     },
     "confirm": {
