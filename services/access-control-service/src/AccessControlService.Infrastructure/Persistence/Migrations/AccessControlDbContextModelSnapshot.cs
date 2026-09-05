@@ -22,6 +22,69 @@ namespace AccessControlService.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("AccessControlService.Infrastructure.Persistence.AuthorizationAdministrationAudit", b =>
+                {
+                    b.Property<Guid>("AuditId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid?>("ActorPersonId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("After")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Before")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("IdempotencyKey")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PermissionKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Scope")
+                        .HasColumnType("jsonb");
+
+                    b.Property<Guid?>("TargetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("TrustedProvisioningActor")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.HasKey("AuditId");
+
+                    b.HasIndex("ActorPersonId");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("OccurredAtUtc");
+
+                    b.ToTable("authorization_administration_audits", (string)null);
+                });
+
             modelBuilder.Entity("AccessControlService.Infrastructure.Persistence.Department", b =>
                 {
                     b.Property<Guid>("Id")
@@ -60,7 +123,6 @@ namespace AccessControlService.Infrastructure.Persistence.Migrations
                             ParentDepartmentId = new Guid("11111111-0000-0000-0000-000000000002")
                         });
                 });
-
             modelBuilder.Entity("AccessControlService.Infrastructure.Persistence.FullProfileAccessGrant", b =>
                 {
                     b.Property<Guid>("Id")
@@ -122,6 +184,517 @@ namespace AccessControlService.Infrastructure.Persistence.Migrations
                             ActorId = new Guid("22222222-0000-0000-0000-000000000003"),
                             OccurredAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             SubjectId = new Guid("22222222-0000-0000-0000-000000000003")
+                        });
+                });
+
+
+            modelBuilder.Entity("AccessControlService.Infrastructure.Persistence.FunctionalRole", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeactivatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsSeeded")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("RoleKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DisplayName")
+                        .IsUnique();
+
+                    b.HasIndex("RoleKey")
+                        .IsUnique();
+
+                    b.ToTable("functional_roles", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("55555555-0000-0000-0000-000000000001"),
+                            CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DisplayName = "Unit Manager",
+                            IsActive = true,
+                            IsSeeded = true,
+                            RoleKey = "unit-manager"
+                        },
+                        new
+                        {
+                            Id = new Guid("55555555-0000-0000-0000-000000000002"),
+                            CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DisplayName = "Delivery Manager",
+                            IsActive = true,
+                            IsSeeded = true,
+                            RoleKey = "delivery-manager"
+                        },
+                        new
+                        {
+                            Id = new Guid("55555555-0000-0000-0000-000000000003"),
+                            CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DisplayName = "Project Manager",
+                            IsActive = true,
+                            IsSeeded = true,
+                            RoleKey = "project-manager"
+                        },
+                        new
+                        {
+                            Id = new Guid("55555555-0000-0000-0000-000000000004"),
+                            CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DisplayName = "People Partner",
+                            IsActive = true,
+                            IsSeeded = true,
+                            RoleKey = "people-partner"
+                        },
+                        new
+                        {
+                            Id = new Guid("55555555-0000-0000-0000-000000000005"),
+                            CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DisplayName = "HR Admin",
+                            IsActive = true,
+                            IsSeeded = true,
+                            RoleKey = "hr-admin"
+                        });
+                });
+
+            modelBuilder.Entity("AccessControlService.Infrastructure.Persistence.FunctionalRolePermissionGrant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("FunctionalRoleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("GrantedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("PermissionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Scope")
+                        .HasColumnType("jsonb");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PermissionId");
+
+                    b.HasIndex("FunctionalRoleId", "PermissionId")
+                        .IsUnique()
+                        .HasFilter("\"Scope\" IS NULL");
+
+                    b.HasIndex("FunctionalRoleId", "PermissionId", "Scope")
+                        .IsUnique()
+                        .HasDatabaseName("IX_functional_role_permission_grants_FunctionalRoleId_Permiss~1")
+                        .HasFilter("\"Scope\" IS NOT NULL");
+
+                    b.ToTable("functional_role_permission_grants", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000001"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000001"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000005")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000002"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000001"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000003")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000003"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000001"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000004"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000001"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000008")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000005"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000001"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000009")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000006"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000001"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000018"),
+                            Scope = "{\"dashboardType\":\"unit-manager\"}"
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000007"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000002"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000004")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000008"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000002"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000006")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000009"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000002"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000007")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000010"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000002"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000003")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000011"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000002"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000012"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000002"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000009")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000013"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000002"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000008")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000014"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000002"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000018"),
+                            Scope = "{\"dashboardType\":\"delivery-manager\"}"
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000015"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000003"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000004")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000016"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000003"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000003")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000017"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000003"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000018"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000003"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000009")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000019"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000003"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000008")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000020"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000003"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000018"),
+                            Scope = "{\"dashboardType\":\"project-manager\"}"
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000021"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000004"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000022"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000004"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000023"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000004"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000003")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000024"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000004"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000008")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000025"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000004"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000009")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000026"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000004"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000010")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000027"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000004"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000011")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000028"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000004"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000018"),
+                            Scope = "{\"dashboardType\":\"people-partner\"}"
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000029"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000005"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000013")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000030"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000005"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000014")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000031"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000005"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000016")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000032"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000005"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000017")
+                        },
+                        new
+                        {
+                            Id = new Guid("77777777-0000-0000-0000-000000000033"),
+                            FunctionalRoleId = new Guid("55555555-0000-0000-0000-000000000005"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            PermissionId = new Guid("66666666-0000-0000-0000-000000000015")
+                        });
+                });
+
+            modelBuilder.Entity("AccessControlService.Infrastructure.Persistence.Permission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("RequiresScope")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.ToTable("permissions", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("66666666-0000-0000-0000-000000000001"),
+                            IsActive = true,
+                            Key = "create-form-campaigns",
+                            RequiresScope = false
+                        },
+                        new
+                        {
+                            Id = new Guid("66666666-0000-0000-0000-000000000002"),
+                            IsActive = true,
+                            Key = "create-action-items",
+                            RequiresScope = false
+                        },
+                        new
+                        {
+                            Id = new Guid("66666666-0000-0000-0000-000000000003"),
+                            IsActive = true,
+                            Key = "create-edit-risks",
+                            RequiresScope = false
+                        },
+                        new
+                        {
+                            Id = new Guid("66666666-0000-0000-0000-000000000004"),
+                            IsActive = true,
+                            Key = "create-resourcing-requests",
+                            RequiresScope = false
+                        },
+                        new
+                        {
+                            Id = new Guid("66666666-0000-0000-0000-000000000005"),
+                            IsActive = true,
+                            Key = "fulfil-resourcing-requests",
+                            RequiresScope = false
+                        },
+                        new
+                        {
+                            Id = new Guid("66666666-0000-0000-0000-000000000006"),
+                            IsActive = true,
+                            Key = "approve-reject-resourcing-candidates",
+                            RequiresScope = false
+                        },
+                        new
+                        {
+                            Id = new Guid("66666666-0000-0000-0000-000000000007"),
+                            IsActive = true,
+                            Key = "close-resourcing-requests",
+                            RequiresScope = false
+                        },
+                        new
+                        {
+                            Id = new Guid("66666666-0000-0000-0000-000000000008"),
+                            IsActive = true,
+                            Key = "assign-mentors",
+                            RequiresScope = false
+                        },
+                        new
+                        {
+                            Id = new Guid("66666666-0000-0000-0000-000000000009"),
+                            IsActive = true,
+                            Key = "maintain-cds-records",
+                            RequiresScope = false
+                        },
+                        new
+                        {
+                            Id = new Guid("66666666-0000-0000-0000-000000000010"),
+                            IsActive = true,
+                            Key = "edit-career-timeline",
+                            RequiresScope = false
+                        },
+                        new
+                        {
+                            Id = new Guid("66666666-0000-0000-0000-000000000011"),
+                            IsActive = true,
+                            Key = "create-feedback",
+                            RequiresScope = false
+                        },
+                        new
+                        {
+                            Id = new Guid("66666666-0000-0000-0000-000000000012"),
+                            IsActive = true,
+                            Key = "record-departure",
+                            RequiresScope = false
+                        },
+                        new
+                        {
+                            Id = new Guid("66666666-0000-0000-0000-000000000013"),
+                            IsActive = true,
+                            Key = "manage-departments",
+                            RequiresScope = false
+                        },
+                        new
+                        {
+                            Id = new Guid("66666666-0000-0000-0000-000000000014"),
+                            IsActive = true,
+                            Key = "manage-custom-fields",
+                            RequiresScope = false
+                        },
+                        new
+                        {
+                            Id = new Guid("66666666-0000-0000-0000-000000000015"),
+                            IsActive = true,
+                            Key = "change-organisational-relationships",
+                            RequiresScope = false
+                        },
+                        new
+                        {
+                            Id = new Guid("66666666-0000-0000-0000-000000000016"),
+                            IsActive = true,
+                            Key = "manage-system-dictionaries",
+                            RequiresScope = false
+                        },
+                        new
+                        {
+                            Id = new Guid("66666666-0000-0000-0000-000000000017"),
+                            IsActive = true,
+                            Key = "manage-functional-roles-and-permissions",
+                            RequiresScope = false
+                        },
+                        new
+                        {
+                            Id = new Guid("66666666-0000-0000-0000-000000000018"),
+                            IsActive = true,
+                            Key = "view-dashboard",
+                            RequiresScope = true
                         });
                 });
 
@@ -223,6 +796,38 @@ namespace AccessControlService.Infrastructure.Persistence.Migrations
                             Label = "Fixture Person: HR Partner (Engineer's assigned PP)",
                             ManagerId = new Guid("22222222-0000-0000-0000-000000000009")
                         });
+                });
+
+            modelBuilder.Entity("AccessControlService.Infrastructure.Persistence.PersonFunctionalRoleAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AssignedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("FunctionalRoleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FunctionalRoleId");
+
+                    b.HasIndex("PersonId", "FunctionalRoleId")
+                        .IsUnique()
+                        .HasFilter("\"IsActive\" = TRUE");
+
+                    b.ToTable("person_functional_role_assignments", (string)null);
                 });
 
             modelBuilder.Entity("AccessControlService.Infrastructure.Persistence.ProjectAssignment", b =>
@@ -327,12 +932,35 @@ namespace AccessControlService.Infrastructure.Persistence.Migrations
                     b.ToTable("project_assignment_event_watermarks", (string)null);
                 });
 
+            modelBuilder.Entity("AccessControlService.Infrastructure.Persistence.AuthorizationAdministrationAudit", b =>
+                {
+                    b.HasOne("AccessControlService.Infrastructure.Persistence.Person", null)
+                        .WithMany()
+                        .HasForeignKey("ActorPersonId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("AccessControlService.Infrastructure.Persistence.Department", b =>
                 {
                     b.HasOne("AccessControlService.Infrastructure.Persistence.Department", null)
                         .WithMany()
                         .HasForeignKey("ParentDepartmentId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AccessControlService.Infrastructure.Persistence.FunctionalRolePermissionGrant", b =>
+                {
+                    b.HasOne("AccessControlService.Infrastructure.Persistence.FunctionalRole", null)
+                        .WithMany()
+                        .HasForeignKey("FunctionalRoleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AccessControlService.Infrastructure.Persistence.Permission", null)
+                        .WithMany()
+                        .HasForeignKey("PermissionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AccessControlService.Infrastructure.Persistence.Person", b =>
@@ -356,6 +984,21 @@ namespace AccessControlService.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("PeoplePartnerId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AccessControlService.Infrastructure.Persistence.PersonFunctionalRoleAssignment", b =>
+                {
+                    b.HasOne("AccessControlService.Infrastructure.Persistence.FunctionalRole", null)
+                        .WithMany()
+                        .HasForeignKey("FunctionalRoleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AccessControlService.Infrastructure.Persistence.Person", null)
+                        .WithMany()
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AccessControlService.Infrastructure.Persistence.ProjectAssignment", b =>

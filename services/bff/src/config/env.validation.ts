@@ -7,6 +7,7 @@ export const envValidationSchema = Joi.object({
   PORT: Joi.number().port().default(3001),
   CORS_ORIGIN: Joi.string().uri().default('http://localhost:4200'),
   PEOPLE_SERVICE_URL: Joi.string().uri().default('http://localhost:3002'),
+  ACCESS_CONTROL_SERVICE_BASE_URL: Joi.string().uri().required(),
   // No .default(...) for either Keycloak value, deliberately: these anchor signature/issuer
   // validation (JwtStrategy's deriveIssuer/deriveJwksUri), so a real deployment that omits them
   // must fail fast at startup, not silently fall back to a localhost value that can never match

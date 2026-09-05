@@ -28,6 +28,7 @@ public class AppConfigTests
         Assert.Equal(5672, config.RabbitMqPort);
         Assert.Equal("guest", config.RabbitMqUser);
         Assert.Equal("guest", config.RabbitMqPassword);
+        Assert.Empty(config.AllowedOidcIssuers);
     }
 
     [Theory]
@@ -109,6 +110,33 @@ public class AppConfigTests
         var ex = Assert.Throws<InvalidOperationException>(() => AppConfig.Load(new FakeConfiguration(values)));
 
         Assert.Contains("RABBITMQ_PORT", ex.Message);
+    }
+
+    [Fact]
+    public void Load_WithValidOidcAllowlist_CanonicalizesIssuers()
+    {
+        var values = ValidValues();
+        values["OIDC_ALLOWED_ISSUERS"] = "HTTPS://ID.Example.Test:443/Realms/People/";
+
+        var config = AppConfig.Load(new FakeConfiguration(values), "Production");
+
+        Assert.Contains(
+            "https://id.example.test/Realms/People",
+            config.AllowedOidcIssuers);
+        Assert.False(config.AllowInsecureOidcHttp);
+    }
+
+    [Fact]
+    public void Load_WithInvalidOrMissingOidcAllowlist_RemainsStartupSafeAndEmpty()
+    {
+        var values = ValidValues();
+        values["OIDC_ALLOWED_ISSUERS"] = "ftp://id.example.test/realm";
+
+        var invalid = AppConfig.Load(new FakeConfiguration(values), "Production");
+        var missing = AppConfig.Load(new FakeConfiguration(ValidValues()), "Production");
+
+        Assert.Empty(invalid.AllowedOidcIssuers);
+        Assert.Empty(missing.AllowedOidcIssuers);
     }
 
     [Theory]

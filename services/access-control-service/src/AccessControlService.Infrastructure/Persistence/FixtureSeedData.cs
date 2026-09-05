@@ -1,3 +1,5 @@
+using AccessControlService.Domain.Permissions;
+
 namespace AccessControlService.Infrastructure.Persistence;
 
 /// <summary>
@@ -57,6 +59,99 @@ namespace AccessControlService.Infrastructure.Persistence;
 /// </remarks>
 public static class FixtureSeedData
 {
+    private static readonly DateTime SeededAtUtc = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+    public static readonly Guid UnitManagerRoleId = Guid.Parse("55555555-0000-0000-0000-000000000001");
+    public static readonly Guid DeliveryManagerRoleId = Guid.Parse("55555555-0000-0000-0000-000000000002");
+    public static readonly Guid ProjectManagerRoleId = Guid.Parse("55555555-0000-0000-0000-000000000003");
+    public static readonly Guid PeoplePartnerRoleId = Guid.Parse("55555555-0000-0000-0000-000000000004");
+    public static readonly Guid HrAdminRoleId = Guid.Parse("55555555-0000-0000-0000-000000000005");
+
+    private static Guid PermissionId(int index) =>
+        Guid.Parse($"66666666-0000-0000-0000-{index:000000000000}");
+
+    private static Guid GrantId(int index) =>
+        Guid.Parse($"77777777-0000-0000-0000-{index:000000000000}");
+
+    public static IReadOnlyList<Permission> Permissions { get; } =
+        PermissionCatalogue.Definitions
+            .Select((definition, index) => new Permission
+            {
+                Id = PermissionId(index + 1),
+                Key = definition.Key,
+                IsActive = true,
+                RequiresScope = definition.RequiresDashboardScope,
+            })
+            .ToArray();
+
+    public static IReadOnlyList<FunctionalRole> FunctionalRoles { get; } =
+    [
+        new() { Id = UnitManagerRoleId, RoleKey = "unit-manager", DisplayName = "Unit Manager", IsSeeded = true, IsActive = true, CreatedAtUtc = SeededAtUtc },
+        new() { Id = DeliveryManagerRoleId, RoleKey = "delivery-manager", DisplayName = "Delivery Manager", IsSeeded = true, IsActive = true, CreatedAtUtc = SeededAtUtc },
+        new() { Id = ProjectManagerRoleId, RoleKey = "project-manager", DisplayName = "Project Manager", IsSeeded = true, IsActive = true, CreatedAtUtc = SeededAtUtc },
+        new() { Id = PeoplePartnerRoleId, RoleKey = "people-partner", DisplayName = "People Partner", IsSeeded = true, IsActive = true, CreatedAtUtc = SeededAtUtc },
+        new() { Id = HrAdminRoleId, RoleKey = "hr-admin", DisplayName = "HR Admin", IsSeeded = true, IsActive = true, CreatedAtUtc = SeededAtUtc },
+    ];
+
+    private static readonly IReadOnlyDictionary<string, Guid> PermissionIds =
+        Permissions.ToDictionary(permission => permission.Key, permission => permission.Id);
+
+    private static FunctionalRolePermissionGrant Grant(
+        int index,
+        Guid roleId,
+        string permissionKey,
+        string? scope = null) =>
+        new()
+        {
+            Id = GrantId(index),
+            FunctionalRoleId = roleId,
+            PermissionId = PermissionIds[permissionKey],
+            Scope = scope,
+            GrantedAtUtc = SeededAtUtc,
+        };
+
+    public static IReadOnlyList<FunctionalRolePermissionGrant> FunctionalRolePermissionGrants { get; } =
+    [
+        Grant(1, UnitManagerRoleId, PermissionCatalogue.FULFIL_RESOURCING_REQUESTS),
+        Grant(2, UnitManagerRoleId, PermissionCatalogue.CREATE_EDIT_RISKS),
+        Grant(3, UnitManagerRoleId, PermissionCatalogue.CREATE_ACTION_ITEMS),
+        Grant(4, UnitManagerRoleId, PermissionCatalogue.ASSIGN_MENTORS),
+        Grant(5, UnitManagerRoleId, PermissionCatalogue.MAINTAIN_CDS_RECORDS),
+        Grant(6, UnitManagerRoleId, PermissionCatalogue.VIEW_DASHBOARD, """{"dashboardType":"unit-manager"}"""),
+        Grant(7, DeliveryManagerRoleId, PermissionCatalogue.CREATE_RESOURCING_REQUESTS),
+        Grant(8, DeliveryManagerRoleId, PermissionCatalogue.APPROVE_REJECT_RESOURCING_CANDIDATES),
+        Grant(9, DeliveryManagerRoleId, PermissionCatalogue.CLOSE_RESOURCING_REQUESTS),
+        Grant(10, DeliveryManagerRoleId, PermissionCatalogue.CREATE_EDIT_RISKS),
+        Grant(11, DeliveryManagerRoleId, PermissionCatalogue.CREATE_ACTION_ITEMS),
+        Grant(12, DeliveryManagerRoleId, PermissionCatalogue.MAINTAIN_CDS_RECORDS),
+        Grant(13, DeliveryManagerRoleId, PermissionCatalogue.ASSIGN_MENTORS),
+        Grant(14, DeliveryManagerRoleId, PermissionCatalogue.VIEW_DASHBOARD, """{"dashboardType":"delivery-manager"}"""),
+        Grant(15, ProjectManagerRoleId, PermissionCatalogue.CREATE_RESOURCING_REQUESTS),
+        Grant(16, ProjectManagerRoleId, PermissionCatalogue.CREATE_EDIT_RISKS),
+        Grant(17, ProjectManagerRoleId, PermissionCatalogue.CREATE_ACTION_ITEMS),
+        Grant(18, ProjectManagerRoleId, PermissionCatalogue.MAINTAIN_CDS_RECORDS),
+        Grant(19, ProjectManagerRoleId, PermissionCatalogue.ASSIGN_MENTORS),
+        Grant(20, ProjectManagerRoleId, PermissionCatalogue.VIEW_DASHBOARD, """{"dashboardType":"project-manager"}"""),
+        Grant(21, PeoplePartnerRoleId, PermissionCatalogue.CREATE_FORM_CAMPAIGNS),
+        Grant(22, PeoplePartnerRoleId, PermissionCatalogue.CREATE_ACTION_ITEMS),
+        Grant(23, PeoplePartnerRoleId, PermissionCatalogue.CREATE_EDIT_RISKS),
+        Grant(24, PeoplePartnerRoleId, PermissionCatalogue.ASSIGN_MENTORS),
+        Grant(25, PeoplePartnerRoleId, PermissionCatalogue.MAINTAIN_CDS_RECORDS),
+        Grant(26, PeoplePartnerRoleId, PermissionCatalogue.EDIT_CAREER_TIMELINE),
+        Grant(27, PeoplePartnerRoleId, PermissionCatalogue.CREATE_FEEDBACK),
+        Grant(28, PeoplePartnerRoleId, PermissionCatalogue.VIEW_DASHBOARD, """{"dashboardType":"people-partner"}"""),
+        Grant(29, HrAdminRoleId, PermissionCatalogue.MANAGE_DEPARTMENTS),
+        Grant(30, HrAdminRoleId, PermissionCatalogue.MANAGE_CUSTOM_FIELDS),
+        Grant(31, HrAdminRoleId, PermissionCatalogue.MANAGE_SYSTEM_DICTIONARIES),
+        Grant(32, HrAdminRoleId, PermissionCatalogue.MANAGE_FUNCTIONAL_ROLES_AND_PERMISSIONS),
+        Grant(33, HrAdminRoleId, PermissionCatalogue.CHANGE_ORGANISATIONAL_RELATIONSHIPS),
+    ];
+
+    // The initial HR Admin assignment is provisioned at startup from the opaque
+    // FUNCTIONAL_ROLE_BOOTSTRAP_SUB configuration value; it cannot be migration seed data.
+    public static IReadOnlyList<PersonFunctionalRoleAssignment> PersonFunctionalRoleAssignments { get; } =
+        Array.Empty<PersonFunctionalRoleAssignment>();
+
     public static readonly Guid HeadquartersDepartmentId = Guid.Parse("11111111-0000-0000-0000-000000000001");
     public static readonly Guid EngineeringDepartmentId = Guid.Parse("11111111-0000-0000-0000-000000000002");
     public static readonly Guid PlatformDepartmentId = Guid.Parse("11111111-0000-0000-0000-000000000003");

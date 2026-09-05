@@ -7,6 +7,7 @@ import { AppLayout } from '@/components/AppLayout/AppLayout'
 import { HomePage } from '@/pages/HomePage/HomePage'
 import { ErrorPage } from '@/pages/ErrorPage/ErrorPage'
 import { OrganisationalRelationshipsPage } from '@/pages/OrganisationalRelationshipsPage/OrganisationalRelationshipsPage'
+import { AdministrationPage } from '@/pages/AdministrationPage/AdministrationPage'
 
 const router = createBrowserRouter([
   // Standalone error page (rendered outside the main layout)
@@ -27,6 +28,10 @@ const router = createBrowserRouter([
       {
         path: 'organisational-relationships',
         element: <OrganisationalRelationshipsPage />,
+      },
+      {
+        path: 'administration/functional-roles',
+        element: <AdministrationPage />,
       },
     ],
   },
