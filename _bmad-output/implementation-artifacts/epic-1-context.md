@@ -4,7 +4,7 @@
 
 ## Goal
 
-Establish the platform's access-control engine so that every viewer — Self, Reporting-line Manager, Project-line Manager, People Partner, Colleague, or Full-profile-access holder — sees exactly the profile sections and fields they are entitled to, correctly resolved from their real relationship to the subject at request time. HR Admin can create functional roles and assign permissions without a deploy. Full profile access is a separate, journaled grant that can never self-assign and can never be reduced to zero holders. The access-role resolution engine consumes project-assignment relationship-change events through a stubbed contract, so this epic does not block on the real timetracker adapter (Epic 14). Every other epic builds directly on this foundation; the exit gate is a green automated coverage manifest for every section-matrix cell that FR-1 through FR-7 govern — not just "stories merged."
+Give every viewer — Self, Reporting-line Manager, Project-line Manager, People Partner, Colleague, or Full-profile-access holder — exactly the profile sections/fields they're entitled to for a given subject, resolved from their real relationships at request time, never from a stored role flag. HR Admin can create functional roles and grant permissions with no deploy, but that grant is configuration-only and never itself confers profile-data access. Full profile access is a separate, journaled grant that can never be self-assigned or reduced to zero holders. Resolution consumes project-assignment changes through a stubbed event contract so this epic doesn't block on Epic 14's real timetracker adapter. Every other epic reads from this foundation; the exit gate is a green automated coverage manifest for every section-matrix cell FR-1–FR-7 govern, not merely "stories merged."
 
 ## Stories
 
@@ -22,76 +22,76 @@ Establish the platform's access-control engine so that every viewer — Self, Re
 
 ## Requirements & Constraints
 
-**Access-role resolution** is a transitive closure over three relationship types: reports-to chains, department management (including parent departments), and project assignment to a PM or DM. The result is one of: Reporting line (first two sources), Project line (third source), or Colleague (none). The same requester can hold different access roles toward different subjects in the same session — resolution is always per (viewer, subject) pair, never cached as a global user-level role.
+**Access-role resolution** is the transitive closure of reports-to, department management (incl. parent departments), and project assignment to a PM/DM — the first two form the Reporting line, the third the Project line. Resolved per (viewer, subject) pair on every request; never cached or reused as a single global "current user's role."
 
-**Section-level gating is absolute.** A `—` cell in the section matrix must produce no trace in the API response, export, search result, notification, or error message. Sections are not hidden in the frontend — they are absent from the server response. The BFF composes responses from only what the Access Control Service permits.
+**Revocation timing is split**: platform-owned edits (manager/PP/department/department-manager) take effect on the viewer's next request; project-derived access changes within 15 minutes of the underlying assignment change under normal sync, forcibly withdrawn within 4 hours if sync itself is failing. Any cache must invalidate within these bounds, proven by test.
 
-**Project-line narrowing:** a viewer reaching a subject solely through project assignment loses access to S2 and S3 entirely and gets read-only S5 limited to CV and certificates. All other sections match Reporting-line access. If a viewer qualifies through both lines for the same subject, the most-permissive path wins.
+**Organisational-relationship changes** are never writable through a general profile edit — only through a dedicated, permissioned, journaled screen, and never self-assignable even by a permission holder.
 
-**Colleague whitelist:** a viewer holding none of Manager/PP/Full-profile-access sees exactly S1, S10 (dates only — no leave type), and S11 (project name only). Enforced by asserting no keys outside that set exist in the response body, not by hiding fields.
+**Functional roles/permissions are runtime data**, live immediately on grant/revocation, and never widen access beyond the holder's already-resolved access role. HR Admin's own grant is configuration-only — no standing profile-section access.
 
-**S7 flag gating:** management notes carry two server-defaulted-false flags — `visible for employee` and `visible for PM`. UM, DM, and PP get full RW regardless of flags. An employee sees only their explicitly flagged notes. A PM (the specific functional role, not Project line broadly) gets read-only access to notes flagged for PM. A DM reached via project assignment keeps full S7 RW — the PM exception does not apply to DMs.
+**Full profile access**: exactly one holder seeded at deployment; only an existing holder can grant it; last holder can never be removed; a holder gets RW on every section.
 
-**Organisational-relationship fields (manager, people partner, department, department's manager)** are never writable through a general S1 edit. They change only through a dedicated, permissioned, journaled screen. No self-assignment. Every change writes a journal entry (one of six journaled event types: manager change, PP change, department change, department-manager change, Full-profile-access grant, shared-link access).
+**Section-gated response**: a `—` cell leaves zero trace on any surface (API, export, search, notification, error), never a client-side hide. The header shows manager/PP/mentor read-only to anyone who can see S1; writing those three via a normal S1 edit is rejected server-side.
 
-**Functional roles are runtime data:** HR Admin creates roles, grants any subset of independently-grantable permissions, and assigns roles — all with no deploy. A functional role never widens data access beyond the holder's existing access role. HR Admin's own grant is configuration-only (custom fields, dictionaries, departments, functional roles/permissions) with no standing profile-section access.
+**S7 note flags** (`visible for employee`, `visible for PM`) default false. UM/DM/PP get full RW regardless. A viewer who is *specifically* a PM (a DM keeps full RW) sees only PM-flagged notes, read-only. Where multiple relationship paths apply, the most-permissive wins.
 
-**Full profile access** is seeded to one holder at deployment, can only be granted by an existing holder, cannot be self-assigned, and the last holder can never be removed. Grants and removals are journaled.
+**Colleague whitelist**: exactly S1, S10 (dates only), S11 (project name only) — verified by asserting no other keys exist. Campaign-author's S14 exception (Epic 11) is an additive extension point, not built here.
 
-**Relationship-change timing:** platform-owned edits (reporting line, department, PP assignment) take effect on the very next request. Project-derived access changes within 15 minutes of the underlying assignment change under normal sync, and is forcibly withdrawn within 4 hours if timetracker sync is failing. Any cache backing access resolution must invalidate within these bounds.
+**Project line narrows only S2 (absent), S3 (absent), S5 (R-only, CV+certificates)** vs. Reporting line; everything else, including S6, matches. Reporting line wins whenever it also qualifies for the same subject.
 
-**Custom field visibility** (`management`, `employee`, `colleague`) is enforced identically across profile reads, list columns, filter options, and exports. A requester who cannot see a field must not be offered it as a filter option — binary-search inference via range filters is a data leak.
+**Custom field visibility** (`management`/`employee`/`colleague`) is one decision reused identically by profile reads, list columns, filters, exports, and search — a field the requester can't see must never be offered as a filter option (closes the range-search inference gap).
 
-**CI exit gate (SM-1):** a machine-readable authorization coverage manifest must be green for every audience × relationship-path × section combination, every `—` cell, the S7 unflagged-note cases against both employee and PM, and the Project-line narrowing cells. The epic is not done until this manifest is green.
+**Authentication**: every request carries a Keycloak-verified identity; the BFF rejects a missing/expired/malformed/invalid-signature token before it reaches any domain service, never forwarding a caller-supplied `actorId`/`personId`. Service-to-service calls carry a trusted platform identity too.
+
+**Exit gate (SM-1)**: coverage manifest green for every audience × relationship-path × section combination FR-1–FR-7 govern, including every `—` cell and both S7 unflagged-note cases, before Epic 2+ builds on this.
+
+**Genuinely open**: whether the header's mentor field follows "anyone who sees S1" or excludes Colleague; default permission grants for the expanded permission list, pending PO confirmation.
+
+**NFR-2** (2s at 500+ records incl. permission resolution) and **NFR-6** (access control as the primary quality attribute) apply directly here.
 
 ## Technical Decisions
 
-**Access Control is a separate .NET service** (`services/access-control-service`, AD-2). No other service may hardcode a role-name check in place of calling it. It owns access-role resolution, functional permissions, and section/record/operation policy decisions.
+Access Control is a dedicated .NET service (`services/access-control-service`), sole owner of access-role resolution, functional-permission decisions, and section/record/operation policy — no other service may hardcode a role-name check instead.
 
-**Derived relationship projection** (AD-3): Access Control does not synchronously query People/Organization on each request. People/Organization publishes relationship-change events through a transactional outbox over RabbitMQ. Access Control maintains a derived projection, processes events idempotently, prioritizes revocation events with fail-closed handling, and records applied source versions and freshness watermarks. A synchronous People lookup is an exceptional freshness check only.
+It holds a **derived relationship projection**, not synchronous People lookups: People/Organization publishes relationship-change events via transactional outbox over RabbitMQ; the consumer is idempotent, prioritizes revocations with fail-closed handling under uncertain freshness, and tracks applied source versions. A synchronous People call is an exceptional freshness check only.
 
-**Stub event contract for project assignments:** Story 1.2 consumes a project-assignment-ended event against a stubbed/fake producer. The internal normalized relationship-change contract is defined in this epic; Epic 14's real timetracker adapter must publish the same contract. Authorization never consumes raw timetracker payloads.
+The **BFF is the sole browser boundary**, not a second policy engine: validates Keycloak auth, composes domain APIs, and omits restricted sections server-side before React sees them.
 
-**Persistence isolation** (AD-4): each service owns its own PostgreSQL database/schema and runs its own migrations. Services never read or write another service's tables.
+Persistence is isolated per bounded context — each service owns its own Postgres schema/migrations, no cross-service table access.
 
-**BFF is the browser boundary** (AD-5): validates Keycloak-issued tokens, adds correlation context, composes domain APIs, and returns consistent errors. It must not own authorization policy. Restricted sections are omitted before reaching React. React never calls a domain service directly.
+Cross-service contracts live in `libs/contracts`, versioned, additive-only within a version.
 
-**Authentication (Story 1.11):** Keycloak issues identity tokens. The BFF rejects any request with a missing, expired, malformed, or signature-failed token before forwarding. Domain services receive a platform-established verified identity — never a caller-supplied actorId from a request body or query string. Service-to-service calls carry a trusted service identity. A revoked or expired session is rejected the same as a never-authenticated request.
+Authorization caches (Redis, only where measured need justifies it) must not preserve revoked access beyond the propagation bounds above.
 
-**Shared contracts** live in `libs/contracts` (versioned DTOs and message schemas, AD-9). Additive evolution within a version; breaking changes require a new version and a migration plan, verified by CI contract checks.
+CI runs a machine-readable authorization coverage manifest across every matrix cell, plus revocation tests for reporting-line and project-assignment endings (outbox atomicity, duplicate/reordered events, replay, stale-projection denial).
 
-**Authorization caches** must not preserve revoked access beyond the approved propagation bounds (15 minutes for project-derived access, next-request for platform-owned edits). Redis is used only where a measured need justifies it and is never the system of record.
-
-**Stack:** .NET for `access-control-service`; Node.js/TypeScript for `people-service`, `bff`, and other Node services; React 19 + Vite + Tailwind v4 + shadcn/ui (`radix-nova`) for `frontend`; PostgreSQL as primary store; RabbitMQ for messaging; Keycloak as identity provider. All versions must be verified and pinned before implementation — the architecture spine's stack table intentionally defers pinning.
+Stack: .NET (`access-control-service`); Node.js/TypeScript (other services, BFF); React (frontend); Keycloak; PostgreSQL; RabbitMQ; Redis where justified — versions to be pinned before implementation.
 
 ## UX & Interaction Patterns
 
-**Section omission** is the load-bearing frontend rule for this epic: a section the viewer has no access to is absent from the DOM — not disabled, not blurred, not behind a lock icon. The page layout reflows around its absence. The same profile route renders different section sets for different viewers; the frontend has no knowledge of why a section is absent. This is Story 1.6's UX contract and the pattern every later profile-rendering story follows.
+**Section omission** is the load-bearing rule: an inaccessible section is absent from the DOM — never disabled, blurred, or lock-iconed — and the layout reflows around it. The same route renders a different section set per viewer.
 
-**Permission-adjacent absence** is the general form: a capability or field that does not exist for this viewer is simply not present, not offered as a greyed-out option. No "you don't have permission" message is ever shown — that message would itself reveal that the section exists.
+**Permission-adjacent absence** generalizes this: a filter/column/feature the viewer lacks is simply not offered, never shown greyed-out — a "no permission" message would itself leak that the thing exists.
 
-**FlagIndicator** (S7 flags): two independent, separately-labeled toggles, both defaulting off, editable only by UM/DM/PP. Read-only display for a PM who can see the record. Accessible name states the flag itself ("Visible for employee: Off"), never a bare unlabeled toggle.
+**FlagIndicator** (S7 flags): editable only by RW holders (Reporting line, DM, PP); read-only for a PM who can see the record; accessible name states the flag itself ("Visible for employee: Off").
 
-**Organisational-relationship fields** (manager, PP, department) are never inline-editable anywhere in the UI — only changeable through the dedicated screen from Story 1.3.
-
-**Administration surface** (HR Admin): exposes functional roles, permission grants, custom fields, and departments only — zero profile-data surfaces are reachable from it.
+Manager/PP/department fields are never inline-editable anywhere — only through Story 1.3's dedicated screen.
 
 ## Cross-Story Dependencies
 
-**Story 1.11 (authentication)** is a logical prerequisite for all other stories — access-role resolution requires a verified identity on every request — but has no code dependency on 1.1–1.10 and can be built in parallel.
+Story 1.11 (Keycloak auth) is a logical prerequisite for every other story but has no code dependency on 1.1–1.10 — can proceed in parallel.
 
-**Story 1.1 (resolution engine)** is a prerequisite for 1.6, 1.8, and 1.9 — the resolution result is what those stories gate or narrow.
+Story 1.1's resolution result is what 1.6, 1.8, 1.9 gate/narrow against; narrowing/whitelist logic itself belongs at 1.6's response-assembly layer, not inside resolution.
 
-**Story 1.3 (org-relationship screen)** must be complete before 1.6 can correctly reject S1 writes to manager/PP/department fields. Story 1.5 also requires 1.3's journal infrastructure and 1.4's permission model.
+Story 1.3's journal/screen underpins 1.5 (grant journaling) and 1.6 (rejecting manager/PP/department writes via S1).
 
-**Story 1.6 (section-gated response)** integrates resolution (1.1, 1.9) with the API surface — it depends on the access-role result and the section matrix to assemble each response. Stories 1.8 and 1.9 follow directly from 1.6's assembly layer.
+Story 1.10's decision must be one callable policy point later surfaces (Epic 2's columns/filters/exports) reuse — not profile-page-only.
 
-**Story 1.10 (custom field visibility)** must be designed as a callable policy point that later surfaces (All Employees in Epic 2, exports, filters) reuse — not a profile-page-only rule.
+Story 1.8's whitelist is the base Epic 11 later extends (campaign-author S14) — design as an extension point.
 
-**Story 1.8's colleague whitelist** is the base that Epic 11 additively extends (campaign-author S14 exception) — that extension is out of scope here but must be designed as an extension point.
+**FR-15 split**: this epic covers only "self never reads own S6"; self-complete-action-item/IDP/mentorship-flag live in Epics 3, 9, 10.
 
-**FR-15 split:** this epic covers only the negative clause (self can never read own S6). The other three FR-15 sub-clauses live in Epics 3, 9, and 10.
+**FR-44 split**: Story 1.2 defines/consumes the relationship-change contract against a stub; Epic 14's real adapter fulfills the same contract without the resolver changing.
 
-**FR-44 split:** Story 1.2 defines the internal relationship-change event contract and consumes it from a stub. Epic 14 fulfills the same contract with the real timetracker adapter. The resolution engine must not change when Epic 14 ships.
-
-**Epic gate:** Epics 2 through 16 all build on this access model. An unverified section-matrix cell here is inherited by all of them. The SM-1 manifest must be green before any other epic is considered safe to build on top of this one.
+**Epic gate**: Epics 2–16 all build on this model; SM-1 must be green before any of them builds on top of Epic 1.
