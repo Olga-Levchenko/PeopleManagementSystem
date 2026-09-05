@@ -98,6 +98,110 @@ public sealed class AccessRoleResolver
     }
 
     /// <summary>
+    /// Resolves <paramref name="viewerPersonId"/>'s access role toward each id in
+    /// <paramref name="subjectPersonIds"/> in a single pass, using five interface calls
+    /// (O(5–6) DB round-trips (constant, independent of N): the department-subtree method makes an
+    /// extra round-trip to check ManagesDepartmentId before firing the CTE, and project-line uses
+    /// two sequential calls). Returns a dictionary keyed by every subject id in the input; subjects
+    /// absent from the DB resolve to <see cref="AccessRole.None"/> (fail-closed, same Gotcha as
+    /// <see cref="ResolveAsync"/>). If <paramref name="viewerPersonId"/> appears in
+    /// <paramref name="subjectPersonIds"/>, that entry resolves to <see cref="AccessRole.None"/>
+    /// (no self-elevation). An empty input returns an empty dictionary.
+    /// </summary>
+    /// <remarks>
+    /// This method does NOT call <see cref="ResolveAsync"/> in a loop. It pre-computes the
+    /// viewer's full transitive relationship sets in O(4) queries, then evaluates every subject
+    /// purely in memory. It is safe to call concurrently with itself only if each call uses a
+    /// separate resolver instance — it shares the same scoped
+    /// <see cref="IRelationshipRepository"/> as <see cref="ResolveAsync"/> and thus the same
+    /// non-thread-safe EF Core DbContext in production.
+    /// </remarks>
+    public async Task<IReadOnlyDictionary<Guid, AccessRole>> ResolveBatchAsync(
+        Guid viewerPersonId,
+        IReadOnlyCollection<Guid> subjectPersonIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (subjectPersonIds.Count == 0)
+        {
+            return new Dictionary<Guid, AccessRole>();
+        }
+
+        // Query 1: transitive reportee ids (also used for HR-line PP resolution below).
+        var reporteeIds = await _repository.GetTransitiveReporteeIdsAsync(viewerPersonId, cancellationToken);
+
+        // Query 2: department subtree the viewer manages.
+        var managedDeptIds = await _repository.GetManagedDepartmentSubtreeIdsAsync(viewerPersonId, cancellationToken);
+
+        // Query 3: subject attributes (DepartmentId, PeoplePartnerId) for every requested subject.
+        var subjectAttributes = await _repository.GetSubjectAttributesBatchAsync(subjectPersonIds, cancellationToken);
+
+        // Query 4: subjects on the viewer's managed projects (requires viewer's own project ids).
+        var viewerProjectIds = await _repository.GetProjectIdsManagedAsDmOrPmAsync(viewerPersonId, cancellationToken);
+        IReadOnlySet<Guid> projectLineSubjectIds;
+        if (viewerProjectIds.Count == 0)
+        {
+            projectLineSubjectIds = new HashSet<Guid>();
+        }
+        else
+        {
+            projectLineSubjectIds = await _repository.GetSubjectsOnViewerProjectsAsync(
+                viewerProjectIds, subjectPersonIds, cancellationToken);
+        }
+
+        // Evaluate every subject in memory -- no additional DB round-trips.
+        var results = new Dictionary<Guid, AccessRole>(subjectPersonIds.Count);
+        foreach (var subjectId in subjectPersonIds)
+        {
+            // Self-elevation is always fail-closed: the viewer cannot resolve toward themselves.
+            if (subjectId == viewerPersonId)
+            {
+                results[subjectId] = AccessRole.None;
+                continue;
+            }
+
+            // Reporting-line: viewer is a transitive reports-to ancestor (Query 1) OR manages a
+            // department ancestor of the subject's own department (Query 2 + Query 3).
+            var reportingLine = reporteeIds.Contains(subjectId);
+            if (!reportingLine && managedDeptIds.Count > 0)
+            {
+                if (subjectAttributes.TryGetValue(subjectId, out var attrs) && attrs.DepartmentId is not null)
+                {
+                    reportingLine = managedDeptIds.Contains(attrs.DepartmentId.Value);
+                }
+            }
+
+            // Project-line: subject is on at least one project the viewer manages as DM or PM
+            // (Query 4).
+            var projectLine = projectLineSubjectIds.Contains(subjectId);
+
+            // People-Partner-line: viewer is the subject's assigned PP (direct match) OR viewer is
+            // transitively above the subject's PP in the PP's own reports-to chain (HR-line = set
+            // membership in reporteeIds from Query 1, zero extra round-trips).
+            var peoplePartnerLine = false;
+            if (subjectAttributes.TryGetValue(subjectId, out var subjectAttr) && subjectAttr.PeoplePartnerId is not null)
+            {
+                var ppId = subjectAttr.PeoplePartnerId.Value;
+                peoplePartnerLine = ppId == viewerPersonId || reporteeIds.Contains(ppId);
+            }
+
+            if (!reportingLine && !projectLine && !peoplePartnerLine)
+            {
+                results[subjectId] = AccessRole.None;
+                continue;
+            }
+
+            results[subjectId] = new AccessRole
+            {
+                ReportingLine = reportingLine,
+                ProjectLine = projectLine,
+                PeoplePartnerLine = peoplePartnerLine,
+            };
+        }
+
+        return results;
+    }
+
+    /// <summary>
     /// Walks <paramref name="startId"/>'s reports-to chain upward, one hop at a time, looking for
     /// the viewer. Stops (returns false) on reaching the top of the chain, revisiting an
     /// already-seen node (cycle guard), or exceeding <see cref="MaxHops"/>. Generalized over its

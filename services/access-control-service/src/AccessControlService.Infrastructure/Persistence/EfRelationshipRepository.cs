@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using AccessControlService.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -172,6 +173,128 @@ public sealed class EfRelationshipRepository : IRelationshipRepository
         }
 
         return projectIds;
+    }
+
+    // -- O4-90: batch resolution methods -- O(5-6) round-trips (constant), independent of subject count. --
+
+    /// <summary>
+    /// Postgres recursive CTE over <c>people.manager_id</c>, depth-bounded at 100 hops (no CYCLE
+    /// clause -- compatible with Postgres 13+). EF Core 8's <c>Database.SqlQuery&lt;Guid&gt;</c>
+    /// requires the scalar column aliased as <c>"Value"</c>.
+    /// </summary>
+    public async Task<IReadOnlySet<Guid>> GetTransitiveReporteeIdsAsync(
+        Guid viewerPersonId,
+        CancellationToken cancellationToken = default)
+    {
+        // Postgres column names are PascalCase (EF Core's default mapping with Npgsql preserves
+        // property casing, quoted to be case-sensitive). The "Value" alias is required by
+        // Database.SqlQuery<Guid> (EF Core 8) to identify the scalar result column.
+        const string sql = """
+            WITH RECURSIVE reportees("Id", depth) AS (
+                SELECT "Id", 0 FROM people WHERE "ManagerId" = {0}
+                UNION ALL
+                SELECT p."Id", r.depth + 1 FROM people p
+                JOIN reportees r ON p."ManagerId" = r."Id" WHERE r.depth < 100
+            )
+            SELECT DISTINCT "Id" AS "Value" FROM reportees
+            """;
+
+        var ids = await _dbContext.Database
+            .SqlQuery<Guid>(FormattableStringFactory.Create(sql, viewerPersonId))
+            .ToListAsync(cancellationToken);
+
+        return new HashSet<Guid>(ids);
+    }
+
+    /// <summary>
+    /// Postgres recursive CTE over <c>departments.parent_department_id</c>, starting from the
+    /// department the viewer manages (<c>Person.ManagesDepartmentId</c>). Returns an empty set
+    /// immediately when the viewer manages no department or the viewer is not in the DB. Depth-
+    /// bounded at 100 hops, no CYCLE clause (Postgres 13+ compatible).
+    /// </summary>
+    public async Task<IReadOnlySet<Guid>> GetManagedDepartmentSubtreeIdsAsync(
+        Guid viewerPersonId,
+        CancellationToken cancellationToken = default)
+    {
+        // Two-step: first resolve whether the viewer manages any department at all (avoids the
+        // CTE firing needlessly when the viewer is a plain employee with no ManagesDepartmentId).
+        var managedDeptId = await _dbContext.People
+            .AsNoTracking()
+            .Where(p => p.Id == viewerPersonId)
+            .Select(p => p.ManagesDepartmentId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (managedDeptId is null)
+        {
+            return new HashSet<Guid>();
+        }
+
+        // Same PascalCase/quoting convention as GetTransitiveReporteeIdsAsync above.
+        const string sql = """
+            WITH RECURSIVE dept_subtree("Id", depth) AS (
+                SELECT {0}::uuid AS "Id", 0
+                UNION ALL
+                SELECT d."Id", ds.depth + 1 FROM departments d
+                JOIN dept_subtree ds ON d."ParentDepartmentId" = ds."Id" WHERE ds.depth < 100
+            )
+            SELECT DISTINCT "Id" AS "Value" FROM dept_subtree
+            """;
+
+        var ids = await _dbContext.Database
+            .SqlQuery<Guid>(FormattableStringFactory.Create(sql, managedDeptId.Value))
+            .ToListAsync(cancellationToken);
+
+        return new HashSet<Guid>(ids);
+    }
+
+    /// <summary>
+    /// Single LINQ query returning DepartmentId and PeoplePartnerId for every subject id that
+    /// exists in the DB. Missing ids are silently omitted. Npgsql translates
+    /// <c>Contains</c> to <c>= ANY(@ids)</c>.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<Guid, SubjectBatchAttributes>> GetSubjectAttributesBatchAsync(
+        IReadOnlyCollection<Guid> subjectPersonIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (subjectPersonIds.Count == 0)
+        {
+            return new Dictionary<Guid, SubjectBatchAttributes>();
+        }
+
+        var rows = await _dbContext.People
+            .AsNoTracking()
+            .Where(p => subjectPersonIds.Contains(p.Id))
+            .Select(p => new { p.Id, p.DepartmentId, p.PeoplePartnerId })
+            .ToListAsync(cancellationToken);
+
+        return rows.ToDictionary(
+            r => r.Id,
+            r => new SubjectBatchAttributes(r.DepartmentId, r.PeoplePartnerId));
+    }
+
+    /// <summary>
+    /// Returns the subset of <paramref name="subjectPersonIds"/> who are assigned to at least one
+    /// project in <paramref name="viewerProjectIds"/>. Uses a LINQ join translated by Npgsql to an
+    /// efficient <c>= ANY(@ids)</c> filter. Returns an empty set when either input is empty.
+    /// </summary>
+    public async Task<IReadOnlySet<Guid>> GetSubjectsOnViewerProjectsAsync(
+        IReadOnlyCollection<Guid> viewerProjectIds,
+        IReadOnlyCollection<Guid> subjectPersonIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (viewerProjectIds.Count == 0 || subjectPersonIds.Count == 0)
+        {
+            return new HashSet<Guid>();
+        }
+
+        var personIds = await _dbContext.ProjectAssignments
+            .AsNoTracking()
+            .Where(pa => viewerProjectIds.Contains(pa.ProjectId) && subjectPersonIds.Contains(pa.PersonId))
+            .Select(pa => pa.PersonId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return new HashSet<Guid>(personIds);
     }
 
     /// <summary>
