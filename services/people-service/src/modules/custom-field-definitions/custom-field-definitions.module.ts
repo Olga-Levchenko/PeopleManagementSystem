@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { RequestActorContext } from '../organisational-relationships/request-actor.context';
 import { CustomFieldDefinitionsController } from './custom-field-definitions.controller';
-import { UnavailableHrAdminPermissionAdapter } from './custom-field-definitions.ports';
+import { HttpHrAdminPermissionAdapter } from './custom-field-definitions.ports';
 import { CustomFieldDefinitionsService } from './custom-field-definitions.service';
 
 @Module({
@@ -9,10 +9,10 @@ import { CustomFieldDefinitionsService } from './custom-field-definitions.servic
   providers: [
     CustomFieldDefinitionsService,
     RequestActorContext,
-    UnavailableHrAdminPermissionAdapter,
+    HttpHrAdminPermissionAdapter,
     {
       provide: 'HrAdminPermissionPort',
-      useExisting: UnavailableHrAdminPermissionAdapter,
+      useExisting: HttpHrAdminPermissionAdapter,
     },
   ],
 })

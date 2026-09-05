@@ -1,4 +1,5 @@
 using AccessControlService.Api;
+using AccessControlService.Api.Authorization;
 using AccessControlService.Api.Configuration;
 using AccessControlService.Api.ErrorHandling;
 using AccessControlService.Api.Health;
@@ -85,7 +86,7 @@ builder.Services.AddScoped<
     UnavailableDeploymentRecoveryAuthorizer>();
 builder.Services.AddScoped<
     ITrustedServicePrincipalAuthorizer,
-    UnavailableTrustedServicePrincipalAuthorizer>();
+    HeaderBasedTrustedServicePrincipalAuthorizer>();
 
 // spec-1-1d: the pure, transport-agnostic project-assignment event processor. Scoped because its
 // DbContext dependency is scoped -- spec-1-1e's consumer below creates one DI scope per message
