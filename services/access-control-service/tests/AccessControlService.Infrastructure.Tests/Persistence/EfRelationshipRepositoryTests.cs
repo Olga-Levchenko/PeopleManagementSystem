@@ -374,4 +374,176 @@ public sealed class EfRelationshipRepositoryTests : IAsyncLifetime
 
         await Assert.ThrowsAsync<DbUpdateException>(() => _dbContext.SaveChangesAsync());
     }
+
+    // -- O4-90: batch resolution method tests against real Postgres. --
+
+    [Fact]
+    public async Task GetTransitiveReporteeIdsAsync_KnownManager_ReturnsAllTransitiveReportees()
+    {
+        // The fixture chain is: Engineer -> PlatformLead -> Director -> Executive.
+        // Executive's transitive reportees are Director, PlatformLead, and Engineer (3 total).
+        var reporteeIds = await _repository.GetTransitiveReporteeIdsAsync(FixtureSeedData.ExecutiveId);
+
+        Assert.Contains(FixtureSeedData.DirectorId, reporteeIds);
+        Assert.Contains(FixtureSeedData.PlatformLeadId, reporteeIds);
+        Assert.Contains(FixtureSeedData.EngineerId, reporteeIds);
+        // Executive himself is not his own reportee.
+        Assert.DoesNotContain(FixtureSeedData.ExecutiveId, reporteeIds);
+    }
+
+    [Fact]
+    public async Task GetTransitiveReporteeIdsAsync_DirectManagerOnly_ReturnsDirectReporteeButNotGrandchild()
+    {
+        // PlatformLead's transitive reportees include Engineer (direct) only within the main chain,
+        // but also Engineer (direct). Director is PlatformLead's manager, not a reportee.
+        var reporteeIds = await _repository.GetTransitiveReporteeIdsAsync(FixtureSeedData.PlatformLeadId);
+
+        Assert.Contains(FixtureSeedData.EngineerId, reporteeIds);
+        Assert.DoesNotContain(FixtureSeedData.PlatformLeadId, reporteeIds);
+        Assert.DoesNotContain(FixtureSeedData.DirectorId, reporteeIds);
+    }
+
+    [Fact]
+    public async Task GetTransitiveReporteeIdsAsync_PersonWithNoDirectReports_ReturnsEmpty()
+    {
+        // Engineer has no one reporting to them.
+        var reporteeIds = await _repository.GetTransitiveReporteeIdsAsync(FixtureSeedData.EngineerId);
+
+        Assert.Empty(reporteeIds);
+    }
+
+    [Fact]
+    public async Task GetTransitiveReporteeIdsAsync_UnknownViewerId_ReturnsEmpty()
+    {
+        var reporteeIds = await _repository.GetTransitiveReporteeIdsAsync(Guid.NewGuid());
+
+        Assert.Empty(reporteeIds);
+    }
+
+    [Fact]
+    public async Task GetTransitiveReporteeIdsAsync_HrChain_ReturnsHrPartnerForHrDirector()
+    {
+        // HrPartner reports to HrDirector (spec-1-6b HR-line fixture) -- proves the CTE works on
+        // a chain outside the main Engineering hierarchy.
+        var reporteeIds = await _repository.GetTransitiveReporteeIdsAsync(FixtureSeedData.HrDirectorId);
+
+        Assert.Contains(FixtureSeedData.HrPartnerId, reporteeIds);
+    }
+
+    [Fact]
+    public async Task GetManagedDepartmentSubtreeIdsAsync_ViewerManagesRootDept_ReturnsFullSubtree()
+    {
+        // Executive manages Headquarters; subtree = Headquarters + Engineering + Platform.
+        var subtreeIds = await _repository.GetManagedDepartmentSubtreeIdsAsync(FixtureSeedData.ExecutiveId);
+
+        Assert.Contains(FixtureSeedData.HeadquartersDepartmentId, subtreeIds);
+        Assert.Contains(FixtureSeedData.EngineeringDepartmentId, subtreeIds);
+        Assert.Contains(FixtureSeedData.PlatformDepartmentId, subtreeIds);
+    }
+
+    [Fact]
+    public async Task GetManagedDepartmentSubtreeIdsAsync_ViewerManagesLeafDept_ReturnsOnlyThatDept()
+    {
+        // PlatformLead manages Platform (a leaf with no children in the fixture).
+        var subtreeIds = await _repository.GetManagedDepartmentSubtreeIdsAsync(FixtureSeedData.PlatformLeadId);
+
+        Assert.Contains(FixtureSeedData.PlatformDepartmentId, subtreeIds);
+        Assert.DoesNotContain(FixtureSeedData.EngineeringDepartmentId, subtreeIds);
+        Assert.DoesNotContain(FixtureSeedData.HeadquartersDepartmentId, subtreeIds);
+    }
+
+    [Fact]
+    public async Task GetManagedDepartmentSubtreeIdsAsync_ViewerManagesNoDepartment_ReturnsEmpty()
+    {
+        // Engineer manages no department -- ManagesDepartmentId is null on file.
+        var subtreeIds = await _repository.GetManagedDepartmentSubtreeIdsAsync(FixtureSeedData.EngineerId);
+
+        Assert.Empty(subtreeIds);
+    }
+
+    [Fact]
+    public async Task GetManagedDepartmentSubtreeIdsAsync_UnknownViewerId_ReturnsEmpty()
+    {
+        var subtreeIds = await _repository.GetManagedDepartmentSubtreeIdsAsync(Guid.NewGuid());
+
+        Assert.Empty(subtreeIds);
+    }
+
+    [Fact]
+    public async Task GetSubjectAttributesBatchAsync_KnownSubjects_ReturnsDepartmentAndPeoplePartnerId()
+    {
+        // Engineer has DepartmentId = PlatformDepartmentId and PeoplePartnerId = HrPartnerId.
+        var attrs = await _repository.GetSubjectAttributesBatchAsync(
+            new[] { FixtureSeedData.EngineerId, FixtureSeedData.DirectorId });
+
+        Assert.True(attrs.ContainsKey(FixtureSeedData.EngineerId));
+        Assert.Equal(FixtureSeedData.PlatformDepartmentId, attrs[FixtureSeedData.EngineerId].DepartmentId);
+        Assert.Equal(FixtureSeedData.HrPartnerId, attrs[FixtureSeedData.EngineerId].PeoplePartnerId);
+
+        // Director has a department but no PP on file.
+        Assert.True(attrs.ContainsKey(FixtureSeedData.DirectorId));
+        Assert.Equal(FixtureSeedData.EngineeringDepartmentId, attrs[FixtureSeedData.DirectorId].DepartmentId);
+        Assert.Null(attrs[FixtureSeedData.DirectorId].PeoplePartnerId);
+    }
+
+    [Fact]
+    public async Task GetSubjectAttributesBatchAsync_UnknownSubjectId_OmittedFromResult()
+    {
+        var unknownId = Guid.NewGuid();
+        var attrs = await _repository.GetSubjectAttributesBatchAsync(new[] { unknownId });
+
+        Assert.DoesNotContain(unknownId, attrs.Keys);
+    }
+
+    [Fact]
+    public async Task GetSubjectAttributesBatchAsync_EmptyInput_ReturnsEmptyDictionary()
+    {
+        var attrs = await _repository.GetSubjectAttributesBatchAsync(Array.Empty<Guid>());
+
+        Assert.Empty(attrs);
+    }
+
+    [Fact]
+    public async Task GetSubjectsOnViewerProjectsAsync_SubjectOnViewerProject_ReturnsThatSubject()
+    {
+        // DeliveryManagerOnly is DM on Phoenix; ProjectAssignee is Member on Phoenix.
+        var result = await _repository.GetSubjectsOnViewerProjectsAsync(
+            new[] { FixtureSeedData.ProjectPhoenixId },
+            new[] { FixtureSeedData.ProjectAssigneeId, FixtureSeedData.EngineerId });
+
+        Assert.Contains(FixtureSeedData.ProjectAssigneeId, result);
+        // Engineer is not assigned to Phoenix (only to Orion via fixture).
+        Assert.DoesNotContain(FixtureSeedData.EngineerId, result);
+    }
+
+    [Fact]
+    public async Task GetSubjectsOnViewerProjectsAsync_SubjectNotOnViewerProject_ReturnsEmpty()
+    {
+        // Orion project; ProjectAssignee is only on Phoenix, not Orion.
+        var result = await _repository.GetSubjectsOnViewerProjectsAsync(
+            new[] { FixtureSeedData.ProjectOrionId },
+            new[] { FixtureSeedData.ProjectAssigneeId });
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetSubjectsOnViewerProjectsAsync_EmptyViewerProjects_ReturnsEmpty()
+    {
+        var result = await _repository.GetSubjectsOnViewerProjectsAsync(
+            Array.Empty<Guid>(),
+            new[] { FixtureSeedData.ProjectAssigneeId });
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetSubjectsOnViewerProjectsAsync_EmptySubjectIds_ReturnsEmpty()
+    {
+        var result = await _repository.GetSubjectsOnViewerProjectsAsync(
+            new[] { FixtureSeedData.ProjectPhoenixId },
+            Array.Empty<Guid>());
+
+        Assert.Empty(result);
+    }
 }

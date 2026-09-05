@@ -772,6 +772,251 @@ public sealed class AccessRoleResolverCompositionTests : IAsyncLifetime
         Assert.Equal(JsonValueKind.Null, root.GetProperty("managerSectionAccess").ValueKind);
     }
 
+    // -- O4-90: POST /api/v1/access-roles/resolve-batch composition tests. Boot the same real,
+    // DI-composed, migrated-Postgres stack as the GET /resolve tests above, so a DI-wiring bug
+    // (e.g. ResolveBatchAsync not routed to the real batch methods) is caught end-to-end.
+
+    [Fact]
+    public async Task BatchResolveEndpoint_ReportingLine_ReturnsReportingLineTrueAndManagerSectionAccess()
+    {
+        // BATCH_REPORTING_LINE: Director is Engineer's transitive manager (2-hop, via PlatformLead).
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        var body = new
+        {
+            viewerPersonId = FixtureSeedData.DirectorId,
+            subjectPersonIds = new[] { FixtureSeedData.EngineerId },
+        };
+        using var response = await client.PostAsync(
+            "/api/v1/access-roles/resolve-batch",
+            new StringContent(System.Text.Json.JsonSerializer.Serialize(body), System.Text.Encoding.UTF8, "application/json"));
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+        var results = root.GetProperty("results");
+        Assert.Equal(1, results.GetArrayLength());
+
+        var item = results[0];
+        Assert.Equal(FixtureSeedData.EngineerId.ToString(), item.GetProperty("subjectPersonId").GetString());
+        Assert.True(item.GetProperty("reportingLine").GetBoolean());
+        Assert.False(item.GetProperty("projectLine").GetBoolean());
+        Assert.Equal(JsonValueKind.Object, item.GetProperty("managerSectionAccess").ValueKind);
+        Assert.Equal(JsonValueKind.Null, item.GetProperty("peoplePartnerSectionAccess").ValueKind);
+    }
+
+    [Fact]
+    public async Task BatchResolveEndpoint_ProjectLineOnly_ReturnsProjectLineTrueWithNarrowedSectionAccess()
+    {
+        // BATCH_PROJECT_LINE_ONLY: DeliveryManagerOnly is DM on Phoenix; ProjectAssignee is a
+        // plain Member on Phoenix; no reporting-line between them.
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        var body = new
+        {
+            viewerPersonId = FixtureSeedData.DeliveryManagerOnlyId,
+            subjectPersonIds = new[] { FixtureSeedData.ProjectAssigneeId },
+        };
+        using var response = await client.PostAsync(
+            "/api/v1/access-roles/resolve-batch",
+            new StringContent(System.Text.Json.JsonSerializer.Serialize(body), System.Text.Encoding.UTF8, "application/json"));
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+        var item = root.GetProperty("results")[0];
+
+        Assert.False(item.GetProperty("reportingLine").GetBoolean());
+        Assert.True(item.GetProperty("projectLine").GetBoolean());
+
+        var managerSectionAccess = item.GetProperty("managerSectionAccess");
+        Assert.Equal(JsonValueKind.Object, managerSectionAccess.ValueKind);
+        // Project-line-only narrowing: S2/S3 = None, S5 = Read with restriction.
+        AssertSection(managerSectionAccess, "s2", "None", null);
+        AssertSection(managerSectionAccess, "s3", "None", null);
+        AssertSection(managerSectionAccess, "s5", "Read", "CV and certificates only");
+        // S6 is identical to Reporting line even when narrowed.
+        AssertSection(managerSectionAccess, "s6", "ReadWrite", null);
+    }
+
+    [Fact]
+    public async Task BatchResolveEndpoint_PeoplePartnerLine_ReturnsPeoplePartnerLineTrueWithSectionAccess()
+    {
+        // BATCH_PP_LINE: HrPartnerId is Engineer's directly assigned PP.
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        var body = new
+        {
+            viewerPersonId = FixtureSeedData.HrPartnerId,
+            subjectPersonIds = new[] { FixtureSeedData.EngineerId },
+        };
+        using var response = await client.PostAsync(
+            "/api/v1/access-roles/resolve-batch",
+            new StringContent(System.Text.Json.JsonSerializer.Serialize(body), System.Text.Encoding.UTF8, "application/json"));
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+        var item = root.GetProperty("results")[0];
+
+        Assert.False(item.GetProperty("reportingLine").GetBoolean());
+        Assert.False(item.GetProperty("projectLine").GetBoolean());
+        Assert.True(item.GetProperty("peoplePartnerLine").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, item.GetProperty("managerSectionAccess").ValueKind);
+        Assert.Equal(JsonValueKind.Object, item.GetProperty("peoplePartnerSectionAccess").ValueKind);
+        // PP is ReadWrite on S2/S3/S5 (diverges from unnarrowed Reporting line).
+        var ppAccess = item.GetProperty("peoplePartnerSectionAccess");
+        AssertSection(ppAccess, "s2", "ReadWrite", null);
+        AssertSection(ppAccess, "s3", "ReadWrite", null);
+        AssertSection(ppAccess, "s5", "ReadWrite", null);
+    }
+
+    [Fact]
+    public async Task BatchResolveEndpoint_HrLinePeoplePartner_ReturnsPeoplePartnerLineTrue()
+    {
+        // BATCH_PP_LINE_HR: HrDirectorId is transitively above Engineer's PP (HrPartnerId) in the
+        // PP's own reports-to chain -- the HR line.
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        var body = new
+        {
+            viewerPersonId = FixtureSeedData.HrDirectorId,
+            subjectPersonIds = new[] { FixtureSeedData.EngineerId },
+        };
+        using var response = await client.PostAsync(
+            "/api/v1/access-roles/resolve-batch",
+            new StringContent(System.Text.Json.JsonSerializer.Serialize(body), System.Text.Encoding.UTF8, "application/json"));
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+        var item = root.GetProperty("results")[0];
+
+        Assert.True(item.GetProperty("peoplePartnerLine").GetBoolean());
+        Assert.Equal(JsonValueKind.Object, item.GetProperty("peoplePartnerSectionAccess").ValueKind);
+    }
+
+    [Fact]
+    public async Task BatchResolveEndpoint_EmptySubjects_Returns200WithEmptyResultList()
+    {
+        // EMPTY_SUBJECTS: empty input → 200 + { results: [] }
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        var body = new
+        {
+            viewerPersonId = FixtureSeedData.ExecutiveId,
+            subjectPersonIds = Array.Empty<Guid>(),
+        };
+        using var response = await client.PostAsync(
+            "/api/v1/access-roles/resolve-batch",
+            new StringContent(System.Text.Json.JsonSerializer.Serialize(body), System.Text.Encoding.UTF8, "application/json"));
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+        Assert.Equal(0, root.GetProperty("results").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task BatchResolveEndpoint_ViewerNotInDb_AllSubjectsReturnAllFlagsFalse()
+    {
+        // VIEWER_NOT_IN_DB: the viewer id doesn't match any person in the DB.
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        var unknownViewer = Guid.NewGuid();
+        var body = new
+        {
+            viewerPersonId = unknownViewer,
+            subjectPersonIds = new[] { FixtureSeedData.EngineerId, FixtureSeedData.DirectorId },
+        };
+        using var response = await client.PostAsync(
+            "/api/v1/access-roles/resolve-batch",
+            new StringContent(System.Text.Json.JsonSerializer.Serialize(body), System.Text.Encoding.UTF8, "application/json"));
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+        var results = root.GetProperty("results");
+
+        foreach (var item in results.EnumerateArray())
+        {
+            Assert.False(item.GetProperty("reportingLine").GetBoolean());
+            Assert.False(item.GetProperty("projectLine").GetBoolean());
+            Assert.False(item.GetProperty("peoplePartnerLine").GetBoolean());
+            Assert.Equal(JsonValueKind.Null, item.GetProperty("managerSectionAccess").ValueKind);
+            Assert.Equal(JsonValueKind.Null, item.GetProperty("peoplePartnerSectionAccess").ValueKind);
+        }
+    }
+
+    [Fact]
+    public async Task BatchResolveEndpoint_ViewerIdInSubjectIds_ThatEntryAllFlagsFalse()
+    {
+        // VIEWER_IN_SUBJECTS: viewerPersonId appears in subjectPersonIds -- fail-closed.
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        var body = new
+        {
+            viewerPersonId = FixtureSeedData.ExecutiveId,
+            subjectPersonIds = new[] { FixtureSeedData.ExecutiveId, FixtureSeedData.EngineerId },
+        };
+        using var response = await client.PostAsync(
+            "/api/v1/access-roles/resolve-batch",
+            new StringContent(System.Text.Json.JsonSerializer.Serialize(body), System.Text.Encoding.UTF8, "application/json"));
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+        var results = root.GetProperty("results");
+
+        // Find the self-entry.
+        var selfItem = results.EnumerateArray()
+            .Single(item => item.GetProperty("subjectPersonId").GetString() == FixtureSeedData.ExecutiveId.ToString());
+
+        Assert.False(selfItem.GetProperty("reportingLine").GetBoolean());
+        Assert.False(selfItem.GetProperty("projectLine").GetBoolean());
+        Assert.False(selfItem.GetProperty("peoplePartnerLine").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, selfItem.GetProperty("managerSectionAccess").ValueKind);
+        Assert.Equal(JsonValueKind.Null, selfItem.GetProperty("peoplePartnerSectionAccess").ValueKind);
+    }
+
+    [Fact]
+    public async Task BatchResolveEndpoint_DuplicateSubjectIds_ReturnsBadRequest()
+    {
+        // DUPLICATE_SUBJECTS: duplicate Guid in subjectPersonIds → 400.
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        var body = new
+        {
+            viewerPersonId = FixtureSeedData.ExecutiveId,
+            subjectPersonIds = new[] { FixtureSeedData.EngineerId, FixtureSeedData.EngineerId },
+        };
+        using var response = await client.PostAsync(
+            "/api/v1/access-roles/resolve-batch",
+            new StringContent(System.Text.Json.JsonSerializer.Serialize(body), System.Text.Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task BatchResolveEndpoint_SubjectCountExceeds500_ReturnsBadRequest()
+    {
+        // BATCH_SIZE_EXCEEDED: subjectPersonIds.Count > 500 → 400.
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        var body = new
+        {
+            viewerPersonId = FixtureSeedData.ExecutiveId,
+            subjectPersonIds = Enumerable.Range(0, 501).Select(_ => Guid.NewGuid()).ToArray(),
+        };
+        using var response = await client.PostAsync(
+            "/api/v1/access-roles/resolve-batch",
+            new StringContent(System.Text.Json.JsonSerializer.Serialize(body), System.Text.Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     private static async Task<JsonElement> ReadJsonRootAsync(HttpResponseMessage response)
     {
         var body = await response.Content.ReadAsStringAsync();
