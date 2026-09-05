@@ -184,10 +184,19 @@ enum CustomFieldVisibility {
   COLLEAGUE
 }
 
+// O4-91: data-type taxonomy for custom field definitions.
+enum CustomFieldDataType {
+  TEXT
+  NUMBER
+  DATE
+  BOOLEAN
+}
+
 model CustomFieldDefinition {
   id         String                @id @default(uuid()) @db.Uuid
   name       String
   visibility CustomFieldVisibility @default(MANAGEMENT)
+  dataType   CustomFieldDataType   @default(TEXT)
   isActive   Boolean               @default(true)
   values     CustomFieldValue[]
 

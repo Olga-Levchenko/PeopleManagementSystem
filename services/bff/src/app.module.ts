@@ -5,6 +5,7 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
 import { envValidationSchema } from './config/env.validation';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
+import { CustomFieldDefinitionsModule } from './modules/custom-field-definitions/custom-field-definitions.module';
 import { HealthModule } from './modules/health/health.module';
 import { OrganisationalRelationshipsModule } from './modules/organisational-relationships/organisational-relationships.module';
 import { FunctionalRolesModule } from './modules/functional-roles/functional-roles.module';
@@ -16,6 +17,7 @@ import { FunctionalRolesModule } from './modules/functional-roles/functional-rol
       validationSchema: envValidationSchema,
     }),
     AuthModule,
+    CustomFieldDefinitionsModule,
     HealthModule,
     OrganisationalRelationshipsModule,
     FunctionalRolesModule,

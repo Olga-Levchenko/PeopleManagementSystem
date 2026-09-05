@@ -36,4 +36,9 @@ export const envValidationSchema = Joi.object({
   // fails closed to Colleague when this call fails, but a missing base URL must still fail fast
   // at startup rather than silently resolving every non-Self profile request as Colleague forever.
   ACCESS_CONTROL_SERVICE_BASE_URL: Joi.string().uri().required(),
+  // Shared secret for S2S trust from this service to access-control-service's permission-check
+  // endpoint. Must match INTERNAL_SERVICE_SECRET in access-control-service. Required: without it,
+  // every HR Admin write operation would be denied at request time, which is a worse failure mode
+  // than failing fast at startup.
+  INTERNAL_SERVICE_SECRET: Joi.string().min(1).required(),
 });
