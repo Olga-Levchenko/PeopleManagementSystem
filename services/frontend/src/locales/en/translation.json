@@ -15,7 +15,71 @@
   },
   "sidebar": {
     "home": "Home",
-    "relationships": "Relationships"
+    "relationships": "Relationships",
+    "administration": "Administration"
+  },
+  "administration": {
+    "title": "Functional role administration",
+    "description": "Manage runtime functional roles, permissions, and active assignments.",
+    "loading": "Loading administration data...",
+    "active": "Active",
+    "inactive": "Inactive",
+    "seeded": "Seeded",
+    "seededProtected": "Seeded role — role details are protected.",
+    "deactivateReason": "Deactivated by an administrator.",
+    "create": {
+      "title": "Create custom role"
+    },
+    "edit": {
+      "title": "Role details"
+    },
+    "roles": {
+      "title": "Functional roles"
+    },
+    "permissions": {
+      "title": "Permissions",
+      "current": "Permissions changed in this session"
+    },
+    "assignments": {
+      "title": "Person assignments",
+      "current": "Active functional-role assignments"
+    },
+    "fields": {
+      "roleKey": "Role key",
+      "displayName": "Display name",
+      "permission": "Permission",
+      "choosePermission": "Choose a permission",
+      "dashboardType": "Dashboard type",
+      "chooseDashboard": "Choose a dashboard type",
+      "personId": "Person ID",
+      "assignmentRole": "Role to assign",
+      "chooseRole": "Choose a role"
+    },
+    "actions": {
+      "create": "Create role",
+      "save": "Save changes",
+      "deactivate": "Deactivate role",
+      "grant": "Grant permission",
+      "revoke": "Revoke",
+      "assign": "Assign role",
+      "loadAssignments": "Load active assignments"
+    },
+    "confirm": {
+      "deactivate": "Deactivate this custom role?",
+      "grant": "Grant this permission?",
+      "revokePermission": "Revoke this permission?",
+      "assign": "Assign this role to the person?",
+      "revokeAssignment": "Revoke this person's role?"
+    },
+    "errors": {
+      "validation": "Check the entered values and try again.",
+      "unauthorized": "Your session is not authorized. Please sign in again.",
+      "permission": "You do not have permission to manage functional roles.",
+      "missing": "The requested role or person was not found.",
+      "conflict": "The change conflicts with the current state. Refresh and try again.",
+      "unavailable": "The administration service is temporarily unavailable. Try again later.",
+      "unknown": "The change could not be completed."
+    }
   },
   "relationships": {
     "title": "Organisational relationships",

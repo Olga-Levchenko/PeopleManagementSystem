@@ -156,4 +156,16 @@ public class HealthEndpointTests : IClassFixture<WebApplicationFactory<Program>>
             Assert.NotEqual(nonConfiguredOrigin, Assert.Single(allowedOrigins));
         }
     }
+
+    [Fact]
+    public async Task Readiness_WithUnavailableDatabase_ReturnsUnreadyWithoutDatabaseDetails()
+    {
+        using var response = await _client.GetAsync("/api/v1/readiness");
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(System.Net.HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.False(body.RootElement.GetProperty("ready").GetBoolean());
+        Assert.DoesNotContain("Host=localhost", body.RootElement.ToString());
+        Assert.DoesNotContain("stack", body.RootElement.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
 }

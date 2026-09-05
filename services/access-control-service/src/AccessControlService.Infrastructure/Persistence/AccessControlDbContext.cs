@@ -1,3 +1,4 @@
+using AccessControlService.Domain.Permissions;
 using Microsoft.EntityFrameworkCore;
 
 namespace AccessControlService.Infrastructure.Persistence;
@@ -23,6 +24,15 @@ public sealed class AccessControlDbContext : DbContext
     public DbSet<ProjectAssignment> ProjectAssignments => Set<ProjectAssignment>();
 
     public DbSet<ProjectAssignmentEventWatermark> ProjectAssignmentEventWatermarks => Set<ProjectAssignmentEventWatermark>();
+    public DbSet<Permission> Permissions => Set<Permission>();
+    public DbSet<FunctionalRole> FunctionalRoles => Set<FunctionalRole>();
+    public DbSet<FunctionalRolePermissionGrant> FunctionalRolePermissionGrants => Set<FunctionalRolePermissionGrant>();
+    public DbSet<PersonFunctionalRoleAssignment> PersonFunctionalRoleAssignments => Set<PersonFunctionalRoleAssignment>();
+    public DbSet<AuthorizationAdministrationAudit> AuthorizationAdministrationAudits => Set<AuthorizationAdministrationAudit>();
+
+    public DbSet<FullProfileAccessGrant> FullProfileAccessGrants => Set<FullProfileAccessGrant>();
+
+    public DbSet<FullProfileAccessJournalEntry> FullProfileAccessJournalEntries => Set<FullProfileAccessJournalEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -145,6 +155,143 @@ public sealed class AccessControlDbContext : DbContext
             watermark.HasIndex(w => new { w.OwnedProjectId, w.OwnedPersonId })
                 .IsUnique()
                 .HasFilter("\"OwnedProjectId\" IS NOT NULL AND \"OwnedPersonId\" IS NOT NULL");
+        });
+
+        modelBuilder.Entity<FullProfileAccessGrant>(grant =>
+        {
+            grant.ToTable("full_profile_access_grants");
+            grant.HasKey(g => g.Id);
+
+            // Application generates the PK (Guid.NewGuid()), not the database -- make that explicit
+            // rather than relying on EF Core's implicit non-default-Guid-key ValueGeneratedOnAdd.
+            grant.Property(g => g.Id).ValueGeneratedNever();
+
+            grant.Property(g => g.HolderId).IsRequired();
+            grant.Property(g => g.GrantedByActorId).IsRequired();
+            grant.Property(g => g.GrantedAtUtc).IsRequired();
+
+            // One person can hold at most one active grant at a time -- enforced as a database
+            // constraint so a duplicate (e.g. from a race between two concurrent grant calls) is
+            // a write-time error rather than a silent duplicate that confuses IsHolderAsync and
+            // GetActiveCountAsync.
+            grant.HasIndex(g => g.HolderId).IsUnique();
+
+            // Bootstrap seed: PlatformLeadId holds Full-profile-access at deployment, granted by
+            // themselves (self-seeded, no prior holder). This is the only self-granted row ever
+            // allowed -- subsequent grants must pass the non-self guard in FullProfileAccessController.
+            grant.HasData(new FullProfileAccessGrant
+            {
+                Id = FixtureSeedData.FullProfileAccessGrantBootstrapId,
+                HolderId = FixtureSeedData.PlatformLeadId,
+                GrantedByActorId = FixtureSeedData.PlatformLeadId,
+                GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            });
+        });
+
+        modelBuilder.Entity<FullProfileAccessJournalEntry>(entry =>
+        {
+            entry.ToTable("full_profile_access_journal_entries");
+            entry.HasKey(e => e.Id);
+
+            // Application generates the PK, not the database.
+            entry.Property(e => e.Id).ValueGeneratedNever();
+
+            entry.Property(e => e.ActorId).IsRequired();
+            entry.Property(e => e.SubjectId).IsRequired();
+            entry.Property(e => e.Action).IsRequired().HasConversion<string>();
+            entry.Property(e => e.OccurredAtUtc).IsRequired();
+
+            // Bootstrap seed: mirrors the FullProfileAccessGrant seed row -- the self-grant action
+            // at deployment is the first journal entry.
+            entry.HasData(new FullProfileAccessJournalEntry
+            {
+                Id = FixtureSeedData.FullProfileAccessJournalBootstrapId,
+                ActorId = FixtureSeedData.PlatformLeadId,
+                SubjectId = FixtureSeedData.PlatformLeadId,
+                Action = FullProfileAccessAction.Grant,
+                OccurredAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            });
+        });
+
+        modelBuilder.Entity<Permission>(permission =>
+        {
+            permission.ToTable("permissions");
+            permission.HasKey(p => p.Id);
+            permission.Property(p => p.Key).HasMaxLength(100).IsRequired();
+            permission.HasIndex(p => p.Key).IsUnique();
+            permission.HasData(FixtureSeedData.Permissions);
+        });
+
+        modelBuilder.Entity<FunctionalRole>(role =>
+        {
+            role.ToTable("functional_roles");
+            role.HasKey(r => r.Id);
+            role.Property(r => r.RoleKey).HasMaxLength(100).IsRequired();
+            role.Property(r => r.DisplayName).HasMaxLength(200).IsRequired();
+            role.HasIndex(r => r.RoleKey).IsUnique();
+            role.HasIndex(r => r.DisplayName).IsUnique();
+            role.HasData(FixtureSeedData.FunctionalRoles);
+        });
+
+        modelBuilder.Entity<FunctionalRolePermissionGrant>(grant =>
+        {
+            grant.ToTable("functional_role_permission_grants");
+            grant.HasKey(g => g.Id);
+            grant.Property(g => g.Scope).HasColumnType("jsonb");
+            grant.HasIndex(g => new { g.FunctionalRoleId, g.PermissionId })
+                .IsUnique()
+                .HasFilter("\"Scope\" IS NULL");
+            grant.HasIndex(g => new { g.FunctionalRoleId, g.PermissionId, g.Scope })
+                .IsUnique()
+                .HasFilter("\"Scope\" IS NOT NULL");
+            grant.HasOne<FunctionalRole>()
+                .WithMany()
+                .HasForeignKey(g => g.FunctionalRoleId)
+                .OnDelete(DeleteBehavior.Restrict);
+            grant.HasOne<Permission>()
+                .WithMany()
+                .HasForeignKey(g => g.PermissionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            grant.HasData(FixtureSeedData.FunctionalRolePermissionGrants);
+        });
+
+        modelBuilder.Entity<PersonFunctionalRoleAssignment>(assignment =>
+        {
+            assignment.ToTable("person_functional_role_assignments");
+            assignment.HasKey(a => a.Id);
+            assignment.HasIndex(a => new { a.PersonId, a.FunctionalRoleId })
+                .IsUnique()
+                .HasFilter("\"IsActive\" = TRUE");
+            assignment.HasOne<Person>()
+                .WithMany()
+                .HasForeignKey(a => a.PersonId)
+                .OnDelete(DeleteBehavior.Restrict);
+            assignment.HasOne<FunctionalRole>()
+                .WithMany()
+                .HasForeignKey(a => a.FunctionalRoleId)
+                .OnDelete(DeleteBehavior.Restrict);
+            assignment.HasData(FixtureSeedData.PersonFunctionalRoleAssignments);
+        });
+
+        modelBuilder.Entity<AuthorizationAdministrationAudit>(audit =>
+        {
+            audit.ToTable("authorization_administration_audits");
+            audit.HasKey(a => a.AuditId);
+            audit.Property(a => a.Action).HasMaxLength(50).IsRequired();
+            audit.Property(a => a.TargetType).HasMaxLength(50).IsRequired();
+            audit.Property(a => a.TrustedProvisioningActor).HasMaxLength(255);
+            audit.Property(a => a.PermissionKey).HasMaxLength(100);
+            audit.Property(a => a.Scope).HasColumnType("jsonb");
+            audit.Property(a => a.Before).HasColumnType("jsonb");
+            audit.Property(a => a.After).HasColumnType("jsonb");
+            audit.Property(a => a.CorrelationId).HasMaxLength(100).IsRequired();
+            audit.Property(a => a.IdempotencyKey).HasMaxLength(255);
+            audit.HasIndex(a => a.IdempotencyKey).IsUnique();
+            audit.HasIndex(a => a.OccurredAtUtc);
+            audit.HasOne<Person>()
+                .WithMany()
+                .HasForeignKey(a => a.ActorPersonId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

@@ -33,53 +33,73 @@ enum FreshnessStatus {
   CONFIRMED
 }
 
+enum IdentityLinkStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum IdentityLinkOperationType {
+  LINK
+  REVOKE
+  RELINK
+}
+
+enum IdentityLinkAuditAction {
+  LINK
+  REVOKE
+  RELINK
+}
+
 model Person {
-  id                   String       @id @default(uuid()) @db.Uuid
-  managerId            String?      @db.Uuid
-  peoplePartnerId      String?      @db.Uuid
-  departmentId         String?      @db.Uuid
-  relationshipVersion  Int          @default(0)
-  manager              Person?      @relation("person_manager", fields: [managerId], references: [id], onDelete: Restrict)
-  reports              Person[]     @relation("person_manager")
-  peoplePartner        Person?      @relation("person_pp", fields: [peoplePartnerId], references: [id], onDelete: Restrict)
-  partneredPeople      Person[]     @relation("person_pp")
-  department           Department?  @relation("person_department", fields: [departmentId], references: [id], onDelete: Restrict)
-  departmentManagerOf  Department[] @relation("department_manager")
+  id                  String       @id @default(uuid()) @db.Uuid
+  managerId           String?      @db.Uuid
+  peoplePartnerId     String?      @db.Uuid
+  departmentId        String?      @db.Uuid
+  relationshipVersion Int          @default(0)
+  manager             Person?      @relation("person_manager", fields: [managerId], references: [id], onDelete: Restrict)
+  reports             Person[]     @relation("person_manager")
+  peoplePartner       Person?      @relation("person_pp", fields: [peoplePartnerId], references: [id], onDelete: Restrict)
+  partneredPeople     Person[]     @relation("person_pp")
+  department          Department?  @relation("person_department", fields: [departmentId], references: [id], onDelete: Restrict)
+  departmentManagerOf Department[] @relation("department_manager")
 
   // S1 -- Identity card (Story 1.6). fullName is non-nullable: an empty profile identity would
   // make every s1.fullName assertion meaningless, and this table carries no seeded rows yet to
   // backfill.
-  fullName             String
-  photoUrl             String?
-  position             String?
-  countryCity          String?
-  workEmail            String?
-  workPhone            String?
-  birthdayMonth        Int?
-  birthdayDay          Int?
-  startDate            DateTime?
+  fullName      String
+  photoUrl      String?
+  position      String?
+  countryCity   String?
+  workEmail     String?
+  workPhone     String?
+  birthdayMonth Int?
+  birthdayDay   Int?
+  startDate     DateTime?
 
   // S2 -- Personal contacts (Story 1.6).
-  personalPhone        String?
-  personalEmail        String?
-  residentialAddress   String?
+  personalPhone      String?
+  personalEmail      String?
+  residentialAddress String?
 
   // S10/S11 -- Leaves and project assignments (Story 1.8).
-  leaves                    Leave[]
-  personProjectAssignments  PersonProjectAssignment[]
+  leaves                   Leave[]
+  personProjectAssignments PersonProjectAssignment[]
 
   // S16 -- Custom field values (Story 1.10).
-  customFieldValues         CustomFieldValue[]
+  customFieldValues CustomFieldValue[]
+
+  externalIdentityLinks    PersonExternalIdentityLink[]
+  identityLinkAuditEntries IdentityLinkAudit[]          @relation("identity_link_audit_person")
 
   @@map("people")
 }
 
 model Department {
-  id                  String      @id @default(uuid()) @db.Uuid
-  managerId           String?     @db.Uuid
-  relationshipVersion Int         @default(0)
-  members             Person[]    @relation("person_department")
-  manager             Person?     @relation("department_manager", fields: [managerId], references: [id], onDelete: Restrict)
+  id                  String   @id @default(uuid()) @db.Uuid
+  managerId           String?  @db.Uuid
+  relationshipVersion Int      @default(0)
+  members             Person[] @relation("person_department")
+  manager             Person?  @relation("department_manager", fields: [managerId], references: [id], onDelete: Restrict)
   // Backing data for S1's department/unit field on the profile response (Story 1.6).
   name                String?
 
@@ -87,47 +107,47 @@ model Department {
 }
 
 model RelationshipJournalEntry {
-  id             String           @id @default(uuid()) @db.Uuid
-  relationship   RelationshipType
-  actorId        String           @db.Uuid
-  subjectId      String           @db.Uuid
-  beforeId       String?          @db.Uuid
-  afterId        String?          @db.Uuid
-  occurredAtUtc  DateTime         @default(now())
+  id            String           @id @default(uuid()) @db.Uuid
+  relationship  RelationshipType
+  actorId       String           @db.Uuid
+  subjectId     String           @db.Uuid
+  beforeId      String?          @db.Uuid
+  afterId       String?          @db.Uuid
+  occurredAtUtc DateTime         @default(now())
 
   @@index([subjectId, occurredAtUtc])
   @@map("relationship_journal_entries")
 }
 
 model OutboxEvent {
-  eventId             String             @id @default(uuid()) @db.Uuid
-  aggregateType       OutboxAggregateType
-  aggregateId         String             @db.Uuid
-  aggregateVersion    Int
-  payload             Json
-  status              OutboxStatus       @default(PENDING)
-  retryCount          Int                @default(0)
-  nextAttemptAt       DateTime?
-  lastError           String?
-  createdAtUtc        DateTime           @default(now())
-  publishedAtUtc      DateTime?
-  lockedAtUtc         DateTime?
-  lockedBy            String?            @db.Uuid
+  eventId          String              @id @default(uuid()) @db.Uuid
+  aggregateType    OutboxAggregateType
+  aggregateId      String              @db.Uuid
+  aggregateVersion Int
+  payload          Json
+  status           OutboxStatus        @default(PENDING)
+  retryCount       Int                 @default(0)
+  nextAttemptAt    DateTime?
+  lastError        String?
+  createdAtUtc     DateTime            @default(now())
+  publishedAtUtc   DateTime?
+  lockedAtUtc      DateTime?
+  lockedBy         String?             @db.Uuid
 
+  @@unique([aggregateType, aggregateId, aggregateVersion])
   @@index([status, nextAttemptAt])
   @@index([aggregateId, aggregateVersion])
-  @@unique([aggregateType, aggregateId, aggregateVersion])
   @@map("outbox_events")
 }
 
 // S10 -- Leaves and absences (Story 1.8).
 model Leave {
-  id         String   @id @default(uuid()) @db.Uuid
-  personId   String   @db.Uuid
-  startDate  DateTime
-  endDate    DateTime
-  leaveType  String
-  person     Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid()) @db.Uuid
+  personId  String   @db.Uuid
+  startDate DateTime
+  endDate   DateTime
+  leaveType String
+  person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@map("leaves")
 }
@@ -165,10 +185,10 @@ enum CustomFieldVisibility {
 }
 
 model CustomFieldDefinition {
-  id         String                 @id @default(uuid()) @db.Uuid
+  id         String                @id @default(uuid()) @db.Uuid
   name       String
-  visibility CustomFieldVisibility  @default(MANAGEMENT)
-  isActive   Boolean                @default(true)
+  visibility CustomFieldVisibility @default(MANAGEMENT)
+  isActive   Boolean               @default(true)
   values     CustomFieldValue[]
 
   @@map("custom_field_definitions")
@@ -184,4 +204,67 @@ model CustomFieldValue {
 
   @@unique([definitionId, personId])
   @@map("custom_field_values")
+}
+
+model PersonExternalIdentityLink {
+  id               String             @id @default(uuid()) @db.Uuid
+  personId         String             @db.Uuid
+  canonicalIssuer  String
+  opaqueSubject    String
+  status           IdentityLinkStatus @default(ACTIVE)
+  linkedAtUtc      DateTime           @default(now())
+  revokedAtUtc     DateTime?
+  revocationReason String?
+  createdAtUtc     DateTime           @default(now())
+  updatedAtUtc     DateTime           @updatedAt
+
+  person           Person                  @relation(fields: [personId], references: [id], onDelete: Restrict)
+  auditEntries     IdentityLinkAudit[]     @relation("identity_link_audit_link")
+  operationResults IdentityLinkOperation[] @relation("identity_link_operation_result")
+
+  @@index([personId, status])
+  @@index([canonicalIssuer, opaqueSubject, status])
+  @@map("person_external_identity_links")
+}
+
+model IdentityLinkOperation {
+  operationId           String                    @id @default(uuid()) @db.Uuid
+  operationType         IdentityLinkOperationType
+  idempotencyKey        String
+  requestFingerprint    String
+  fingerprintKeyVersion String
+  resultLinkId          String?                   @db.Uuid
+  resultStatus          String
+  createdAtUtc          DateTime                  @default(now())
+
+  resultLink PersonExternalIdentityLink? @relation("identity_link_operation_result", fields: [resultLinkId], references: [id], onDelete: SetNull)
+
+  @@unique([operationType, idempotencyKey])
+  @@index([resultLinkId])
+  @@map("identity_link_operations")
+}
+
+model IdentityLinkAudit {
+  auditId               String                  @id @default(uuid()) @db.Uuid
+  action                IdentityLinkAuditAction
+  linkId                String?                 @db.Uuid
+  personId              String                  @db.Uuid
+  canonicalIssuer       String
+  subjectFingerprint    String
+  fingerprintKeyVersion String
+  actorType             String
+  actorIdentifier       String
+  correlationId         String
+  idempotencyKey        String
+  beforeState           Json
+  afterState            Json
+  occurredAtUtc         DateTime                @default(now())
+
+  person Person                      @relation("identity_link_audit_person", fields: [personId], references: [id], onDelete: Restrict)
+  link   PersonExternalIdentityLink? @relation("identity_link_audit_link", fields: [linkId], references: [id], onDelete: Restrict)
+
+  @@index([personId, occurredAtUtc])
+  @@index([linkId, occurredAtUtc])
+  @@index([correlationId])
+  @@map("identity_link_audits")
 }

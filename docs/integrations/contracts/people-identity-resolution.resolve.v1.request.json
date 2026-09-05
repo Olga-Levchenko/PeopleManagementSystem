@@ -1,0 +1,4 @@
+{
+  "issuer": "https://id.example.test/realms/people-management",
+  "subject": "fabricated-subject-001"
+}

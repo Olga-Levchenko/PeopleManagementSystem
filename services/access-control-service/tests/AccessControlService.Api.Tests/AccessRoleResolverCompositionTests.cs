@@ -730,6 +730,93 @@ public sealed class AccessRoleResolverCompositionTests : IAsyncLifetime
         Assert.Equal(JsonValueKind.Null, root.GetProperty("peoplePartnerSectionAccess").ValueKind);
     }
 
+    // -- spec-1-5: FullProfileAccessLine composition tests, against this same real, DI-composed,
+    // migrated-Postgres stack. PlatformLeadId is the bootstrap holder per the AddFullProfileAccess
+    // migration's seed row; EngineerId is not a holder.
+
+    [Fact]
+    public async Task ResolveEndpoint_FullProfileAccessHolder_ReturnsFullProfileAccessLineTrue()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        // PlatformLeadId is the bootstrap Full-profile-access holder (seed in AddFullProfileAccess
+        // migration). Regardless of which subject is used, the viewer flag must be true.
+        using var response = await client.GetAsync(
+            $"/api/v1/access-roles/resolve?viewerPersonId={FixtureSeedData.PlatformLeadId}&subjectPersonId={FixtureSeedData.EngineerId}");
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+
+        Assert.True(root.GetProperty("fullProfileAccessLine").GetBoolean());
+        Assert.Equal(
+            System.Text.Json.JsonValueKind.Object,
+            root.GetProperty("fullProfileAccessSectionAccess").ValueKind);
+    }
+
+    [Fact]
+    public async Task ResolveEndpoint_FullProfileAccessHolder_ViewingOwnProfile_ReturnsFullProfileAccessLineTrueAndSectionAccess()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        // Self-view: the holder is both viewer and subject. No relationship guard blocks self-view;
+        // fullProfileAccessLine is a viewer-only flag derived from the stored grant, independent of
+        // the subject identity. The full-access section group must still be returned.
+        using var response = await client.GetAsync(
+            $"/api/v1/access-roles/resolve?viewerPersonId={FixtureSeedData.PlatformLeadId}&subjectPersonId={FixtureSeedData.PlatformLeadId}");
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+
+        Assert.True(root.GetProperty("fullProfileAccessLine").GetBoolean());
+        Assert.Equal(JsonValueKind.Object, root.GetProperty("fullProfileAccessSectionAccess").ValueKind);
+    }
+
+    [Fact]
+    public async Task ResolveEndpoint_FullProfileAccessHolder_WithNoRelationshipToSubject_OnlyFullProfileAccessLineIsTrue()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        // PlatformLeadId is the bootstrap FPA holder. HrDirectorId has no relationship to
+        // PlatformLead in any dimension: HrDirector.ManagerId=null, DepartmentId=null,
+        // ManagesDepartmentId=null, no project assignments, and PlatformLead is not HrDirector's PP.
+        // This isolates the fullProfileAccessLine flag from all three relationship flags -- a
+        // regression that accidentally lets fullProfileAccessLine piggyback on a relationship flag
+        // would fail here even if the holder/non-holder tests pass.
+        using var response = await client.GetAsync(
+            $"/api/v1/access-roles/resolve?viewerPersonId={FixtureSeedData.PlatformLeadId}&subjectPersonId={FixtureSeedData.HrDirectorId}");
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+
+        Assert.True(root.GetProperty("fullProfileAccessLine").GetBoolean());
+        Assert.Equal(JsonValueKind.Object, root.GetProperty("fullProfileAccessSectionAccess").ValueKind);
+        Assert.False(root.GetProperty("reportingLine").GetBoolean());
+        Assert.False(root.GetProperty("projectLine").GetBoolean());
+        Assert.False(root.GetProperty("peoplePartnerLine").GetBoolean());
+    }
+
+    [Fact]
+    public async Task ResolveEndpoint_NonHolder_ReturnsFullProfileAccessLineFalse()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        // EngineerId is not a Full-profile-access holder.
+        using var response = await client.GetAsync(
+            $"/api/v1/access-roles/resolve?viewerPersonId={FixtureSeedData.EngineerId}&subjectPersonId={FixtureSeedData.DirectorId}");
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+
+        Assert.False(root.GetProperty("fullProfileAccessLine").GetBoolean());
+        Assert.Equal(
+            System.Text.Json.JsonValueKind.Null,
+            root.GetProperty("fullProfileAccessSectionAccess").ValueKind);
+    }
+
     [Fact]
     public async Task ResolveEndpoint_InvalidGuidQueryParam_ReturnsBadRequestValidationProblem()
     {

@@ -60,13 +60,22 @@ public sealed class AccessRolesController : ControllerBase
             ? ToResponse(ManagerSectionAccessPolicy.ResolveForPeoplePartner())
             : null;
 
+        // Full-profile-access is the maximum possible access -- all 16 sections ReadWrite, no
+        // restriction on any section. It is non-null only when FullProfileAccessLine is true;
+        // callers (people-service) apply it as the most-permissive path, overriding all other lines.
+        var fullProfileAccessSectionAccess = accessRole.FullProfileAccessLine
+            ? ToResponse(ManagerSectionAccessPolicy.ForFullProfileAccess())
+            : null;
+
         return Ok(new AccessRoleResolveResponse
         {
             ReportingLine = accessRole.ReportingLine,
             ProjectLine = accessRole.ProjectLine,
             PeoplePartnerLine = accessRole.PeoplePartnerLine,
+            FullProfileAccessLine = accessRole.FullProfileAccessLine,
             ManagerSectionAccess = managerSectionAccess,
             PeoplePartnerSectionAccess = peoplePartnerSectionAccess,
+            FullProfileAccessSectionAccess = fullProfileAccessSectionAccess,
         });
     }
 
@@ -175,6 +184,14 @@ public sealed record AccessRoleResolveResponse
     public required bool PeoplePartnerLine { get; init; }
 
     /// <summary>
+    /// <c>true</c> when the viewer holds an active Full-profile-access grant (spec §2.4). This is
+    /// the maximum possible access -- all 16 sections as ReadWrite. When <c>true</c>,
+    /// <see cref="FullProfileAccessSectionAccess"/> is non-null and takes precedence over all
+    /// other qualifying lines.
+    /// </summary>
+    public required bool FullProfileAccessLine { get; init; }
+
+    /// <summary>
     /// The Manager audience's resolved per-section access, or <c>null</c> when neither
     /// <see cref="ReportingLine"/> nor <see cref="ProjectLine"/> qualifies (no Manager access at
     /// all toward this subject).
@@ -188,6 +205,14 @@ public sealed record AccessRoleResolveResponse
     /// <see cref="PeoplePartnerLine"/> is <c>false</c> (no PP access at all toward this subject).
     /// </summary>
     public required ManagerSectionAccessResponse? PeoplePartnerSectionAccess { get; init; }
+
+    /// <summary>
+    /// All 16 sections as ReadWrite, or <c>null</c> when <see cref="FullProfileAccessLine"/> is
+    /// <c>false</c>. When non-null, callers (people-service) must use this as the effective section
+    /// set, overriding all other qualifying lines (most-permissive-path-wins; Full profile access
+    /// is the maximum possible access level).
+    /// </summary>
+    public required ManagerSectionAccessResponse? FullProfileAccessSectionAccess { get; init; }
 }
 
 /// <summary>The Manager audience's resolved access to every profile section (S1-S16).</summary>

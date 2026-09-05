@@ -1,0 +1,28 @@
+[
+  {
+    "issuer": "HTTPS://ID.Example.Test:443/Realms/People/",
+    "subject": " Subject/Exact ",
+    "canonicalIssuer": "https://id.example.test/Realms/People",
+    "validInProduction": true,
+    "validInLocal": true
+  },
+  {
+    "issuer": "http://id.example.test/realms/people",
+    "subject": "fabricated-subject-002",
+    "canonicalIssuer": "http://id.example.test/realms/people",
+    "validInProduction": false,
+    "validInLocal": true
+  },
+  {
+    "issuer": "https://id.example.test/realms/people?tenant=one",
+    "subject": "fabricated-subject-003",
+    "validInProduction": false,
+    "validInLocal": false
+  },
+  {
+    "issuer": "ftp://id.example.test/realms/people",
+    "subject": "fabricated-subject-004",
+    "validInProduction": false,
+    "validInLocal": false
+  }
+]
