@@ -1,3 +1,4 @@
+using AccessControlService.Api;
 using AccessControlService.Api.Configuration;
 using AccessControlService.Api.ErrorHandling;
 using AccessControlService.Api.Health;
@@ -60,6 +61,7 @@ builder.Services.AddHealthChecks()
 builder.Services.AddDbContext<AccessControlDbContext>(options =>
     options.UseNpgsql(appConfig.PostgresConnectionString));
 builder.Services.AddScoped<IRelationshipRepository, EfRelationshipRepository>();
+builder.Services.AddScoped<IFullProfileAccessRepository, EfFullProfileAccessRepository>();
 builder.Services.AddScoped<AccessRoleResolver>();
 builder.Services.AddScoped<FunctionalRoleAdministrationService>();
 builder.Services.AddScoped<FunctionalRoleReconciliationService>();
@@ -89,6 +91,12 @@ builder.Services.AddScoped<
 // DbContext dependency is scoped -- spec-1-1e's consumer below creates one DI scope per message
 // rather than resolving this once at startup.
 builder.Services.AddScoped<ProjectAssignmentEventProcessor>();
+
+// spec-1-5: zero-holder fail-fast check -- runs after DI is fully built, before the host begins
+// serving requests. If full_profile_access_grants has zero rows the application fails immediately
+// with a descriptive error naming the missing bootstrap state (spec §2.4: first holder is seeded
+// at deployment, and the last holder can never be removed via the revoke endpoint).
+builder.Services.AddHostedService<FullProfileAccessStartupValidation>();
 
 // spec-1-1e: the real RabbitMQ.Client wiring that calls ProcessAsync. RabbitMqConnectionOptions is
 // a plain data holder in Infrastructure with no dependency on this project's own AppConfig (AD-1

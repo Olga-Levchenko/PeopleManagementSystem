@@ -61,6 +61,22 @@ public sealed record AccessRole
     /// </remarks>
     public bool PeoplePartnerLine { get; init; }
 
+    /// <summary>
+    /// True when the viewer holds a Full-profile-access grant: a stored, explicitly-granted
+    /// privilege (not derived from any relationship) that gives read-write access to every profile
+    /// section (S1-S16). Resolved from <c>IFullProfileAccessRepository.IsHolderAsync</c>, not from
+    /// any relationship traversal -- independent of, and takes precedence over, all three
+    /// relationship-derived lines above. False for every viewer who does not hold an active grant.
+    /// </summary>
+    /// <remarks>
+    /// Per <c>.claude/rules/access-control-invariants.md</c> spec §2.4: only an existing holder can
+    /// grant it, no self-assignment, first holder seeded at deployment, and the last holder can
+    /// never be removed. The caller (<c>AccessRolesController</c>) maps this flag to
+    /// <c>ManagerSectionAccessPolicy.ForFullProfileAccess()</c>'s all-RW section access whenever
+    /// it is <c>true</c>.
+    /// </remarks>
+    public bool FullProfileAccessLine { get; init; }
+
     /// <summary>Convenience instance for "qualifies for nothing this resolver computes."</summary>
     public static AccessRole None { get; } = new();
 }

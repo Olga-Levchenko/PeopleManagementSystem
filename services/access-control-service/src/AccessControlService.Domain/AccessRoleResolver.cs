@@ -21,27 +21,30 @@ public sealed class AccessRoleResolver
     private const int MaxHops = 100;
 
     private readonly IRelationshipRepository _repository;
+    private readonly IFullProfileAccessRepository _fullProfileAccessRepository;
     private readonly ILogger<AccessRoleResolver> _logger;
 
-    public AccessRoleResolver(IRelationshipRepository repository, ILogger<AccessRoleResolver> logger)
+    public AccessRoleResolver(
+        IRelationshipRepository repository,
+        IFullProfileAccessRepository fullProfileAccessRepository,
+        ILogger<AccessRoleResolver> logger)
     {
         _repository = repository;
+        _fullProfileAccessRepository = fullProfileAccessRepository;
         _logger = logger;
     }
 
     /// <summary>
     /// Resolves whether <paramref name="viewerId"/> qualifies for Reporting-line, Project-line,
-    /// and/or People-Partner-line access toward <paramref name="subjectId"/>. Reporting-line
-    /// qualifies via transitive reports-to at any depth, OR department-management of the subject's
-    /// department or any ancestor department. Project-line qualifies when the viewer is DM or PM of
-    /// a project the subject is assigned to. People-Partner-line qualifies when the viewer is the
-    /// subject's assigned people partner, or transitively above that PP in the PP's own reports-to
-    /// chain (the "HR line"). All three flags are resolved independently -- any combination can be
-    /// true in the same result; one qualifying does not short-circuit any other's check. Returns
-    /// <see cref="AccessRole.None"/> (all flags <c>false</c>) when <paramref name="viewerId"/>
-    /// equals <paramref name="subjectId"/> -- a person is never their own manager, their own
-    /// DM/PM, or their own PP; Self is a separate access role the caller must check before
-    /// consulting this resolver, not an unreviewed edge case here.
+    /// People-Partner-line, and/or Full-profile-access toward <paramref name="subjectId"/>.
+    /// Reporting-line qualifies via transitive reports-to at any depth, OR department-management of
+    /// the subject's department or any ancestor department. Project-line qualifies when the viewer
+    /// is DM or PM of a project the subject is assigned to. People-Partner-line qualifies when the
+    /// viewer is the subject's assigned people partner, or transitively above that PP in the PP's
+    /// own reports-to chain (the "HR line"). Full-profile-access qualifies when the viewer holds a
+    /// stored grant and is viewer-only (not viewer-to-subject), so it is resolved and returned even
+    /// when <paramref name="viewerId"/> equals <paramref name="subjectId"/>. All other flags are
+    /// false for self-view -- a person is never their own manager, DM/PM, or PP.
     /// </summary>
     /// <remarks>
     /// Call sequentially, once per (viewer, subject) pair, per resolver instance. This resolver
@@ -55,9 +58,17 @@ public sealed class AccessRoleResolver
         Guid subjectId,
         CancellationToken cancellationToken = default)
     {
+        // Full-profile-access is a viewer-only property -- it qualifies the viewer independently of
+        // any relationship to the subject, including the self-view case. Resolved before the
+        // self-view guard so that a holder viewing their own profile still gets FullProfileAccessLine=true.
+        var fullProfileAccessLine = await _fullProfileAccessRepository.IsHolderAsync(viewerId, cancellationToken);
+
         if (viewerId == subjectId)
         {
-            return AccessRole.None;
+            // A person is never their own manager, DM/PM, or PP; all relationship-derived flags are
+            // false for self-view. Full-profile-access is preserved: it is the only flag that is
+            // viewer-only, not viewer-to-subject, so the Self constraint does not apply to it.
+            return new AccessRole { FullProfileAccessLine = fullProfileAccessLine };
         }
 
         var reportingLine =
@@ -72,13 +83,14 @@ public sealed class AccessRoleResolver
             && (peoplePartnerId == viewerId
                 || await IsTransitiveManagerAsync(viewerId, peoplePartnerId.Value, cancellationToken));
 
-        if (!reportingLine && !projectLine && !peoplePartnerLine)
+        if (!fullProfileAccessLine && !reportingLine && !projectLine && !peoplePartnerLine)
         {
             return AccessRole.None;
         }
 
         return new AccessRole
         {
+            FullProfileAccessLine = fullProfileAccessLine,
             ReportingLine = reportingLine,
             ProjectLine = projectLine,
             PeoplePartnerLine = peoplePartnerLine,

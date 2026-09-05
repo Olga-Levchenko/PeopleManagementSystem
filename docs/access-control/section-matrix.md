@@ -87,6 +87,25 @@ the `partial` label until those audiences get their own rows of coverage), nor a
 field data or the S1 write-restriction/S7 PM-flag/S16 per-field nuances footnoted above — those
 remain Story 1.6/1.7/1.10's jobs respectively.
 
+**Test coverage note (Story 1.5 — Full-profile-access grant):** the **Full profile access** column
+above is fully covered by `AccessRoleResolverTests` (Domain, 4 cases: holder-is-true,
+non-holder-is-false, holder-viewing-own-profile, holder-with-no-relationships — all asserting
+`fullProfileAccessLine` and, where applicable, `fullProfileAccessSectionAccess`);
+`EfFullProfileAccessRepositoryTests` (Infrastructure, real Postgres — `IsHolderAsync`,
+`GetActiveCountAsync`, `GrantAsync`, `RevokeAsync` round-trips including the no-op early-return
+guard when the subject is not a holder); and `FullProfileAccessTests` (Api,
+`WebApplicationFactory<Program>` against a real migrated Postgres — every row of the spec-1-5 I/O
+matrix: non-holder-grant→403, self-grant→403, valid-grant→201+row+journal, last-holder-revoke→409,
+valid-revoke→200+row-removed+journal, subject-not-holder-revoke→404, non-holder-revoke→403, plus
+resolve-as-holder→`fullProfileAccessLine: true` + all 16 sections ReadWrite, and
+resolve-as-non-holder→`fullProfileAccessLine: false` + null section access). The startup fail-fast
+guard (zero holders at boot → `InvalidOperationException`) is covered by
+`FullProfileAccessStartupValidationTests` (Api unit, real DI scope factory, no Testcontainers).
+All-sections-ReadWrite coverage for the FPA viewer is verified in the resolve E2E test above (all
+16 sections iterated by name). The self-view FPA override (FPA holder viewing their own profile
+gets management-level custom fields, not employee-level) is covered in `people-service`'s
+`profile.service.spec.ts`.
+
 ## Rules that follow from the matrix (3.3 — full text is normative, this is a recap)
 
 - **Every cell is strict.** A `—` cell must not leak through the UI, the API, an export, a

@@ -582,3 +582,4 @@
 - source_spec: none
   summary: "Enforce Story 1.6 AC3 (reject manager/PP/department changes via a normal S1 write) once a general S1 profile-write endpoint exists" is COVERED — the rejection requirement is Story 1.6's own AC3; the missing write endpoint it must be enforced against is Story 2.2's ("Inline editing writes through to the profile, subject to access") already-defined scope. Both halves have a story-level home; neither is an orphan.
   evidence: `epics.md`, Story 1.6 AC3 and Story 2.2's title/scope, both read verbatim.
+
