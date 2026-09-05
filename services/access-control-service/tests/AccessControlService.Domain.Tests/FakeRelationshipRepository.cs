@@ -26,6 +26,7 @@ public sealed class FakeRelationshipRepository : IRelationshipRepository
     private readonly Dictionary<Guid, Guid?> _parentByDepartment = new();
     private readonly Dictionary<Guid, HashSet<Guid>> _dmOrPmProjectIdsByPerson = new();
     private readonly Dictionary<Guid, HashSet<Guid>> _assignedProjectIdsByPerson = new();
+    private readonly Dictionary<Guid, List<(Guid ProjectId, ProjectRole Role)>> _projectRolesByPerson = new();
 
     public int ManagerLookupCount { get; private set; }
     public int PeoplePartnerLookupCount { get; private set; }
@@ -34,6 +35,7 @@ public sealed class FakeRelationshipRepository : IRelationshipRepository
     public int ParentDepartmentLookupCount { get; private set; }
     public int DmOrPmProjectLookupCount { get; private set; }
     public int AssignedProjectLookupCount { get; private set; }
+    public int ProjectRolesLookupCount { get; private set; }
 
     public FakeRelationshipRepository SetManager(Guid personId, Guid? managerId)
     {
@@ -65,10 +67,24 @@ public sealed class FakeRelationshipRepository : IRelationshipRepository
         return this;
     }
 
-    /// <summary>Marks <paramref name="personId"/> as DM or PM of every project in <paramref name="projectIds"/>.</summary>
+    /// <summary>
+    /// Marks <paramref name="personId"/> as DM or PM of every project in
+    /// <paramref name="projectIds"/>. Also seeds <see cref="GetProjectRolesAsync"/>'s own backing
+    /// map for the same person/projects (tagged <see cref="ProjectRole.DeliveryManager"/> as an
+    /// arbitrary placeholder role) -- <see cref="AccessRoleResolver"/> resolves
+    /// <see cref="AccessRole.ProjectLine"/> from <see cref="GetProjectRolesAsync"/> alone as of
+    /// spec-1-7 (a single intersection pass, not two independent ones), so a test written only
+    /// against this setter (predating that change) still exercises ProjectLine qualification
+    /// correctly. Call <see cref="SetProjectRoles"/> afterward on the same person to override this
+    /// placeholder with the exact role(s) a test cares about -- it replaces this method's own
+    /// project-role rows for that person outright.
+    /// </summary>
     public FakeRelationshipRepository SetProjectsManagedAsDmOrPm(Guid personId, params Guid[] projectIds)
     {
         _dmOrPmProjectIdsByPerson[personId] = new HashSet<Guid>(projectIds);
+        _projectRolesByPerson[personId] = projectIds
+            .Select(projectId => (projectId, ProjectRole.DeliveryManager))
+            .ToList();
         return this;
     }
 
@@ -76,6 +92,17 @@ public sealed class FakeRelationshipRepository : IRelationshipRepository
     public FakeRelationshipRepository SetAssignedProjects(Guid personId, params Guid[] projectIds)
     {
         _assignedProjectIdsByPerson[personId] = new HashSet<Guid>(projectIds);
+        return this;
+    }
+
+    /// <summary>
+    /// Marks <paramref name="personId"/> as holding each given (project id, role) pair -- the
+    /// per-role-per-project data <see cref="GetProjectRolesAsync"/> serves, alongside (not instead
+    /// of) <see cref="SetProjectsManagedAsDmOrPm"/>'s existing project-id-only aggregation.
+    /// </summary>
+    public FakeRelationshipRepository SetProjectRoles(Guid personId, params (Guid ProjectId, ProjectRole Role)[] roles)
+    {
+        _projectRolesByPerson[personId] = new List<(Guid, ProjectRole)>(roles);
         return this;
     }
 
@@ -131,6 +158,16 @@ public sealed class FakeRelationshipRepository : IRelationshipRepository
         IReadOnlyCollection<Guid> result = _assignedProjectIdsByPerson.TryGetValue(personId, out var projectIds)
             ? projectIds
             : Array.Empty<Guid>();
+        return Task.FromResult(result);
+    }
+
+    public Task<IReadOnlyCollection<(Guid ProjectId, ProjectRole Role)>> GetProjectRolesAsync(Guid personId, CancellationToken cancellationToken = default)
+    {
+        ProjectRolesLookupCount++;
+        ThrowIfRunaway(ProjectRolesLookupCount);
+        IReadOnlyCollection<(Guid ProjectId, ProjectRole Role)> result = _projectRolesByPerson.TryGetValue(personId, out var roles)
+            ? roles
+            : Array.Empty<(Guid, ProjectRole)>();
         return Task.FromResult(result);
     }
 

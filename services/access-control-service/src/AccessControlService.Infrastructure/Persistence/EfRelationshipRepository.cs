@@ -174,6 +174,44 @@ public sealed class EfRelationshipRepository : IRelationshipRepository
         return projectIds;
     }
 
+    public async Task<IReadOnlyCollection<(Guid ProjectId, ProjectRole Role)>> GetProjectRolesAsync(Guid personId, CancellationToken cancellationToken = default)
+    {
+        // Same PM/DM filter as GetProjectIdsManagedAsDmOrPmAsync above, but deliberately not
+        // collapsed to a project-id-only set -- the caller (AccessRoleResolver, spec-1-7) needs to
+        // know which role applies per project.
+        var rows = await _dbContext.ProjectAssignments
+            .AsNoTracking()
+            .Where(pa => pa.PersonId == personId
+                && (pa.Role == ProjectAssignmentRole.ProjectManager || pa.Role == ProjectAssignmentRole.DeliveryManager))
+            .Select(pa => new { pa.ProjectId, pa.Role })
+            .ToListAsync(cancellationToken);
+
+        if (rows.Count == 0)
+        {
+            await LogIfUnknownPersonAsync(nameof(GetProjectRolesAsync), personId, cancellationToken);
+        }
+
+        return rows
+            .Select(row => (row.ProjectId, ToDomainProjectRole(row.Role)))
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Maps the Infrastructure-level <see cref="ProjectAssignmentRole"/> to the Domain-owned
+    /// <see cref="ProjectRole"/> at this boundary (Domain has zero external dependencies, AD-1).
+    /// Never called for <see cref="ProjectAssignmentRole.Member"/> -- the query above already
+    /// filters it out, since it never qualifies for anything.
+    /// </summary>
+    private static ProjectRole ToDomainProjectRole(ProjectAssignmentRole role) => role switch
+    {
+        ProjectAssignmentRole.ProjectManager => ProjectRole.ProjectManager,
+        ProjectAssignmentRole.DeliveryManager => ProjectRole.DeliveryManager,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(role),
+            role,
+            "GetProjectRolesAsync's own query filters to ProjectManager/DeliveryManager only -- Member (or any other value) should be unreachable here."),
+    };
+
     /// <summary>
     /// An empty result from either Project-line lookup above is naturally indistinguishable
     /// between "known person, genuinely no project assignments" and "personId itself is unknown" --

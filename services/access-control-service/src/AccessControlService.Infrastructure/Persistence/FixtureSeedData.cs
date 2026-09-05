@@ -57,6 +57,21 @@ namespace AccessControlService.Infrastructure.Persistence;
 /// a viewer who is Engineer's Reporting-line manager (e.g. PlatformLead) has no relation at all to
 /// HrPartner/HrDirector's chain, and vice versa.
 /// </remarks>
+/// <remarks>
+/// PM/DM multi-path fixture (spec-1-7's AC5), reusing Project Phoenix and Project Orion above
+/// rather than introducing new projects:
+/// <code>
+/// PmDmMultiPathId: DeliveryManager on Project Phoenix, ProjectManager on Project Orion.
+/// ProjectAssigneeId (existing Phoenix Member) is ALSO added as a Member of Project Orion, so this
+/// one existing subject is reached via both of PmDmMultiPathId's project roles at once.
+/// </code>
+/// This is <c>PlatformLeadId</c>'s DM-on-two-projects fixture with a twist needed by spec-1-7: a
+/// single viewer holding <em>different</em> qualifying roles (DM vs PM) on the two projects a
+/// single subject is assigned to -- proving <c>AccessRoleResolver.ResolveAsync</c>'s
+/// <c>ProjectRoles</c> aggregates both distinct roles for one viewer/subject pair (most-permissive-
+/// path-wins: DM's full-RW path applies even though the same viewer also only-PM-qualifies via the
+/// other project).
+/// </remarks>
 public static class FixtureSeedData
 {
     private static readonly DateTime SeededAtUtc = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -177,6 +192,11 @@ public static class FixtureSeedData
     //    and Reporting-line tests don't accidentally aid each other. --
     public static readonly Guid HrDirectorId = Guid.Parse("22222222-0000-0000-0000-000000000009");
     public static readonly Guid HrPartnerId = Guid.Parse("22222222-0000-0000-0000-00000000000a");
+
+    // -- spec-1-7: PM/DM multi-path fixture person -- DM on Project Phoenix, PM on Project Orion
+    //    (see the class-level remarks above for why). No manager/department on file, isolated from
+    //    the reports-to/department chain, same as the other Project-line-only fixture people. --
+    public static readonly Guid PmDmMultiPathId = Guid.Parse("22222222-0000-0000-0000-00000000000b");
 
     // -- spec-1-5: bootstrap seed ids for the FullProfileAccessGrant and
     //    FullProfileAccessJournalEntry rows that ensure the zero-holder fail-fast check always
@@ -311,6 +331,18 @@ public static class FixtureSeedData
             DepartmentId = null,
             ManagesDepartmentId = null,
         },
+
+        // -- spec-1-7: PM/DM multi-path fixture person. No department/manager on file, same as the
+        //    other Project-line-only fixture people above. --
+        new Person
+        {
+            Id = PmDmMultiPathId,
+            Label = "Fixture Person: DM on Project Phoenix + PM on Project Orion (multi-path)",
+            ManagerId = null,
+            PeoplePartnerId = null,
+            DepartmentId = null,
+            ManagesDepartmentId = null,
+        },
     };
 
     public static IReadOnlyList<ProjectAssignment> ProjectAssignments { get; } = new[]
@@ -373,6 +405,32 @@ public static class FixtureSeedData
             ProjectId = ProjectZephyrId,
             PersonId = PlatformLeadId,
             Role = ProjectAssignmentRole.DeliveryManager,
+        },
+
+        // -- spec-1-7: PM/DM multi-path fixture. PmDmMultiPathId is DM on Phoenix and (separately)
+        //    PM on Orion; ProjectAssigneeId (already a Phoenix Member above) is additionally made a
+        //    Member of Orion too, so it's the one subject assigned to both projects -- see the
+        //    class-level remarks above. --
+        new ProjectAssignment
+        {
+            Id = Guid.Parse("44444444-0000-0000-0000-000000000008"),
+            ProjectId = ProjectPhoenixId,
+            PersonId = PmDmMultiPathId,
+            Role = ProjectAssignmentRole.DeliveryManager,
+        },
+        new ProjectAssignment
+        {
+            Id = Guid.Parse("44444444-0000-0000-0000-000000000009"),
+            ProjectId = ProjectOrionId,
+            PersonId = PmDmMultiPathId,
+            Role = ProjectAssignmentRole.ProjectManager,
+        },
+        new ProjectAssignment
+        {
+            Id = Guid.Parse("44444444-0000-0000-0000-00000000000a"),
+            ProjectId = ProjectOrionId,
+            PersonId = ProjectAssigneeId,
+            Role = ProjectAssignmentRole.Member,
         },
     };
 }

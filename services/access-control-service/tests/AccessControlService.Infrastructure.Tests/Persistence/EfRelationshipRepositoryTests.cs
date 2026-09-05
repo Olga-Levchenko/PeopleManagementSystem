@@ -211,9 +211,14 @@ public sealed class EfRelationshipRepositoryTests : IAsyncLifetime
     [Fact]
     public async Task GetAssignedProjectIdsAsync_KnownAssignee_ReturnsSeededProjectId()
     {
+        // spec-1-7 additionally seeds ProjectAssignee as a Member of Project Orion (the PM/DM
+        // multi-path fixture's shared subject -- see FixtureSeedData's own doc comment), so this
+        // now returns both projects rather than Phoenix alone.
         var projectIds = await _repository.GetAssignedProjectIdsAsync(FixtureSeedData.ProjectAssigneeId);
 
-        Assert.Equal(new[] { FixtureSeedData.ProjectPhoenixId }, projectIds);
+        Assert.Equal(
+            new HashSet<Guid> { FixtureSeedData.ProjectPhoenixId, FixtureSeedData.ProjectOrionId },
+            new HashSet<Guid>(projectIds));
     }
 
     [Fact]

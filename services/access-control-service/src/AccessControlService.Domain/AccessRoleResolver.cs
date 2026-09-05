@@ -75,7 +75,17 @@ public sealed class AccessRoleResolver
             await IsTransitiveManagerAsync(viewerId, subjectId, cancellationToken)
             || await ManagesSubjectsDepartmentOrAncestorAsync(viewerId, subjectId, cancellationToken);
 
-        var projectLine = await QualifiesViaProjectAssignmentAsync(viewerId, subjectId, cancellationToken);
+        // ProjectLine and ProjectRoles are derived from a single intersection pass (one call to
+        // GetProjectRolesAsync, one call to GetAssignedProjectIdsAsync) -- not two independent
+        // ones. An earlier draft called QualifiesViaProjectAssignmentAsync (via
+        // GetProjectIdsManagedAsDmOrPmAsync) to compute ProjectLine, then separately re-queried via
+        // GetProjectRolesAsync to compute ProjectRoles: two pairs of DB round trips reading the same
+        // underlying rows at two different instants. Under a project-assignment change landing
+        // between the two pairs, a single ResolveAsync call could return ProjectLine=true paired
+        // with ProjectRoles=[] (or vice versa) -- an internally inconsistent response. Computing both
+        // from one materialized intersection makes that impossible.
+        var (projectLine, projectRoles) =
+            await ResolveProjectQualificationAsync(viewerId, subjectId, cancellationToken);
 
         var peoplePartnerId = await _repository.GetPeoplePartnerIdAsync(subjectId, cancellationToken);
         var peoplePartnerLine =
@@ -93,6 +103,7 @@ public sealed class AccessRoleResolver
             FullProfileAccessLine = fullProfileAccessLine,
             ReportingLine = reportingLine,
             ProjectLine = projectLine,
+            ProjectRoles = projectRoles,
             PeoplePartnerLine = peoplePartnerLine,
         };
     }
@@ -208,29 +219,43 @@ public sealed class AccessRoleResolver
     }
 
     /// <summary>
-    /// Resolves whether the viewer qualifies for Project-line access toward the subject: the
-    /// viewer is DM or PM of at least one project the subject is also assigned to. A single,
-    /// direct check -- deliberately not transitive/hop-based like the two Reporting-line checks
-    /// above, per this spec's scope (spec-1-1c): no precedence/narrowing decision and no
-    /// reports-to-chain walk above the DM/PM is made here.
+    /// Resolves both <see cref="AccessRole.ProjectLine"/> and <see cref="AccessRole.ProjectRoles"/>
+    /// from a single intersection pass: one call to
+    /// <see cref="IRelationshipRepository.GetProjectRolesAsync"/> for the viewer's PM/DM project-role
+    /// rows, one call to <see cref="IRelationshipRepository.GetAssignedProjectIdsAsync"/> for the
+    /// subject's assigned-project ids, then one intersection over that single materialized pair.
+    /// <see cref="AccessRole.ProjectLine"/> is <c>true</c> exactly when the intersection is
+    /// non-empty -- deliberately not a separate query via
+    /// <see cref="IRelationshipRepository.GetProjectIdsManagedAsDmOrPmAsync"/> (that method's own
+    /// signature/behavior is untouched by this spec, it is simply no longer this resolver's source
+    /// for Project-line qualification -- see its own doc comment). A single, direct check --
+    /// deliberately not transitive/hop-based like the two Reporting-line checks above, per
+    /// spec-1-1c's original scope: no precedence/narrowing decision and no reports-to-chain walk
+    /// above the DM/PM is made here.
     /// </summary>
-    private async Task<bool> QualifiesViaProjectAssignmentAsync(
+    private async Task<(bool ProjectLine, IReadOnlyCollection<ProjectRole> ProjectRoles)> ResolveProjectQualificationAsync(
         Guid viewerId,
         Guid subjectId,
         CancellationToken cancellationToken)
     {
-        var viewerProjectIds = await _repository.GetProjectIdsManagedAsDmOrPmAsync(viewerId, cancellationToken);
-        if (viewerProjectIds.Count == 0)
+        var viewerProjectRoles = await _repository.GetProjectRolesAsync(viewerId, cancellationToken);
+        if (viewerProjectRoles.Count == 0)
         {
-            return false;
+            return (false, Array.Empty<ProjectRole>());
         }
 
         var subjectProjectIds = await _repository.GetAssignedProjectIdsAsync(subjectId, cancellationToken);
         if (subjectProjectIds.Count == 0)
         {
-            return false;
+            return (false, Array.Empty<ProjectRole>());
         }
 
-        return viewerProjectIds.Any(subjectProjectIds.Contains);
+        var qualifyingRoles = viewerProjectRoles
+            .Where(vpr => subjectProjectIds.Contains(vpr.ProjectId))
+            .Select(vpr => vpr.Role)
+            .Distinct()
+            .ToArray();
+
+        return (qualifyingRoles.Length > 0, qualifyingRoles);
     }
 }

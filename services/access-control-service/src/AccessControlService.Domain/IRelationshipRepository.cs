@@ -52,6 +52,17 @@ public interface IRelationshipRepository
     /// <c>null</c>) if the person holds neither role on any project, or the id isn't a known
     /// person.
     /// </summary>
+    /// <remarks>
+    /// As of spec-1-7, <see cref="AccessRoleResolver"/> no longer calls this method to resolve
+    /// <see cref="AccessRole.ProjectLine"/> -- it derives both <see cref="AccessRole.ProjectLine"/>
+    /// and <see cref="AccessRole.ProjectRoles"/> from a single call to
+    /// <see cref="GetProjectRolesAsync"/> instead (one intersection pass instead of two independent
+    /// ones, avoiding a race where a project-assignment change landing between two separate reads
+    /// could produce an internally inconsistent response). This method's own signature/behavior is
+    /// unchanged and it remains part of this port -- <c>EfRelationshipRepositoryTests</c> still
+    /// exercises it directly -- it is simply no longer this resolver's own source for Project-line
+    /// qualification.
+    /// </remarks>
     Task<IReadOnlyCollection<Guid>> GetProjectIdsManagedAsDmOrPmAsync(Guid personId, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -60,4 +71,15 @@ public interface IRelationshipRepository
     /// known person.
     /// </summary>
     Task<IReadOnlyCollection<Guid>> GetAssignedProjectIdsAsync(Guid personId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Every (project id, role) pair for which <paramref name="personId"/> holds
+    /// <see cref="ProjectRole.ProjectManager"/> or <see cref="ProjectRole.DeliveryManager"/> on
+    /// that project (spec-1-7). Unlike <see cref="GetProjectIdsManagedAsDmOrPmAsync"/>, this
+    /// deliberately does not collapse to a project-id-only set -- a caller needs to know which role
+    /// applies per project (a person can be PM on one project and DM on another). Empty (never
+    /// <c>null</c>) if the person holds neither role on any project, or the id isn't a known
+    /// person.
+    /// </summary>
+    Task<IReadOnlyCollection<(Guid ProjectId, ProjectRole Role)>> GetProjectRolesAsync(Guid personId, CancellationToken cancellationToken = default);
 }
