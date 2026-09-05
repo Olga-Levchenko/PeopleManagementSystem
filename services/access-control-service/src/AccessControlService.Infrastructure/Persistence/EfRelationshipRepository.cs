@@ -175,7 +175,7 @@ public sealed class EfRelationshipRepository : IRelationshipRepository
         return projectIds;
     }
 
-    // -- O4-90: batch resolution methods -- O(4) round-trips, independent of subject count. --
+    // -- O4-90: batch resolution methods -- O(5-6) round-trips (constant), independent of subject count. --
 
     /// <summary>
     /// Postgres recursive CTE over <c>people.manager_id</c>, depth-bounded at 100 hops (no CYCLE
@@ -222,7 +222,7 @@ public sealed class EfRelationshipRepository : IRelationshipRepository
             .AsNoTracking()
             .Where(p => p.Id == viewerPersonId)
             .Select(p => p.ManagesDepartmentId)
-            .SingleOrDefaultAsync(cancellationToken);
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (managedDeptId is null)
         {

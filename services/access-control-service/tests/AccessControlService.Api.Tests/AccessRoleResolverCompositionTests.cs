@@ -1017,6 +1017,105 @@ public sealed class AccessRoleResolverCompositionTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Fact]
+    public async Task BatchResolveEndpoint_SubjectNotInDb_ThatEntryAllFlagsFalse()
+    {
+        // SUBJECT_NOT_IN_DB: one subjectPersonId does not exist in the DB; the known id resolves
+        // normally, the unknown id resolves to AccessRole.None (all flags false).
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        // Use an unrelated viewer so the known subject (EngineerId) also resolves to None -- this
+        // keeps the test focused purely on the unknown-id behaviour rather than requiring assertions
+        // about specific section-access shapes for the known subject.
+        var unknownSubjectId = Guid.NewGuid();
+        var body = new
+        {
+            viewerPersonId = FixtureSeedData.ExecutiveId,
+            subjectPersonIds = new[] { FixtureSeedData.EngineerId, unknownSubjectId },
+        };
+        using var response = await client.PostAsync(
+            "/api/v1/access-roles/resolve-batch",
+            new StringContent(System.Text.Json.JsonSerializer.Serialize(body), System.Text.Encoding.UTF8, "application/json"));
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+        var results = root.GetProperty("results");
+
+        // Both entries must be present in the response.
+        Assert.Equal(2, results.GetArrayLength());
+
+        // The unknown-id entry must resolve to all flags false and both sectionAccess null.
+        var unknownItem = results.EnumerateArray()
+            .Single(item => item.GetProperty("subjectPersonId").GetString() == unknownSubjectId.ToString());
+
+        Assert.False(unknownItem.GetProperty("reportingLine").GetBoolean());
+        Assert.False(unknownItem.GetProperty("projectLine").GetBoolean());
+        Assert.False(unknownItem.GetProperty("peoplePartnerLine").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, unknownItem.GetProperty("managerSectionAccess").ValueKind);
+        Assert.Equal(JsonValueKind.Null, unknownItem.GetProperty("peoplePartnerSectionAccess").ValueKind);
+    }
+
+    [Fact]
+    public async Task BatchResolveEndpoint_DepartmentManagement_ReturnsReportingLineTrue()
+    {
+        // BATCH_DEPT_MANAGEMENT: viewer qualifies via department management alone, not via the
+        // reports-to CTE. Uses test-local rows so the two paths are cleanly isolated:
+        //   - viewer manages localDeptId
+        //   - subject belongs to localDeptId but has NO reports-to link to the viewer at all
+        // Proves the EF Core department-subtree CTE fires end-to-end through the batch endpoint.
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        var localDeptId = Guid.NewGuid();
+        var viewerId = Guid.NewGuid();
+        var subjectId = Guid.NewGuid();
+
+        await using (var write = CreateWriteDbContext())
+        {
+            write.Departments.Add(new Department
+            {
+                Id = localDeptId,
+                Label = "Fixture Dept: batch-dept-management (test-local)",
+                ParentDepartmentId = null,
+            });
+            write.People.AddRange(
+                new Person
+                {
+                    Id = viewerId,
+                    Label = "Fixture Person: batch-dept-management viewer (test-local)",
+                    ManagerId = null,
+                    DepartmentId = null,
+                    ManagesDepartmentId = localDeptId,
+                },
+                new Person
+                {
+                    Id = subjectId,
+                    Label = "Fixture Person: batch-dept-management subject (test-local)",
+                    ManagerId = null,   // deliberately no reports-to link to the viewer
+                    DepartmentId = localDeptId,
+                    ManagesDepartmentId = null,
+                });
+            await write.SaveChangesAsync();
+        }
+
+        var body = new
+        {
+            viewerPersonId = viewerId,
+            subjectPersonIds = new[] { subjectId },
+        };
+        using var response = await client.PostAsync(
+            "/api/v1/access-roles/resolve-batch",
+            new StringContent(System.Text.Json.JsonSerializer.Serialize(body), System.Text.Encoding.UTF8, "application/json"));
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+        var item = root.GetProperty("results")[0];
+
+        Assert.True(item.GetProperty("reportingLine").GetBoolean());
+        Assert.Equal(JsonValueKind.Object, item.GetProperty("managerSectionAccess").ValueKind);
+    }
+
     private static async Task<JsonElement> ReadJsonRootAsync(HttpResponseMessage response)
     {
         var body = await response.Content.ReadAsStringAsync();

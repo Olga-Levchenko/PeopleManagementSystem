@@ -2,7 +2,7 @@
 title: 'O4-90: Batch access-role-resolution endpoint (Story 2.1 prerequisite)'
 type: 'feature'
 created: '2026-09-03'
-status: 'in-progress'
+status: 'done'
 review_loop_iteration: 0
 baseline_commit: '1c4d9f84b6213e1e9d7399a6c21841c041c379c3'
 context:
@@ -16,7 +16,7 @@ context:
 
 **Problem:** `GET /api/v1/access-roles/resolve` resolves one (viewer, subject) pair. Story 2.1's All Employees list must resolve access roles for 500+ subjects within p95 ≤ 2 s (NFR-2/SM-4). Calling it N times sequentially would require N × per-hop round-trips — unacceptably slow at real org scale.
 
-**Approach:** Add `POST /api/v1/access-roles/resolve-batch` that accepts one `viewerPersonId` plus a list of `subjectPersonIds`, pre-computes the viewer's transitive relationships via four set-based/recursive-CTE repository queries (O(4) DB round-trips total, independent of N), evaluates each subject in memory, and returns the same per-subject shape the single-resolve endpoint already returns (ADR-004 Decision 1).
+**Approach:** Add `POST /api/v1/access-roles/resolve-batch` that accepts one `viewerPersonId` plus a list of `subjectPersonIds`, pre-computes the viewer's transitive relationships via five interface calls (O(5–6) DB round-trips total, independent of N), evaluates each subject in memory, and returns the same per-subject shape the single-resolve endpoint already returns (ADR-004 Decision 1).
 
 ## Boundaries & Constraints
 
@@ -56,16 +56,16 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `src/AccessControlService.Domain/IRelationshipRepository.cs` — add `SubjectBatchAttributes` record + 4 new batch interface methods with XML doc — Domain port extension
-- [ ] `src/AccessControlService.Domain/AccessRoleResolver.cs` — add `ResolveBatchAsync`: call the 4 new repo methods sequentially, compute `AccessRole` per subject from in-memory sets — core batch logic
-- [ ] `src/AccessControlService.Infrastructure/Persistence/EfRelationshipRepository.cs` — implement 4 new methods: `GetTransitiveReporteeIdsAsync` (Postgres recursive CTE on `people.manager_id`, depth ≤ 100), `GetManagedDepartmentSubtreeIdsAsync` (recursive CTE on `departments.parent_department_id` from viewer's `ManagesDepartmentId`, empty set if null), `GetSubjectAttributesBatchAsync` (LINQ `Contains` → `ToDictionaryAsync`), `GetSubjectsOnViewerProjectsAsync` (LINQ join on managed project ids) — O(4) queries total
-- [ ] `src/AccessControlService.Api/Controllers/AccessRolesController.cs` — add `POST /api/v1/access-roles/resolve-batch` action + 3 new DTO records — transport layer
-- [ ] `tests/AccessControlService.Domain.Tests/` — `FakeRelationshipRepository` + `AccessRoleResolverBatchTests` covering I/O matrix including VIEWER_IN_SUBJECTS and BATCH_PP_LINE_HR — unit coverage for batch logic
-- [ ] `tests/AccessControlService.Infrastructure.Tests/` — batch repository method tests against real Postgres — EF Core query translation proof
-- [ ] `tests/AccessControlService.Api.Tests/AccessRoleResolverCompositionTests.cs` — batch endpoint composition tests covering BATCH_REPORTING_LINE, BATCH_PROJECT_LINE_ONLY (narrowed section access), BATCH_PP_LINE, BATCH_PP_LINE_HR, EMPTY_SUBJECTS, VIEWER_NOT_IN_DB, VIEWER_IN_SUBJECTS, DUPLICATE_SUBJECTS (400), BATCH_SIZE_EXCEEDED (400) — end-to-end proof
+- [x] `src/AccessControlService.Domain/IRelationshipRepository.cs` — add `SubjectBatchAttributes` record + 4 new batch interface methods with XML doc — Domain port extension
+- [x] `src/AccessControlService.Domain/AccessRoleResolver.cs` — add `ResolveBatchAsync`: call the 4 new repo methods sequentially, compute `AccessRole` per subject from in-memory sets — core batch logic
+- [x] `src/AccessControlService.Infrastructure/Persistence/EfRelationshipRepository.cs` — implement 4 new methods: `GetTransitiveReporteeIdsAsync` (Postgres recursive CTE on `people.manager_id`, depth ≤ 100), `GetManagedDepartmentSubtreeIdsAsync` (recursive CTE on `departments.parent_department_id` from viewer's `ManagesDepartmentId`, empty set if null), `GetSubjectAttributesBatchAsync` (LINQ `Contains` → `ToDictionaryAsync`), `GetSubjectsOnViewerProjectsAsync` (LINQ join on managed project ids) — O(4) queries total
+- [x] `src/AccessControlService.Api/Controllers/AccessRolesController.cs` — add `POST /api/v1/access-roles/resolve-batch` action + 3 new DTO records — transport layer
+- [x] `tests/AccessControlService.Domain.Tests/` — `FakeRelationshipRepository` + `AccessRoleResolverBatchTests` covering I/O matrix including VIEWER_IN_SUBJECTS and BATCH_PP_LINE_HR — unit coverage for batch logic
+- [x] `tests/AccessControlService.Infrastructure.Tests/` — batch repository method tests against real Postgres — EF Core query translation proof
+- [x] `tests/AccessControlService.Api.Tests/AccessRoleResolverCompositionTests.cs` — batch endpoint composition tests covering BATCH_REPORTING_LINE, BATCH_PROJECT_LINE_ONLY (narrowed section access), BATCH_PP_LINE, BATCH_PP_LINE_HR, EMPTY_SUBJECTS, VIEWER_NOT_IN_DB, VIEWER_IN_SUBJECTS, DUPLICATE_SUBJECTS (400), BATCH_SIZE_EXCEEDED (400) — end-to-end proof
 
 **Acceptance Criteria:**
-- Given a viewerPersonId who transitively manages 100 of 500 requested subjects, when `POST /api/v1/access-roles/resolve-batch` is called, then the 100 managed subjects return `reportingLine: true` and `managerSectionAccess` non-null; the remaining 500 return `reportingLine: false`
+- Given a viewerPersonId who transitively manages 100 of 500 requested subjects, when `POST /api/v1/access-roles/resolve-batch` is called, then the 100 managed subjects return `reportingLine: true` and `managerSectionAccess` non-null; the remaining 400 return `reportingLine: false`
 - Given a viewer who is DM on project X and a subject assigned to project X (no reporting-line), when the batch endpoint is called, then that subject returns `projectLine: true` and `managerSectionAccess.s2.level: "None"` (Project-line narrowing applied)
 - Given an empty `subjectPersonIds` array, when the batch endpoint is called, then the response is `200 { results: [] }`
 - Given a `viewerPersonId` that matches no person in the DB, when the batch endpoint is called, then every subject in the result has `reportingLine: false`, `projectLine: false`, `peoplePartnerLine: false`, `managerSectionAccess: null`, `peoplePartnerSectionAccess: null`
@@ -77,7 +77,7 @@ context:
 
 ## Design Notes
 
-**4 set-based queries replace O(N × hops):** `GetTransitiveReporteeIdsAsync` uses a Postgres recursive CTE on `people.manager_id`, depth-bounded (not CYCLE clause — compatible with Postgres 13+):
+**5 interface calls (6 round-trips in the general case: the department-subtree method makes an extra SingleOrDefaultAsync to check ManagesDepartmentId before firing the CTE, and project-line uses two sequential calls — GetProjectIdsManagedAsDmOrPmAsync then GetSubjectsOnViewerProjectsAsync). The critical property is O(constant) relative to the number of subjects N.** `GetTransitiveReporteeIdsAsync` uses a Postgres recursive CTE on `people.manager_id`, depth-bounded (not CYCLE clause — compatible with Postgres 13+):
 ```sql
 WITH RECURSIVE reportees(id, depth) AS (
     SELECT id, 0 FROM people WHERE manager_id = @viewerPersonId
@@ -101,3 +101,63 @@ SELECT DISTINCT id AS "Value" FROM reportees
 - `cd services/access-control-service && dotnet build --configuration Release` — expected: zero errors
 - `cd services/access-control-service && dotnet test --configuration Release --filter "FullyQualifiedName~Batch"` — expected: all batch-specific tests pass (Docker required for Infrastructure tests)
 - `cd services/access-control-service && dotnet test --configuration Release` — expected: full suite green, no regressions in existing `ResolveAsync`/`GET resolve` tests
+
+## Suggested Review Order
+
+**Domain contract — the port boundary**
+
+- `SubjectBatchAttributes` record — per-subject read model passed across the hexagonal port
+  [`IRelationshipRepository.cs:15`](../../services/access-control-service/src/AccessControlService.Domain/IRelationshipRepository.cs#L15)
+
+- 4 new batch interface methods — defines the O(5-6) interface contract, independent of N
+  [`IRelationshipRepository.cs:87`](../../services/access-control-service/src/AccessControlService.Domain/IRelationshipRepository.cs#L87)
+
+**Core batch logic — the resolver**
+
+- `ResolveBatchAsync` entry — pre-computes all viewer relationship sets in 5 interface calls, then evaluates in memory
+  [`AccessRoleResolver.cs:107`](../../services/access-control-service/src/AccessControlService.Domain/AccessRoleResolver.cs#L107)
+
+- Self-elevation guard — viewerPersonId in subjectPersonIds resolves fail-closed before any DB lookup
+  [`AccessRoleResolver.cs:144`](../../services/access-control-service/src/AccessControlService.Domain/AccessRoleResolver.cs#L144)
+
+- HR-line ppLine — `ppId ∈ reporteeIds` reuses Query 1 at zero extra round-trips
+  [`AccessRoleResolver.cs:171`](../../services/access-control-service/src/AccessControlService.Domain/AccessRoleResolver.cs#L171)
+
+**Postgres queries — the infrastructure**
+
+- Recursive CTE for transitive reportees — depth-bounded at 100, quoted PascalCase column names for EF Core 8
+  [`EfRelationshipRepository.cs:192`](../../services/access-control-service/src/AccessControlService.Infrastructure/Persistence/EfRelationshipRepository.cs#L192)
+
+- Recursive CTE for department subtree — seeds from viewer's ManagesDepartmentId; early-returns empty set if null
+  [`EfRelationshipRepository.cs:215`](../../services/access-control-service/src/AccessControlService.Infrastructure/Persistence/EfRelationshipRepository.cs#L215)
+
+- Subject attributes batch — LINQ `Contains` translates to `= ANY(@ids)` in Npgsql; one round-trip for all subjects
+  [`EfRelationshipRepository.cs:255`](../../services/access-control-service/src/AccessControlService.Infrastructure/Persistence/EfRelationshipRepository.cs#L255)
+
+- Project-line subject filter — LINQ join on viewer's managed project id set
+  [`EfRelationshipRepository.cs:280`](../../services/access-control-service/src/AccessControlService.Infrastructure/Persistence/EfRelationshipRepository.cs#L280)
+
+**Transport and validation — the controller**
+
+- `ResolveBatch` action — null guard, duplicate check, size guard (500 limit), then resolver dispatch
+  [`AccessRolesController.cs:83`](../../services/access-control-service/src/AccessControlService.Api/Controllers/AccessRolesController.cs#L83)
+
+- Batch DTOs — response shape copies single-resolve fields without referencing its type; avoids DTO coupling
+  [`AccessRolesController.cs:228`](../../services/access-control-service/src/AccessControlService.Api/Controllers/AccessRolesController.cs#L228)
+
+**Tests**
+
+- 16 unit tests — all I/O matrix rows covered; FakeRelationshipRepository BFS stands in for real CTEs
+  [`AccessRoleResolverBatchTests.cs:12`](../../services/access-control-service/tests/AccessControlService.Domain.Tests/AccessRoleResolverBatchTests.cs#L12)
+
+- HR-line ppLine unit test — subject's PP is in viewer's transitive reportee set (2-hop chain)
+  [`AccessRoleResolverBatchTests.cs:148`](../../services/access-control-service/tests/AccessControlService.Domain.Tests/AccessRoleResolverBatchTests.cs#L148)
+
+- No-loop proof — asserts `ManagerLookupCount == 0`; `ResolveAsync`'s hop-by-hop path never fires
+  [`AccessRoleResolverBatchTests.cs:331`](../../services/access-control-service/tests/AccessControlService.Domain.Tests/AccessRoleResolverBatchTests.cs#L331)
+
+- CTE correctness against real Postgres — proves column-name quoting and depth semantics on live DB
+  [`EfRelationshipRepositoryTests.cs:381`](../../services/access-control-service/tests/AccessControlService.Infrastructure.Tests/Persistence/EfRelationshipRepositoryTests.cs#L381)
+
+- 11 batch composition tests — end-to-end through DI stack; department-management path covered at HTTP level
+  [`AccessRoleResolverCompositionTests.cs:780`](../../services/access-control-service/tests/AccessControlService.Api.Tests/AccessRoleResolverCompositionTests.cs#L780)

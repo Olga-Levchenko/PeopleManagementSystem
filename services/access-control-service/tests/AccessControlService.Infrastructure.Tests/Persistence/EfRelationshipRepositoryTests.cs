@@ -394,8 +394,8 @@ public sealed class EfRelationshipRepositoryTests : IAsyncLifetime
     [Fact]
     public async Task GetTransitiveReporteeIdsAsync_DirectManagerOnly_ReturnsDirectReporteeButNotGrandchild()
     {
-        // PlatformLead's transitive reportees include Engineer (direct) only within the main chain,
-        // but also Engineer (direct). Director is PlatformLead's manager, not a reportee.
+        // PlatformLead's transitive reportees include only Engineer (direct).
+        // Director is PlatformLead's manager, not a reportee.
         var reporteeIds = await _repository.GetTransitiveReporteeIdsAsync(FixtureSeedData.PlatformLeadId);
 
         Assert.Contains(FixtureSeedData.EngineerId, reporteeIds);

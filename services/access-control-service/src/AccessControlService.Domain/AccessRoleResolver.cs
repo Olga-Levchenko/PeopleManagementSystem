@@ -87,13 +87,14 @@ public sealed class AccessRoleResolver
 
     /// <summary>
     /// Resolves <paramref name="viewerPersonId"/>'s access role toward each id in
-    /// <paramref name="subjectPersonIds"/> in a single pass, using four set-based repository
-    /// queries (O(4) DB round-trips, independent of the number of subjects). Returns a dictionary
-    /// keyed by every subject id in the input; subjects absent from the DB resolve to
-    /// <see cref="AccessRole.None"/> (fail-closed, same Gotcha as <see cref="ResolveAsync"/>).
-    /// If <paramref name="viewerPersonId"/> appears in <paramref name="subjectPersonIds"/>, that
-    /// entry resolves to <see cref="AccessRole.None"/> (no self-elevation). An empty input returns
-    /// an empty dictionary.
+    /// <paramref name="subjectPersonIds"/> in a single pass, using five interface calls
+    /// (O(5–6) DB round-trips (constant, independent of N): the department-subtree method makes an
+    /// extra round-trip to check ManagesDepartmentId before firing the CTE, and project-line uses
+    /// two sequential calls). Returns a dictionary keyed by every subject id in the input; subjects
+    /// absent from the DB resolve to <see cref="AccessRole.None"/> (fail-closed, same Gotcha as
+    /// <see cref="ResolveAsync"/>). If <paramref name="viewerPersonId"/> appears in
+    /// <paramref name="subjectPersonIds"/>, that entry resolves to <see cref="AccessRole.None"/>
+    /// (no self-elevation). An empty input returns an empty dictionary.
     /// </summary>
     /// <remarks>
     /// This method does NOT call <see cref="ResolveAsync"/> in a loop. It pre-computes the

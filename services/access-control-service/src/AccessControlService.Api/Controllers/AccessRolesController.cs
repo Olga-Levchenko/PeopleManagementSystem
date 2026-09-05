@@ -84,6 +84,11 @@ public sealed class AccessRolesController : ControllerBase
         [FromBody] AccessRoleBatchResolveRequest request,
         CancellationToken cancellationToken)
     {
+        if (request.SubjectPersonIds is null)
+        {
+            return BadRequest(new { error = "subjectPersonIds is required." });
+        }
+
         if (request.SubjectPersonIds.Count != request.SubjectPersonIds.Distinct().Count())
         {
             return BadRequest(new { error = "subjectPersonIds must not contain duplicate values." });
