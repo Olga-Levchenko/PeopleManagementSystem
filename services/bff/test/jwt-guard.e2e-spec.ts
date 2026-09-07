@@ -195,12 +195,18 @@ describe('JWT guard (e2e)', () => {
     const configOverrides: Record<string, string> = {
       KEYCLOAK_BASE_URL: baseUrl,
       KEYCLOAK_REALM: REALM,
+      // Story 1.12 added OidcService to AppModule; it calls getOrThrow('KEYCLOAK_CLIENT_SECRET')
+      // during onModuleInit, so it must be present even in suites that never exercise OIDC flows.
+      KEYCLOAK_CLIENT_SECRET: CLIENT_SECRET,
       // Defaults for keys this suite never exercises via HTTP (organisational-relationships'
-      // upstream call, main.ts's own bootstrap) -- kept so any incidental getOrThrow() call
-      // still resolves instead of throwing.
+      // upstream call, main.ts's own bootstrap, session middleware) -- kept so any incidental
+      // getOrThrow() call still resolves instead of throwing.
       PORT: '3001',
       CORS_ORIGIN: 'http://localhost:4200',
       PEOPLE_SERVICE_URL: 'http://localhost:3002',
+      ACCESS_CONTROL_SERVICE_BASE_URL: 'http://localhost:3007',
+      SESSION_SECRET: 'jwt-guard-e2e-test-session-secret-min32!!',
+      OIDC_CALLBACK_URL: 'http://localhost:3001/api/v1/auth/callback',
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
