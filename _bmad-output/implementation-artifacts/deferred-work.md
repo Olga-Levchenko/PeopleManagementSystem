@@ -602,3 +602,16 @@
 - source_spec: none
   summary: "Enforce Story 1.6 AC3 (reject manager/PP/department changes via a normal S1 write) once a general S1 profile-write endpoint exists" is COVERED — the rejection requirement is Story 1.6's own AC3; the missing write endpoint it must be enforced against is Story 2.2's ("Inline editing writes through to the profile, subject to access") already-defined scope. Both halves have a story-level home; neither is an orphan.
   evidence: `epics.md`, Story 1.6 AC3 and Story 2.2's title/scope, both read verbatim.
+
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-13-persistent-session-store-and-oidc-e2e.md`
+  summary: When a Keycloak back-channel logout token contains a `sid` claim, destroy only that specific session rather than all sessions for that `sub` (per OIDC Back-Channel Logout 1.0 spec).
+  evidence: The current implementation in `auth.controller.ts` always destroys all sessions matching `sub`, which is over-eager when `sid` is present (i.e. Keycloak wants to end one device's session, not all). Confirmed by edge-case review of Story 1.13 diff. Low blast-radius to add: after `matchingSids` is assembled, filter by `sessions[sid]?.sid === parsedToken.sid` when `parsedToken.sid` is defined.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-13-persistent-session-store-and-oidc-e2e.md`
+  summary: Add an e2e test for the back-channel logout happy path — login, then post a real Keycloak-signed logout_token to /backchannel-logout, then verify the session cookie returns 401.
+  evidence: All three back-channel logout e2e scenarios in `test/oidc-session.e2e-spec.ts` send invalid/unverifiable tokens (400 paths). No test exercises the session-destruction code path with a real Keycloak-signed RS256 logout_token; a regression there would be undetected by e2e. Implementation would use the Keycloak Admin API (already demonstrated in `jwt-guard.e2e-spec.ts`) to revoke a session and obtain a logout_token.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-13-persistent-session-store-and-oidc-e2e.md`
+  summary: Add a note to BFF's deployment documentation that `createTableIfMissing: true` (connect-pg-simple) requires DDL privileges; if the production DB user has no CREATE TABLE rights, provide a manual SQL migration instead.
+  evidence: `createTableIfMissing: true` will fail on startup in environments with a least-privilege DB user. No documentation currently warns about this; identified in Story 1.13 code review.

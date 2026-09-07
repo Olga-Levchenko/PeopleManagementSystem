@@ -48,7 +48,8 @@ development_status:
   1-10-custom-field-visibility-enforcement: done
   1-11-platform-authentication-via-keycloak: done
   1-11d-access-control-jwt-validation: in-progress
-  1-12-sign-in-and-sign-out-flow: in-progress
+  1-12-sign-in-and-sign-out-flow: done  # PR #41
+  1-13-persistent-session-store-and-oidc-e2e: review  # Jira O4-159
   o4-91-custom-field-definition-administration: done  # Jira O4-91; PR #40 merged 2026-09-07
   epic-1-retrospective: optional
 
