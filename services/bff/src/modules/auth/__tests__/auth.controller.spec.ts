@@ -36,6 +36,7 @@ function makeConfigService(
     getOrThrow: jest.fn((key: string) => {
       const v: Record<string, string> = {
         OIDC_CALLBACK_URL: 'http://localhost:3001/api/v1/auth/callback',
+        CORS_ORIGIN: 'http://localhost:4200',
         ...values,
       };
       if (v[key] === undefined)
@@ -159,7 +160,7 @@ describe('AuthController', () => {
       expect(session.idToken).toBe('it');
       expect(session.oidcState).toBeUndefined();
       expect(session.oidcVerifier).toBeUndefined();
-      expect(res.redirect).toHaveBeenCalledWith('/');
+      expect(res.redirect).toHaveBeenCalledWith('http://localhost:4200');
     });
 
     it('throws BadRequestException on state mismatch', async () => {
