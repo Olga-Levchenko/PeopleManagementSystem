@@ -115,7 +115,7 @@ export class OidcService implements OnModuleInit {
     const tokenSet = await this.client.callback(
       redirectUri,
       callbackParams,
-      { code_verifier: codeVerifier },
+      { code_verifier: codeVerifier, state: callbackParams.state },
     );
 
     const claims = tokenSet.claims();
