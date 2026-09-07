@@ -207,6 +207,98 @@ describe('Management notes (e2e)', () => {
       .expect(201);
   });
 
+  it('AC3: a Full-profile-access viewer gets full RW', async () => {
+    const subjectPersonId = newSubjectId();
+    currentViewerId = 'e2e-fpa-viewer';
+    resolveMock.mockResolvedValue(resolution({ fullProfileAccessLine: true }));
+
+    const createRes = await request(app.getHttpServer())
+      .post('/management-notes')
+      .send({ subjectPersonId, content: 'FPA-created note' })
+      .expect(201);
+    const noteId = (createRes.body as { id: string }).id;
+
+    const listRes = await request(app.getHttpServer())
+      .get(`/management-notes?subjectPersonId=${subjectPersonId}`)
+      .expect(200);
+    expect((listRes.body as unknown[]).length).toBe(1);
+
+    await request(app.getHttpServer())
+      .patch(`/management-notes/${noteId}`)
+      .send({ content: 'Edited by FPA holder' })
+      .expect(200);
+  });
+
+  // -- Cross-audience isolation: a note flagged for one audience only must stay invisible to the
+  // OTHER audience, proven here against real Postgres/Prisma (the AC2 cases above only cover
+  // both-flags-false). --
+
+  it('cross-audience isolation: a visibleForEmployee-only note is invisible to a PM viewer, and a visibleForPm-only note is invisible to the employee (self) view', async () => {
+    const subjectPersonId = newSubjectId();
+    currentViewerId = 'e2e-um-viewer';
+    resolveMock.mockResolvedValue(resolution({ reportingLine: true }));
+    await request(app.getHttpServer())
+      .post('/management-notes')
+      .send({
+        subjectPersonId,
+        content: 'Employee-only note',
+        visibleForEmployee: true,
+      })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post('/management-notes')
+      .send({
+        subjectPersonId,
+        content: 'PM-only note',
+        visibleForPm: true,
+      })
+      .expect(201);
+
+    currentViewerId = 'e2e-pm-viewer';
+    resolveMock.mockResolvedValue(
+      resolution({ projectRoles: ['ProjectManager'] }),
+    );
+    const pmListRes = await request(app.getHttpServer())
+      .get(`/management-notes?subjectPersonId=${subjectPersonId}`)
+      .expect(200);
+    const pmNotes = pmListRes.body as Array<{ content: string }>;
+    expect(pmNotes).toHaveLength(1);
+    expect(pmNotes[0].content).toBe('PM-only note');
+
+    currentViewerId = subjectPersonId;
+    const employeeListRes = await request(app.getHttpServer())
+      .get(`/management-notes?subjectPersonId=${subjectPersonId}`)
+      .expect(200);
+    const employeeNotes = employeeListRes.body as Array<{ content: string }>;
+    expect(employeeNotes).toHaveLength(1);
+    expect(employeeNotes[0].content).toBe('Employee-only note');
+  });
+
+  // -- Self is read-only -- an employee viewing their own record must never get the full-RW
+  // write path, even though the AC2 self case above already proves the read-side filter. --
+
+  it('self viewer gets 403 on create and update against their own record', async () => {
+    const subjectPersonId = newSubjectId();
+    currentViewerId = 'e2e-um-viewer';
+    resolveMock.mockResolvedValue(resolution({ reportingLine: true }));
+    const createRes = await request(app.getHttpServer())
+      .post('/management-notes')
+      .send({ subjectPersonId, content: 'Some note' })
+      .expect(201);
+    const noteId = (createRes.body as { id: string }).id;
+
+    currentViewerId = subjectPersonId;
+
+    await request(app.getHttpServer())
+      .post('/management-notes')
+      .send({ subjectPersonId, content: 'Self attempting to create' })
+      .expect(403);
+    await request(app.getHttpServer())
+      .patch(`/management-notes/${noteId}`)
+      .send({ content: 'Self attempting to edit' })
+      .expect(403);
+  });
+
   // -- AC4: PM narrowed -- read-only, visibleForPm-only; create/update 403. --
 
   it('AC4: a PM-only viewer sees only visibleForPm notes and cannot create/update', async () => {

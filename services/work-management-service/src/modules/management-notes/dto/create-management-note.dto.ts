@@ -1,11 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
-  IsOptional,
   IsString,
   IsUUID,
   MaxLength,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 
 /**
@@ -28,18 +29,27 @@ export class CreateManagementNoteDto {
   subjectPersonId!: string;
 
   @ApiProperty({ maxLength: MANAGEMENT_NOTE_CONTENT_MAX_LENGTH })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
   @MinLength(1)
   @MaxLength(MANAGEMENT_NOTE_CONTENT_MAX_LENGTH)
   content!: string;
 
+  // ValidateIf, not IsOptional -- IsOptional treats an explicit `null` the same as `undefined`
+  // and skips IsBoolean entirely, letting `null` reach Prisma against a non-nullable column.
+  // ValidateIf only skips validation when the field is truly absent (undefined); an explicit
+  // `null` still fails IsBoolean and gets a clean 400.
   @ApiPropertyOptional()
-  @IsOptional()
+  @ValidateIf(
+    (o: CreateManagementNoteDto) => o.visibleForEmployee !== undefined,
+  )
   @IsBoolean()
   visibleForEmployee?: boolean;
 
   @ApiPropertyOptional()
-  @IsOptional()
+  @ValidateIf((o: CreateManagementNoteDto) => o.visibleForPm !== undefined)
   @IsBoolean()
   visibleForPm?: boolean;
 }

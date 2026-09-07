@@ -95,14 +95,18 @@ export class HttpAccessRoleResolutionAdapter implements AccessRoleResolutionPort
     viewerPersonId: string,
     subjectPersonId: string,
   ): Promise<AccessRoleResolution> {
-    const baseUrl = this.config.getOrThrow<string>(
-      'ACCESS_CONTROL_SERVICE_BASE_URL',
-    );
-    const url = new URL('/api/v1/access-roles/resolve', baseUrl);
-    url.searchParams.set('viewerPersonId', viewerPersonId);
-    url.searchParams.set('subjectPersonId', subjectPersonId);
-
     try {
+      // Config lookup and URL construction live inside this try too -- a missing/invalid
+      // ACCESS_CONTROL_SERVICE_BASE_URL must fail closed the same as a network error, never
+      // throw past the caller (Joi startup validation makes this unreachable in practice, but
+      // the fail-closed contract shouldn't rely on that alone).
+      const baseUrl = this.config.getOrThrow<string>(
+        'ACCESS_CONTROL_SERVICE_BASE_URL',
+      );
+      const url = new URL('/api/v1/access-roles/resolve', baseUrl);
+      url.searchParams.set('viewerPersonId', viewerPersonId);
+      url.searchParams.set('subjectPersonId', subjectPersonId);
+
       // AbortSignal.timeout (Node 17.3+/22 global, same runtime this service already requires)
       // aborts the underlying request after RESOLVE_TIMEOUT_MS -- fetch then rejects, which the
       // catch block below already handles identically to any other network error.

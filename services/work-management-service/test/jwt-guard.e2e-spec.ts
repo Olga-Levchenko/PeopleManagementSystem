@@ -265,6 +265,24 @@ describe('JWT guard (e2e)', () => {
     expect(resolveMock).not.toHaveBeenCalled();
   });
 
+  it('missing token on POST: 401, controller (and the access resolver) never reached', async () => {
+    await request(app.getHttpServer())
+      .post('/management-notes')
+      .send({ subjectPersonId: SOME_SUBJECT_ID, content: 'x' })
+      .expect(401);
+
+    expect(resolveMock).not.toHaveBeenCalled();
+  });
+
+  it('missing token on PATCH: 401, controller (and the access resolver) never reached', async () => {
+    await request(app.getHttpServer())
+      .patch(`/management-notes/${SOME_SUBJECT_ID}`)
+      .send({ content: 'x' })
+      .expect(401);
+
+    expect(resolveMock).not.toHaveBeenCalled();
+  });
+
   it('valid token: reaches the controller, actor id resolves, and fails at the access-role check -- not at authentication', async () => {
     const { access_token: accessToken } = await obtainToken();
     const payload = JSON.parse(

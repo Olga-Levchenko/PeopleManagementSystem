@@ -376,6 +376,36 @@ describe('ManagementNotesService', () => {
     expect(prisma.managementNote.update).not.toHaveBeenCalled();
   });
 
+  // -- Self is read-only -- a self viewer must never reach the full-RW branch on a write. The
+  // AC2 self case above only proves the read-side filter; these prove the write side of the same
+  // invariant, so a future change collapsing 'self' into 'full' would fail a test on both sides. --
+
+  it('self viewer gets 403 on create, never reaching the resolver', async () => {
+    const resolve = jest.fn();
+    const { service, prisma } = buildService(resolve);
+
+    await expect(
+      service.createNote(SUBJECT_ID, {
+        subjectPersonId: SUBJECT_ID,
+        content: 'x',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.managementNote.create).not.toHaveBeenCalled();
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
+  it('self viewer gets 403 on update, never reaching the resolver', async () => {
+    const resolve = jest.fn();
+    const { service, prisma } = buildService(resolve);
+    prisma.managementNote.findUnique.mockResolvedValue(NOTE_ROW);
+
+    await expect(
+      service.updateNote(SUBJECT_ID, NOTE_ID, { content: 'x' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.managementNote.update).not.toHaveBeenCalled();
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
   it('update against a nonexistent note 404s (no subject to resolve access against)', async () => {
     const resolve = jest.fn();
     const { service, prisma } = buildService(resolve);
