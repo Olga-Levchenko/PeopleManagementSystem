@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { ShieldCheck, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { type CustomFieldDefinitionError } from '@/api/customFieldDefinitions'
 import { type FunctionalRoleError } from '@/api/functionalRoles'
+import { useCustomFieldDefinitions } from './hooks/useCustomFieldDefinitions'
 import { useFunctionalRoles } from './hooks/useFunctionalRoles'
 
 const EMPTY_SCOPE = ''
@@ -32,6 +34,49 @@ const scopeLabel = (scope: string | null) => {
 export const AdministrationPage = () => {
   const { t } = useTranslation()
   const state = useFunctionalRoles()
+  const cfState = useCustomFieldDefinitions()
+
+  // Custom field definition form state
+  const [newCfName, setNewCfName] = useState('')
+  const [newCfDataType, setNewCfDataType] = useState('')
+  const [newCfVisibility, setNewCfVisibility] = useState('')
+  const [editCfId, setEditCfId] = useState<string | null>(null)
+  const [editCfName, setEditCfName] = useState('')
+  const [editCfVisibility, setEditCfVisibility] = useState('')
+
+  const cfErrorMessage = (error: CustomFieldDefinitionError | null) =>
+    error ? t(`customFields.errors.${error}`) : null
+
+  const submitCreateCf = async () => {
+    if (!newCfName || !newCfDataType || !newCfVisibility) {
+      return
+    }
+    const success = await cfState.create(
+      newCfName,
+      newCfDataType as import('@/api/customFieldDefinitions').CustomFieldDataType,
+      newCfVisibility as import('@/api/customFieldDefinitions').CustomFieldVisibility,
+    )
+    if (success) {
+      setNewCfName('')
+      setNewCfDataType('')
+      setNewCfVisibility('')
+    }
+  }
+
+  const submitUpdateCf = async (id: string) => {
+    const patch: { name?: string; visibility?: import('@/api/customFieldDefinitions').CustomFieldVisibility } = {}
+    if (editCfName) patch.name = editCfName
+    if (editCfVisibility) patch.visibility = editCfVisibility as import('@/api/customFieldDefinitions').CustomFieldVisibility
+    const success = await cfState.update(id, patch)
+    if (success) setEditCfId(null)
+  }
+
+  const submitDeactivateCf = async (id: string) => {
+    if (window.confirm(t('customFields.confirm.deactivate'))) {
+      await cfState.deactivate(id)
+    }
+  }
+
   const [newRoleKey, setNewRoleKey] = useState('')
   const [newDisplayName, setNewDisplayName] = useState('')
   const [editDisplayName, setEditDisplayName] = useState('')
@@ -382,6 +427,171 @@ export const AdministrationPage = () => {
                 >
                   {t('administration.actions.revoke')}
                 </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* ── Custom Field Definitions ── */}
+      <section className="space-y-4 rounded-lg border border-border bg-card p-5" data-testid="custom-field-definitions">
+        <h2 className="text-xl font-semibold">{t('customFields.title')}</h2>
+        <p className="text-sm text-muted-foreground">{t('customFields.description')}</p>
+
+        {cfState.loading && <p role="status">{t('customFields.loading')}</p>}
+        {cfState.loadError && (
+          <p className="text-destructive" role="alert">
+            {cfErrorMessage(cfState.loadError)}
+          </p>
+        )}
+
+        {/* Create form */}
+        <div className="space-y-3 border-t border-border pt-4">
+          <h3 className="font-semibold">{t('customFields.create.title')}</h3>
+          <div className="grid gap-3 md:grid-cols-3">
+            <label className="space-y-1 text-sm">
+              <span>{t('customFields.fields.name')}</span>
+              <input
+                className="w-full rounded-md border border-input bg-background px-3 py-2"
+                value={newCfName}
+                onChange={event => setNewCfName(event.target.value)}
+                aria-label={t('customFields.fields.name')}
+              />
+            </label>
+            <label className="space-y-1 text-sm">
+              <span>{t('customFields.fields.dataType')}</span>
+              <select
+                className="w-full rounded-md border border-input bg-background px-3 py-2"
+                value={newCfDataType}
+                onChange={event => setNewCfDataType(event.target.value)}
+                aria-label={t('customFields.fields.dataType')}
+              >
+                <option value="">{t('customFields.fields.chooseDataType')}</option>
+                {(['TEXT', 'NUMBER', 'DATE', 'BOOLEAN'] as const).map(dt => (
+                  <option key={dt} value={dt}>
+                    {t(`customFields.dataTypes.${dt}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1 text-sm">
+              <span>{t('customFields.fields.visibility')}</span>
+              <select
+                className="w-full rounded-md border border-input bg-background px-3 py-2"
+                value={newCfVisibility}
+                onChange={event => setNewCfVisibility(event.target.value)}
+                aria-label={t('customFields.fields.visibility')}
+              >
+                <option value="">{t('customFields.fields.chooseVisibility')}</option>
+                {(['MANAGEMENT', 'EMPLOYEE', 'COLLEAGUE'] as const).map(v => (
+                  <option key={v} value={v}>
+                    {t(`customFields.visibilities.${v}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <Button
+            onClick={() => void submitCreateCf()}
+            disabled={!newCfName || !newCfDataType || !newCfVisibility || cfState.mutation.busy}
+          >
+            {t('customFields.actions.create')}
+          </Button>
+          {cfState.mutation.error && (
+            <p className="text-destructive" role="alert">
+              {cfErrorMessage(cfState.mutation.error)}
+            </p>
+          )}
+        </div>
+
+        {/* Definitions list */}
+        {cfState.definitions.length > 0 && (
+          <ul className="space-y-2" aria-label={t('customFields.title')}>
+            {cfState.definitions.map(def => (
+              <li
+                className="rounded-lg border border-border bg-background p-4 space-y-3"
+                key={def.id}
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <span className="font-medium">{def.name}</span>
+                    <span className="ml-2 text-sm text-muted-foreground">
+                      {t(`customFields.dataTypes.${def.dataType}`)}
+                    </span>
+                    <span className="ml-2 text-sm text-muted-foreground">
+                      · {t(`customFields.visibilities.${def.visibility}`)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs text-muted-foreground">
+                      {def.isActive ? t('customFields.active') : t('customFields.inactive')}
+                    </span>
+                    {def.isActive && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setEditCfId(def.id)
+                            setEditCfName(def.name)
+                            setEditCfVisibility(def.visibility)
+                          }}
+                        >
+                          {t('customFields.actions.edit')}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => void submitDeactivateCf(def.id)}
+                          disabled={cfState.mutation.busy}
+                        >
+                          {t('customFields.actions.deactivate')}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {editCfId === def.id && (
+                  <div className="grid gap-3 md:grid-cols-2 border-t border-border pt-3">
+                    <label className="space-y-1 text-sm">
+                      <span>{t('customFields.fields.name')}</span>
+                      <input
+                        className="w-full rounded-md border border-input bg-background px-3 py-2"
+                        value={editCfName}
+                        onChange={event => setEditCfName(event.target.value)}
+                      />
+                    </label>
+                    <label className="space-y-1 text-sm">
+                      <span>{t('customFields.fields.visibility')}</span>
+                      <select
+                        className="w-full rounded-md border border-input bg-background px-3 py-2"
+                        value={editCfVisibility}
+                        onChange={event => setEditCfVisibility(event.target.value)}
+                      >
+                        {(['MANAGEMENT', 'EMPLOYEE', 'COLLEAGUE'] as const).map(v => (
+                          <option key={v} value={v}>
+                            {t(`customFields.visibilities.${v}`)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="flex gap-2 md:col-span-2">
+                      <Button
+                        onClick={() => void submitUpdateCf(def.id)}
+                        disabled={cfState.mutation.busy}
+                      >
+                        {t('customFields.actions.save')}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setEditCfId(null)}
+                      >
+                        {t('customFields.actions.cancel')}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
