@@ -127,7 +127,8 @@ export class AuthController {
       session.idToken = tokens.idToken;
       session.accessTokenExpiresAt = tokens.accessTokenExpiresAt;
 
-      res.redirect('/');
+      const frontendUrl = this.config.getOrThrow<string>('CORS_ORIGIN');
+      res.redirect(frontendUrl);
     } catch (err) {
       this.logger.error('OIDC code exchange failed', err);
       throw new InternalServerErrorException(
