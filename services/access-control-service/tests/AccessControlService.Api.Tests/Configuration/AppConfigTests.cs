@@ -14,6 +14,8 @@ public class AppConfigTests
         ["RABBITMQ_PORT"] = "5672",
         ["RABBITMQ_USER"] = "guest",
         ["RABBITMQ_PASSWORD"] = "guest",
+        ["OIDC_ALLOWED_ISSUERS"] = "https://id.example.test/realms/people-management",
+        ["OIDC_AUDIENCE"] = "bff-confidential",
     };
 
     [Fact]
@@ -28,7 +30,10 @@ public class AppConfigTests
         Assert.Equal(5672, config.RabbitMqPort);
         Assert.Equal("guest", config.RabbitMqUser);
         Assert.Equal("guest", config.RabbitMqPassword);
-        Assert.Empty(config.AllowedOidcIssuers);
+        Assert.Equal(
+            "https://id.example.test/realms/people-management",
+            config.OidcIssuer);
+        Assert.Equal("bff-confidential", config.OidcAudience);
     }
 
     [Theory]
@@ -113,30 +118,96 @@ public class AppConfigTests
     }
 
     [Fact]
-    public void Load_WithValidOidcAllowlist_CanonicalizesIssuers()
+    public void Load_WithNonCanonicalOidcIssuer_Throws()
     {
         var values = ValidValues();
         values["OIDC_ALLOWED_ISSUERS"] = "HTTPS://ID.Example.Test:443/Realms/People/";
 
-        var config = AppConfig.Load(new FakeConfiguration(values), "Production");
-
-        Assert.Contains(
-            "https://id.example.test/Realms/People",
-            config.AllowedOidcIssuers);
-        Assert.False(config.AllowInsecureOidcHttp);
+        Assert.Throws<InvalidOperationException>(
+            () => AppConfig.Load(new FakeConfiguration(values), "Production"));
     }
 
     [Fact]
-    public void Load_WithInvalidOrMissingOidcAllowlist_RemainsStartupSafeAndEmpty()
+    public void Load_WithInvalidOrMissingOidcAllowlist_Throws()
     {
         var values = ValidValues();
         values["OIDC_ALLOWED_ISSUERS"] = "ftp://id.example.test/realm";
 
-        var invalid = AppConfig.Load(new FakeConfiguration(values), "Production");
-        var missing = AppConfig.Load(new FakeConfiguration(ValidValues()), "Production");
+        Assert.Throws<InvalidOperationException>(
+            () => AppConfig.Load(new FakeConfiguration(values), "Production"));
+        Assert.Throws<InvalidOperationException>(
+            () =>
+            {
+                var missingValues = ValidValues();
+                missingValues.Remove("OIDC_ALLOWED_ISSUERS");
+                AppConfig.Load(new FakeConfiguration(missingValues), "Production");
+            });
+    }
 
-        Assert.Empty(invalid.AllowedOidcIssuers);
-        Assert.Empty(missing.AllowedOidcIssuers);
+    [Fact]
+    public void Load_WithMissingOrWrongAudience_Throws()
+    {
+        var missing = ValidValues();
+        missing.Remove("OIDC_AUDIENCE");
+        Assert.Throws<InvalidOperationException>(
+            () => AppConfig.Load(new FakeConfiguration(missing)));
+
+        var wrong = ValidValues();
+        wrong["OIDC_AUDIENCE"] = "another-audience";
+        Assert.Throws<InvalidOperationException>(
+            () => AppConfig.Load(new FakeConfiguration(wrong)));
+    }
+
+    [Fact]
+    public void Load_WithMultipleOidcIssuers_Throws()
+    {
+        var values = ValidValues();
+        values["OIDC_ALLOWED_ISSUERS"] =
+            "https://id.example.test/realms/one,https://id.example.test/realms/two";
+
+        Assert.Throws<InvalidOperationException>(
+            () => AppConfig.Load(new FakeConfiguration(values)));
+    }
+
+    [Theory]
+    [InlineData(",https://id.example.test/realms/people-management")]
+    [InlineData("https://id.example.test/realms/people-management,")]
+    [InlineData("https://id.example.test/realms/people-management,,")]
+    [InlineData("https://id.example.test/realms/people-management, ,")]
+    public void Load_WithEmptyOidcIssuerEntry_Throws(string configuredIssuers)
+    {
+        var values = ValidValues();
+        values["OIDC_ALLOWED_ISSUERS"] = configuredIssuers;
+
+        Assert.Throws<InvalidOperationException>(
+            () => AppConfig.Load(new FakeConfiguration(values)));
+    }
+
+    [Fact]
+    public void Load_WithHttpIssuer_InProduction_Throws()
+    {
+        var values = ValidValues();
+        values["OIDC_ALLOWED_ISSUERS"] = "http://localhost:8080/realms/people-management";
+
+        Assert.Throws<InvalidOperationException>(
+            () => AppConfig.Load(new FakeConfiguration(values), "Production"));
+    }
+
+    [Theory]
+    [InlineData("Development")]
+    [InlineData("Test")]
+    [InlineData("Local")]
+    public void Load_WithHttpIssuer_InLocalEnvironment_IsAllowed(string environment)
+    {
+        var values = ValidValues();
+        values["OIDC_ALLOWED_ISSUERS"] = "http://localhost:8080/realms/people-management";
+
+        AppConfig config = AppConfig.Load(new FakeConfiguration(values), environment);
+
+        Assert.Equal(
+            "http://localhost:8080/realms/people-management",
+            config.OidcIssuer);
+        Assert.True(config.AllowInsecureOidcHttp);
     }
 
     [Theory]

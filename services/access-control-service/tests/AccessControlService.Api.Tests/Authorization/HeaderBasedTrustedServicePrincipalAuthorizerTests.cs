@@ -18,6 +18,8 @@ public sealed class HeaderBasedTrustedServicePrincipalAuthorizerTests
             ["RABBITMQ_PORT"] = "5672",
             ["RABBITMQ_USER"] = "guest",
             ["RABBITMQ_PASSWORD"] = "guest",
+            ["OIDC_ALLOWED_ISSUERS"] = "https://id.example.test/realms/people-management",
+            ["OIDC_AUDIENCE"] = "bff-confidential",
             ["INTERNAL_SERVICE_SECRET"] = secret,
         }));
 

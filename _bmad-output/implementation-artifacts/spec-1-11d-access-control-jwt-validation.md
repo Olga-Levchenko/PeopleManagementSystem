@@ -2,7 +2,7 @@
 title: 'Story 1.11d: Access Control JWT authentication for Administration routes'
 type: 'feature'
 created: '2026-09-04'
-status: 'in-progress'
+status: 'in-review'
 baseline_commit: '987cb27dea072a9248f8a9f4185d7d23b33daaff'
 review_loop_iteration: 0
 context:
