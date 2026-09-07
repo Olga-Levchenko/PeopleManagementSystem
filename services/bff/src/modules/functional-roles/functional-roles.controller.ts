@@ -220,8 +220,8 @@ export class FunctionalRolesController {
     if (request.headers.authorization) {
       return request.headers.authorization;
     }
-    const session = request.session as BffSession;
-    if (session.accessToken) {
+    const session = request.session as BffSession | undefined;
+    if (session?.accessToken) {
       return `Bearer ${session.accessToken}`;
     }
     return undefined;

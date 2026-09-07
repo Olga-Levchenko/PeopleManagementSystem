@@ -31,8 +31,12 @@ describe('FunctionalRolesController — resolveAuthorization', () => {
         {
           provide: FunctionalRolesService,
           useValue: {
-            getCatalogue: jest.fn().mockResolvedValue({ status: 200, body: { permissions: [] } }),
-            getRoles: jest.fn().mockResolvedValue({ status: 200, body: { roles: [] } }),
+            getCatalogue: jest
+              .fn()
+              .mockResolvedValue({ status: 200, body: { permissions: [] } }),
+            getRoles: jest
+              .fn()
+              .mockResolvedValue({ status: 200, body: { roles: [] } }),
           },
         },
       ],
@@ -43,7 +47,9 @@ describe('FunctionalRolesController — resolveAuthorization', () => {
   });
 
   it('forwards an explicit bearer token when present in the request header', async () => {
-    const req = mockRequest({ headers: { authorization: 'Bearer incoming-token' } });
+    const req = mockRequest({
+      headers: { authorization: 'Bearer incoming-token' },
+    });
     await controller.getRoles(req, mockResponse());
 
     expect(service.getRoles).toHaveBeenCalledWith(
@@ -52,7 +58,9 @@ describe('FunctionalRolesController — resolveAuthorization', () => {
   });
 
   it('falls back to session access token when no bearer token is in the request header', async () => {
-    const req = mockRequest({ session: { accessToken: 'session-access-token' } });
+    const req = mockRequest({
+      session: { accessToken: 'session-access-token' },
+    });
     await controller.getCatalogue(req, mockResponse());
 
     expect(service.getCatalogue).toHaveBeenCalledWith(
@@ -62,6 +70,18 @@ describe('FunctionalRolesController — resolveAuthorization', () => {
 
   it('passes undefined authorization when neither bearer header nor session token is present', async () => {
     const req = mockRequest();
+    await controller.getRoles(req, mockResponse());
+
+    expect(service.getRoles).toHaveBeenCalledWith(
+      expect.objectContaining({ authorization: undefined }),
+    );
+  });
+
+  it('passes undefined authorization when session itself is absent (e.g. no session middleware)', async () => {
+    const req = {
+      headers: {},
+      correlationId: 'test-correlation-id',
+    } as unknown as Request;
     await controller.getRoles(req, mockResponse());
 
     expect(service.getRoles).toHaveBeenCalledWith(
