@@ -58,6 +58,222 @@
           "temporary": false
         }
       ]
+    },
+    {
+      "username": "tt.site-admin@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Site",
+      "lastName": "Administrator",
+      "email": "tt.site-admin@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "artem.shamraiev@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Anton",
+      "lastName": "Savchenko",
+      "email": "artem.shamraiev@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "alex.geraschenko@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Orest",
+      "lastName": "Hnatiuk",
+      "email": "alex.geraschenko@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "nataliia.musiienko@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Taliia",
+      "lastName": "Muss",
+      "email": "nataliia.musiienko@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "viktor.bondar@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Viktor",
+      "lastName": "Bondar",
+      "email": "viktor.bondar@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "olena.romaniuk@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Olena",
+      "lastName": "Romaniuk",
+      "email": "olena.romaniuk@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "andrii.fedorchuk@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Andrii",
+      "lastName": "Fedorchuk",
+      "email": "andrii.fedorchuk@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "oksana.hordiienko@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Oksana",
+      "lastName": "Hordiienko",
+      "email": "oksana.hordiienko@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "olena.lysak@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Olena",
+      "lastName": "Lysak",
+      "email": "olena.lysak@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "diana.savchuk@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Diana",
+      "lastName": "Savchuk",
+      "email": "diana.savchuk@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "andrii.kravets@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Andrii",
+      "lastName": "Kravets",
+      "email": "andrii.kravets@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "andrii.lysenko@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Andrii",
+      "lastName": "Lysenko",
+      "email": "andrii.lysenko@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "chidi.igwe@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Chidi",
+      "lastName": "Igwe",
+      "email": "chidi.igwe@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "oleh.boiko@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Oleh",
+      "lastName": "Boiko",
+      "email": "oleh.boiko@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "oleksandr.dorosh@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Oleksandr",
+      "lastName": "Dorosh",
+      "email": "oleksandr.dorosh@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "oleksii.semenov@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Oleksii",
+      "lastName": "Semenov",
+      "email": "oleksii.semenov@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "vagif.mammadaliyev@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Vagif",
+      "lastName": "Mammadaliyev",
+      "email": "vagif.mammadaliyev@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "vasyl.kravchenko@altexsoft.com",
+      "enabled": false,
+      "emailVerified": true,
+      "firstName": "Vasyl",
+      "lastName": "Kravchenko",
+      "email": "vasyl.kravchenko@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "vladyslav.umanets@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Vladyslav",
+      "lastName": "Umanets",
+      "email": "vladyslav.umanets@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "danylo.hordiienko@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Danylo",
+      "lastName": "Hordiienko",
+      "email": "danylo.hordiienko@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "dmytro.danylenko@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Dmytro",
+      "lastName": "Danylenko",
+      "email": "dmytro.danylenko@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "artem.bondarenko@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Artem",
+      "lastName": "Bondarenko",
+      "email": "artem.bondarenko@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "adam.keem@altexsoft.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Adam",
+      "lastName": "Keem",
+      "email": "adam.keem@altexsoft.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
+    },
+    {
+      "username": "tesr.user@altex.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Test",
+      "lastName": "User",
+      "email": "tesr.user@altex.com",
+      "credentials": [{ "type": "password", "value": "DevPassword1!", "temporary": false }]
     }
   ]
 }
