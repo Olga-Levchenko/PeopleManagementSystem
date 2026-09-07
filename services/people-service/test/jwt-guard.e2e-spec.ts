@@ -229,6 +229,7 @@ describe('JWT guard (e2e)', () => {
       // service outright.
       OUTBOX_PUBLISHER_INTERVAL_MS: '999999999',
       ACCESS_CONTROL_SERVICE_BASE_URL: 'http://stub-access-control:3007',
+      INTERNAL_SERVICE_SECRET: 'e2e-placeholder-secret',
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
