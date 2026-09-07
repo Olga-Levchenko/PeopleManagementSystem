@@ -84,7 +84,8 @@ export class AuthController {
   })
   async callback(@Req() req: Request, @Res() res: Response): Promise<void> {
     const session = req.session as BffSession;
-    const { state, code } = req.query as Record<string, string | undefined>;
+    const query = req.query as Record<string, string | undefined>;
+    const { state, code } = query;
 
     if (!state || !code) {
       throw new BadRequestException('Missing state or code in callback query.');
@@ -106,10 +107,18 @@ export class AuthController {
     session.oidcState = undefined;
     session.oidcVerifier = undefined;
 
+    // Forward all string-valued callback params (code, iss, state, session_state, …) so
+    // openid-client can validate the iss response parameter (RFC 9207). Keycloak 24+ includes
+    // iss in the redirect; passing only { code } causes RPError: iss missing from the response.
+    const callbackParams: Record<string, string> = {};
+    for (const [key, value] of Object.entries(query)) {
+      if (typeof value === 'string') callbackParams[key] = value;
+    }
+
     const redirectUri = this.config.getOrThrow<string>('OIDC_CALLBACK_URL');
 
     try {
-      const tokens = await this.oidc.exchangeCode(code, redirectUri, verifier);
+      const tokens = await this.oidc.exchangeCode(callbackParams, redirectUri, verifier);
 
       session.userId = tokens.sub;
       session.email = tokens.email;
