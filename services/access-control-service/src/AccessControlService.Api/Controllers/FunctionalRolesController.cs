@@ -7,6 +7,7 @@ using AccessControlService.Api.ErrorHandling;
 using AccessControlService.Infrastructure.Persistence;
 using AccessControlService.Infrastructure.Permissions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace AccessControlService.Api.Controllers;
 
@@ -32,6 +33,7 @@ public sealed class FunctionalRolesController : ControllerBase
     }
 
     [HttpGet("permissions/catalogue")]
+    [Authorize(Policy = "AdministrationJwt")]
     public async Task<ActionResult<PermissionCatalogueResponse>> GetCatalogue(CancellationToken cancellationToken)
     {
         try
@@ -50,6 +52,7 @@ public sealed class FunctionalRolesController : ControllerBase
     }
 
     [HttpGet("functional-roles")]
+    [Authorize(Policy = "AdministrationJwt")]
     public async Task<ActionResult<FunctionalRoleListResponse>> GetRoles(CancellationToken cancellationToken)
     {
         try
@@ -66,6 +69,7 @@ public sealed class FunctionalRolesController : ControllerBase
     }
 
     [HttpGet("functional-roles/{roleKey}")]
+    [Authorize(Policy = "AdministrationJwt")]
     public async Task<ActionResult<FunctionalRoleResponse>> GetRole(
         string roleKey,
         CancellationToken cancellationToken)
@@ -84,6 +88,7 @@ public sealed class FunctionalRolesController : ControllerBase
     }
 
     [HttpGet("functional-roles/{roleKey}/permissions")]
+    [Authorize(Policy = "AdministrationJwt")]
     public async Task<ActionResult<FunctionalRolePermissionListResponse>> GetRolePermissions(
         string roleKey,
         CancellationToken cancellationToken)
@@ -106,6 +111,7 @@ public sealed class FunctionalRolesController : ControllerBase
     }
 
     [HttpPost("functional-roles")]
+    [Authorize(Policy = "AdministrationJwt")]
     public async Task<ActionResult<FunctionalRoleResponse>> CreateRole(
         CreateFunctionalRoleRequest request,
         CancellationToken cancellationToken)
@@ -129,6 +135,7 @@ public sealed class FunctionalRolesController : ControllerBase
     }
 
     [HttpPatch("functional-roles/{roleKey}")]
+    [Authorize(Policy = "AdministrationJwt")]
     public async Task<ActionResult<FunctionalRoleResponse>> UpdateRole(
         string roleKey,
         UpdateFunctionalRoleRequest request,
@@ -148,6 +155,7 @@ public sealed class FunctionalRolesController : ControllerBase
     }
 
     [HttpPost("functional-roles/{roleKey}/deactivate")]
+    [Authorize(Policy = "AdministrationJwt")]
     public async Task<ActionResult<FunctionalRoleResponse>> DeactivateRole(
         string roleKey,
         DeactivateFunctionalRoleRequest request,
@@ -167,6 +175,7 @@ public sealed class FunctionalRolesController : ControllerBase
     }
 
     [HttpPut("functional-roles/{roleKey}/permissions/{permissionKey}")]
+    [Authorize(Policy = "AdministrationJwt")]
     public async Task<ActionResult<FunctionalRolePermissionResponse>> GrantPermission(
         string roleKey,
         string permissionKey,
@@ -194,6 +203,7 @@ public sealed class FunctionalRolesController : ControllerBase
     }
 
     [HttpDelete("functional-roles/{roleKey}/permissions/{permissionKey}")]
+    [Authorize(Policy = "AdministrationJwt")]
     public async Task<IActionResult> RevokePermission(
         string roleKey,
         string permissionKey,
@@ -214,6 +224,7 @@ public sealed class FunctionalRolesController : ControllerBase
     }
 
     [HttpPost("people/{personId:guid}/functional-roles")]
+    [Authorize(Policy = "AdministrationJwt")]
     public async Task<ActionResult<AssignmentResponse>> AssignRole(
         Guid personId,
         AssignFunctionalRoleRequest request,
@@ -239,6 +250,7 @@ public sealed class FunctionalRolesController : ControllerBase
     }
 
     [HttpDelete("people/{personId:guid}/functional-roles/{roleKey}")]
+    [Authorize(Policy = "AdministrationJwt")]
     public async Task<IActionResult> RevokeRole(
         Guid personId,
         string roleKey,
@@ -257,6 +269,7 @@ public sealed class FunctionalRolesController : ControllerBase
     }
 
     [HttpGet("people/{personId:guid}/functional-roles")]
+    [Authorize(Policy = "AdministrationJwt")]
     public async Task<ActionResult<FunctionalRoleAssignmentListResponse>> GetAssignments(
         Guid personId,
         CancellationToken cancellationToken)
@@ -338,8 +351,8 @@ public sealed class FunctionalRolesController : ControllerBase
         {
             PrincipalPersonResolution.Resolved resolved => resolved.PersonId,
             PrincipalPersonResolution.Unavailable => throw new ServiceUnavailableException(),
-            PrincipalPersonResolution.Ambiguous => throw new ServiceUnavailableException(),
-            PrincipalPersonResolution.Missing => throw new UnauthorizedException(),
+            PrincipalPersonResolution.Ambiguous => throw new RoleConflictException("The authenticated principal has an ambiguous person mapping."),
+            PrincipalPersonResolution.Missing => throw new NotFoundException("The authenticated principal has no active person mapping."),
             PrincipalPersonResolution.InvalidIdentity => throw new UnauthorizedException(),
             _ => throw new ServiceUnavailableException(),
         };

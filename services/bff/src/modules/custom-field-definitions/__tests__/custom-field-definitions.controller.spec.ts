@@ -10,10 +10,9 @@ const makeRequest = (overrides?: object): Request =>
   }) as unknown as Request;
 
 const makeResponse = (): jest.Mocked<Pick<Response, 'status'>> & Response => {
-  const res = { status: jest.fn() } as unknown as jest.Mocked<
-    Pick<Response, 'status'>
-  > &
-    Response;
+  const res = {
+    status: jest.fn(),
+  } as unknown as jest.Mocked<Pick<Response, 'status'>> & Response;
   (res.status as jest.Mock).mockReturnValue(res);
   return res;
 };
@@ -31,7 +30,8 @@ describe('CustomFieldDefinitionsController — status forwarding', () => {
 
     await controller.list(makeRequest(), response);
 
-    expect(response.status).toHaveBeenCalledWith(200);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    expect(response['status']).toHaveBeenCalledWith(200);
   });
 
   it('forwards 201 status from upstream create', async () => {
@@ -54,7 +54,8 @@ describe('CustomFieldDefinitionsController — status forwarding', () => {
       response,
     );
 
-    expect(response.status).toHaveBeenCalledWith(201);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    expect(response['status']).toHaveBeenCalledWith(201);
     expect(result).toBe(created);
   });
 
@@ -79,7 +80,8 @@ describe('CustomFieldDefinitionsController — status forwarding', () => {
       response,
     );
 
-    expect(response.status).toHaveBeenCalledWith(200);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    expect(response['status']).toHaveBeenCalledWith(200);
     expect(result).toBe(updated);
   });
 
@@ -95,7 +97,8 @@ describe('CustomFieldDefinitionsController — status forwarding', () => {
 
     await controller.deactivate('some-uuid', makeRequest(), response);
 
-    expect(response.status).toHaveBeenCalledWith(200);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    expect(response['status']).toHaveBeenCalledWith(200);
   });
 
   it('extracts authorization and correlationId into context', async () => {

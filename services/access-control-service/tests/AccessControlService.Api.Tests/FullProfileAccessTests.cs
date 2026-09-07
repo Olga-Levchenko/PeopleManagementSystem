@@ -51,6 +51,8 @@ public sealed class FullProfileAccessTests : IAsyncLifetime
         Environment.SetEnvironmentVariable("RABBITMQ_PORT", "5699");
         Environment.SetEnvironmentVariable("RABBITMQ_USER", "guest");
         Environment.SetEnvironmentVariable("RABBITMQ_PASSWORD", "guest");
+        Environment.SetEnvironmentVariable("OIDC_ALLOWED_ISSUERS", "https://id.example.test/realms/people-management");
+        Environment.SetEnvironmentVariable("OIDC_AUDIENCE", "bff-confidential");
     }
 
     public async Task DisposeAsync()
@@ -67,6 +69,8 @@ public sealed class FullProfileAccessTests : IAsyncLifetime
         Environment.SetEnvironmentVariable("RABBITMQ_PORT", null);
         Environment.SetEnvironmentVariable("RABBITMQ_USER", null);
         Environment.SetEnvironmentVariable("RABBITMQ_PASSWORD", null);
+        Environment.SetEnvironmentVariable("OIDC_ALLOWED_ISSUERS", null);
+        Environment.SetEnvironmentVariable("OIDC_AUDIENCE", null);
 
         await _postgresContainer.DisposeAsync();
     }
