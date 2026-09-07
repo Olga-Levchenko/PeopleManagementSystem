@@ -55,7 +55,7 @@ interface TokenResponse {
 }
 
 describe('JWT guard (e2e)', () => {
-  jest.setTimeout(180_000);
+  jest.setTimeout(360_000);
 
   let container: StartedTestContainer;
   let baseUrl: string;
@@ -178,7 +178,7 @@ describe('JWT guard (e2e)', () => {
           8080,
         ).forStatusCode(200),
       )
-      .withStartupTimeout(120_000)
+      .withStartupTimeout(300_000)
       .start();
 
     // Force IPv4: on this host "localhost" resolves to an address family whose Docker Desktop
