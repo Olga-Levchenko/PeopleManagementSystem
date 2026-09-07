@@ -14,6 +14,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
+import type { SessionData } from 'express-session';
 import { generators } from 'openid-client';
 import { OidcService } from './oidc.service';
 import { Public } from './public.decorator';
@@ -196,15 +197,94 @@ export class AuthController {
       throw new BadRequestException('Invalid logout_token.');
     }
 
-    // express-session's default MemoryStore does not expose a session-lookup-by-sub API -- we can
-    // only match sessions we have access to. In the MemoryStore (local dev) back-channel logout
-    // is best-effort: the token is validated and logged, but no session is destroyed (we lack the
-    // session ID from the inbound request, and MemoryStore has no userId index).
-    // Production must replace MemoryStore with connect-redis or connect-pg-simple and add an
-    // index on userId/sid to support this -- documented in CLAUDE.md.
     this.logger.log(
       `Back-channel logout received for sub=${parsedToken.sub} sid=${parsedToken.sid ?? 'n/a'}`,
     );
+
+    // Scan the session store for sessions belonging to this user and destroy each one.
+    // express-session's Store.all() returns { [sid]: sessionData } for all active sessions.
+    // The lookup is O(sessions) but back-channel logout is a rare operation -- no separate
+    // userId/sid index is needed at this scale. With MemoryStore (local dev) this still works
+    // but all sessions reset on BFF restart anyway; the real value is with connect-pg-simple
+    // where sessions survive restarts and a real scan+destroy is required.
+    await new Promise<void>((resolve) => {
+      if (!req.sessionStore?.all) {
+        // Store does not implement .all() -- log and continue without destroying sessions.
+        this.logger.warn(
+          'Session store does not support .all() -- back-channel logout cannot destroy sessions.',
+        );
+        resolve();
+        return;
+      }
+
+      req.sessionStore.all(
+        (
+          err: unknown,
+          rawSessions?: SessionData[] | Record<string, SessionData> | null,
+        ) => {
+          if (err || rawSessions == null) {
+            this.logger.warn(
+              'Back-channel logout: failed to enumerate sessions',
+              err,
+            );
+            resolve();
+            return;
+          }
+
+          // Store.all() may return either a { [sid]: SessionData } dict or a SessionData[] array.
+          // MemoryStore and connect-pg-simple both return the dict form. If a store returns the
+          // array form, we cannot scan by sid key — log and skip rather than silently discarding.
+          if (Array.isArray(rawSessions)) {
+            this.logger.warn(
+              'Back-channel logout: session store returned array form — cannot scan by userId; skipping destruction.',
+            );
+            resolve();
+            return;
+          }
+          const sessions: Record<string, SessionData> = rawSessions;
+
+          const targetSub = parsedToken.sub;
+          const matchingSids = Object.entries(sessions)
+            .filter(
+              ([, sessionData]) =>
+                targetSub && sessionData.userId === targetSub,
+            )
+            .map(([sid]) => sid);
+
+          if (matchingSids.length === 0) {
+            resolve();
+            return;
+          }
+
+          let remaining = matchingSids.length;
+          for (const sid of matchingSids) {
+            try {
+              req.sessionStore.destroy(sid, (destroyErr) => {
+                if (destroyErr) {
+                  this.logger.warn(
+                    `Back-channel logout: failed to destroy session ${sid}`,
+                    destroyErr,
+                  );
+                }
+                remaining -= 1;
+                if (remaining === 0) {
+                  resolve();
+                }
+              });
+            } catch (syncErr) {
+              this.logger.warn(
+                `Back-channel logout: store.destroy(${sid}) threw synchronously`,
+                syncErr,
+              );
+              remaining -= 1;
+              if (remaining === 0) {
+                resolve();
+              }
+            }
+          }
+        },
+      );
+    });
 
     res.sendStatus(HttpStatus.OK);
   }

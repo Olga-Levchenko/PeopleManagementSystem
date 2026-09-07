@@ -305,6 +305,73 @@ describe('AuthController', () => {
         BadRequestException,
       );
     });
+
+    it('scans sessionStore.all() and destroys sessions matching the validated sub', async () => {
+      const destroyMock = jest.fn((sid: string, cb: () => void) => cb());
+      const allMock = jest.fn(
+        (
+          cb: (
+            err: null,
+            sessions: Record<string, { userId?: string }>,
+          ) => void,
+        ) => {
+          cb(null, {
+            'sid-to-destroy': { userId: 'target-sub' },
+            'sid-keep': { userId: 'other-sub' },
+          });
+        },
+      );
+
+      const req = {
+        ...mockRequest(mockSession(), {}, { logout_token: 'valid-jwt' }),
+        sessionStore: { all: allMock, destroy: destroyMock },
+      } as unknown as Request;
+      const res = mockResponse();
+
+      oidc.validateLogoutToken.mockResolvedValueOnce({
+        sub: 'target-sub',
+        sid: undefined,
+      });
+
+      await controller.backchannelLogout(req, res);
+
+      expect(destroyMock).toHaveBeenCalledTimes(1);
+      expect(destroyMock).toHaveBeenCalledWith(
+        'sid-to-destroy',
+        expect.any(Function),
+      );
+      expect(res.sendStatus).toHaveBeenCalledWith(200);
+    });
+
+    it('returns 200 when no session matches the validated sub (no-op)', async () => {
+      const destroyMock = jest.fn();
+      const allMock = jest.fn(
+        (
+          cb: (
+            err: null,
+            sessions: Record<string, { userId?: string }>,
+          ) => void,
+        ) => {
+          cb(null, { 'sid-other': { userId: 'different-user' } });
+        },
+      );
+
+      const req = {
+        ...mockRequest(mockSession(), {}, { logout_token: 'valid-jwt' }),
+        sessionStore: { all: allMock, destroy: destroyMock },
+      } as unknown as Request;
+      const res = mockResponse();
+
+      oidc.validateLogoutToken.mockResolvedValueOnce({
+        sub: 'target-sub',
+        sid: undefined,
+      });
+
+      await controller.backchannelLogout(req, res);
+
+      expect(destroyMock).not.toHaveBeenCalled();
+      expect(res.sendStatus).toHaveBeenCalledWith(200);
+    });
   });
 
   // ---------- GET /auth/me ----------
