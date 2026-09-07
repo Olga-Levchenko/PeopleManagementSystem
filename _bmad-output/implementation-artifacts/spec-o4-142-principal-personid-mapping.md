@@ -2,7 +2,7 @@
 title: 'O4-142: OIDC principal-to-PersonId mapping'
 type: 'feature'
 created: '2026-09-04'
-status: 'ready-for-dev'
+status: 'done'
 review_loop_iteration: 0
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/spec-1-4-functional-roles-and-permissions-as-runtime-editable-data.md'
@@ -98,34 +98,34 @@ existing `IPrincipalPersonResolver` seam.
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Add `PersonExternalIdentityLink`, `IdentityLinkOperation`, and `IdentityLinkAudit` models,
+- [x] Add `PersonExternalIdentityLink`, `IdentityLinkOperation`, and `IdentityLinkAudit` models,
   relations, normal indexes, append-only audit behavior, and all required fields.
-- [ ] Add explicit SQL partial unique indexes on ACTIVE `(canonicalIssuer, opaqueSubject)` and
+- [x] Add explicit SQL partial unique indexes on ACTIVE `(canonicalIssuer, opaqueSubject)` and
   `(personId, canonicalIssuer)`. Fail upgrades clearly when existing active duplicates violate
   either rule; never select, delete, revoke, merge, or reassign a winner.
-- [ ] Implement `LinkIdentityAsync(LinkIdentityRequest, CancellationToken)`, where the request
+- [x] Implement `LinkIdentityAsync(LinkIdentityRequest, CancellationToken)`, where the request
   contains `personId`, `issuer`, `subject`, and `idempotencyKey`. The target PersonId is trusted
   provisioning input, not actor identity. Authorize first, validate Person/issuer/subject,
   enforce active uniqueness, and atomically persist the link, successful operation, and LINK audit.
-- [ ] Implement `RevokeIdentityAsync(RevokeIdentityRequest, CancellationToken)`, where the request
+- [x] Implement `RevokeIdentityAsync(RevokeIdentityRequest, CancellationToken)`, where the request
   contains `linkId`, `reason`, and `idempotencyKey`. Authorize first; missing links return 404,
   inactive links are idempotent no-ops, and active links become REVOKED with atomic operation and
   REVOKE audit.
-- [ ] Implement atomic `RelinkIdentityAsync(RelinkIdentityRequest, CancellationToken)`, where the
+- [x] Implement atomic `RelinkIdentityAsync(RelinkIdentityRequest, CancellationToken)`, where the
   request contains `existingLinkId`, `newIssuer`, `newSubject`, and `idempotencyKey`. Authorize
   and validate first; a uniqueness conflict or failure rolls back so the old link remains active;
   success atomically creates the new link, revokes the old link, and writes one RELINK audit.
-- [ ] Implement `IIdentityFingerprintService` with protected key configuration and key-version
+- [x] Implement `IIdentityFingerprintService` with protected key configuration and key-version
   compatibility; request fingerprints provide durable idempotency and subject fingerprints protect
   audit correlation. Provide a fail-closed production authorization seam and no public provisioning route.
-- [ ] Define `POST /api/v1/internal/identity-mappings/resolve` with trusted internal-service
+- [x] Define `POST /api/v1/internal/identity-mappings/resolve` with trusted internal-service
   authorization. Request `{ issuer, subject }` is accepted only from Access Control after its
   verified JWT pipeline extracts `iss` and `sub`; success is exactly `{ personId }`; non-success
   uses `application/problem+json` with 400/401/403/404/409/503 and no raw identity values.
-- [ ] Update `IPrincipalPersonResolver` and its adapter to consume `OidcPrincipalIdentity`, validate
+- [x] Update `IPrincipalPersonResolver` and its adapter to consume `OidcPrincipalIdentity`, validate
   both issuer and subject, and keep production activation blocked until trusted service
   authentication is available; do not add JWT validation here.
-- [ ] Add migration, upgrade, contract, adapter, concurrency, provider-isolation, lifecycle,
+- [x] Add migration, upgrade, contract, adapter, concurrency, provider-isolation, lifecycle,
   fingerprint, and fail-closed tests. Distinguish mocked authentication from real Keycloak proof.
 
 **Acceptance Criteria:**
@@ -212,5 +212,9 @@ PostgreSQL/Testcontainers databases; existing active duplicates fail clearly bef
 - Live Keycloak/browser and production-like cross-service verification are external follow-ups
   after trusted service authentication and Access Control JWT validation exist; they are not
   independent O4-142 completion checks and mocked principals must remain clearly separated.
+
+**Actual result:** PR #37 merged to `main`. People Service and Access Control verification,
+migration checks, identity-link concurrency checks, and contract tests passed. Production
+activation remains blocked by trusted service authentication and live cross-service verification.
 
 </frozen-after-approval>
