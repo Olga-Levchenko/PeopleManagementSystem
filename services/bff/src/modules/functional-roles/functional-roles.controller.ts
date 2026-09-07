@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
+import type { BffSession } from '../auth/session.types';
 import {
   AssignFunctionalRoleDto,
   CreateFunctionalRoleDto,
@@ -203,10 +204,27 @@ export class FunctionalRolesController {
 
   private context(request: Request, idempotencyKey?: string): ProxyContext {
     return {
-      authorization: request.headers.authorization,
+      authorization: this.resolveAuthorization(request),
       correlationId: request.correlationId,
       idempotencyKey,
     };
+  }
+
+  /**
+   * Resolves the Authorization header to forward to the access-control-service.
+   * Prefers an explicit incoming bearer token (service-to-service callers); falls back to the
+   * session access token for browser session users who authenticate via the OIDC flow and do
+   * not send a bearer token in their request headers.
+   */
+  private resolveAuthorization(request: Request): string | undefined {
+    if (request.headers.authorization) {
+      return request.headers.authorization;
+    }
+    const session = request.session as BffSession;
+    if (session.accessToken) {
+      return `Bearer ${session.accessToken}`;
+    }
+    return undefined;
   }
 
   private async forward(
