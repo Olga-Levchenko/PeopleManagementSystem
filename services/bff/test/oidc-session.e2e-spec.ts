@@ -267,15 +267,43 @@ describe('OIDC session e2e (Story 1.13)', () => {
       );
     }
 
-    // Step 2: GET Keycloak's authorization URL -- it renders the HTML login form.
-    const authPageRes = await axios.get<string>(keycloakAuthUrl, {
-      maxRedirects: 5,
-      validateStatus: (s) => s === 200,
-    });
-    const { action, hidden } = parseLoginForm(authPageRes.data);
+    // Step 2: GET Keycloak's authorization URL, following each redirect manually.
+    // Keycloak issues one or more 302s before serving the login form, setting AUTH_SESSION_ID
+    // and KC_RESTART cookies on those intermediate responses. Using maxRedirects>0 silently drops
+    // those cookies; without them the credential POST (step 3) returns 400 from Keycloak.
+    let keycloakCookies = '';
+    let loginFormHtml = '';
+    {
+      let url = keycloakAuthUrl;
+      for (let hop = 0; hop < 6; hop++) {
+        const hopRes = await axios.get<string>(url, {
+          maxRedirects: 0,
+          validateStatus: (s) => s >= 200 && s < 400,
+          headers: keycloakCookies ? { Cookie: keycloakCookies } : {},
+        });
+        const incoming = extractCookiesFromAxiosResponse(
+          hopRes.headers as Record<string, string | string[] | undefined>,
+        );
+        keycloakCookies = mergeCookies(keycloakCookies, incoming);
+        if (hopRes.status >= 200 && hopRes.status < 300) {
+          loginFormHtml = hopRes.data as string;
+          break;
+        }
+        const nextUrl = hopRes.headers['location'] as string;
+        if (!nextUrl) {
+          throw new Error('Keycloak redirect missing Location header during auth page fetch');
+        }
+        url = nextUrl;
+      }
+      if (!loginFormHtml) {
+        throw new Error('Did not reach Keycloak login form after following redirects');
+      }
+    }
+    const { action, hidden } = parseLoginForm(loginFormHtml);
 
     // Step 3: POST credentials + hidden inputs to the Keycloak form action.
     // Keycloak validates and redirects to OIDC_CALLBACK_URL with ?code=...&state=...
+    // AUTH_SESSION_ID / KC_RESTART (from step 2) must be sent or Keycloak returns 400.
     const formBody = new URLSearchParams({
       username: TEST_USERNAME,
       password: TEST_PASSWORD,
@@ -283,7 +311,10 @@ describe('OIDC session e2e (Story 1.13)', () => {
     });
 
     const credentialRes = await axios.post(action, formBody.toString(), {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        ...(keycloakCookies ? { Cookie: keycloakCookies } : {}),
+      },
       maxRedirects: 0,
       validateStatus: (s) => s >= 300 && s < 400,
     });

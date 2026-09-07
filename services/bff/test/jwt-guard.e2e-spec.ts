@@ -2,6 +2,7 @@ import { Controller, Get, INestApplication, Req } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import type { Request } from 'express';
+import expressSession from 'express-session';
 import path from 'path';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -228,6 +229,19 @@ describe('JWT guard (e2e)', () => {
       .compile();
 
     app = moduleFixture.createNestApplication();
+
+    // JwtAuthGuard.canActivate (Story 1.12) reads req.session.userId before falling through to
+    // JWT validation. Without this middleware req.session is undefined and the guard throws a
+    // TypeError → 500. MemoryStore is fine here; this suite never exercises session-based auth.
+    app.use(
+      expressSession({
+        secret: configOverrides.SESSION_SECRET,
+        resave: false,
+        saveUninitialized: false,
+        cookie: { httpOnly: true, sameSite: 'lax', secure: false },
+      }),
+    );
+
     await app.init();
   });
 
