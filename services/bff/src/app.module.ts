@@ -5,6 +5,7 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
 import { envValidationSchema } from './config/env.validation';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
+import { OidcService } from './modules/auth/oidc.service';
 import { CustomFieldDefinitionsModule } from './modules/custom-field-definitions/custom-field-definitions.module';
 import { HealthModule } from './modules/health/health.module';
 import { OrganisationalRelationshipsModule } from './modules/organisational-relationships/organisational-relationships.module';
@@ -23,6 +24,9 @@ import { FunctionalRolesModule } from './modules/functional-roles/functional-rol
     FunctionalRolesModule,
   ],
   providers: [
+    // OidcService is exported from AuthModule, but APP_GUARD is instantiated by the root injector
+    // (not AuthModule's), so it needs its own provider entry here for JwtAuthGuard's DI to resolve.
+    OidcService,
     JwtAuthGuard,
     {
       provide: APP_GUARD,

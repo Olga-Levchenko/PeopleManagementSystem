@@ -23,3 +23,14 @@ if (!process.env.KEYCLOAK_REALM) {
 if (!process.env.ACCESS_CONTROL_SERVICE_BASE_URL) {
   process.env.ACCESS_CONTROL_SERVICE_BASE_URL = 'http://localhost:3007';
 }
+// New required vars added by Story 1.12. Placeholders here satisfy Joi's .required() for e2e
+// specs that don't exercise the OIDC flow (same pattern as KEYCLOAK_BASE_URL above).
+if (!process.env.KEYCLOAK_CLIENT_SECRET) {
+  process.env.KEYCLOAK_CLIENT_SECRET = 'local-dev-bff-confidential-secret';
+}
+if (!process.env.SESSION_SECRET) {
+  process.env.SESSION_SECRET = 'local-dev-session-secret-32chars-min';
+}
+if (!process.env.OIDC_CALLBACK_URL) {
+  process.env.OIDC_CALLBACK_URL = 'http://localhost:3001/api/v1/auth/callback';
+}

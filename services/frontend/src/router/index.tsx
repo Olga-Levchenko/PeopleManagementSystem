@@ -4,8 +4,10 @@
 
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 import { AppLayout } from '@/components/AppLayout/AppLayout'
+import { ProtectedRoute } from '@/components/ProtectedRoute/ProtectedRoute'
 import { HomePage } from '@/pages/HomePage/HomePage'
 import { ErrorPage } from '@/pages/ErrorPage/ErrorPage'
+import { LoginPage } from '@/pages/LoginPage/LoginPage'
 import { OrganisationalRelationshipsPage } from '@/pages/OrganisationalRelationshipsPage/OrganisationalRelationshipsPage'
 import { AdministrationPage } from '@/pages/AdministrationPage/AdministrationPage'
 
@@ -16,22 +18,34 @@ const router = createBrowserRouter([
     element: <ErrorPage />,
   },
 
-  // Application routes wrapped in the main layout
+  // Public sign-in page (no auth required)
   {
-    path: '/',
-    element: <AppLayout />,
+    path: '/login',
+    element: <LoginPage />,
+  },
+
+  // All application routes are protected: ProtectedRoute resolves the session from AuthContext
+  // and redirects to /login if no authenticated user is found.
+  {
+    element: <ProtectedRoute />,
     children: [
       {
-        index: true,
-        element: <HomePage />,
-      },
-      {
-        path: 'organisational-relationships',
-        element: <OrganisationalRelationshipsPage />,
-      },
-      {
-        path: 'administration/functional-roles',
-        element: <AdministrationPage />,
+        path: '/',
+        element: <AppLayout />,
+        children: [
+          {
+            index: true,
+            element: <HomePage />,
+          },
+          {
+            path: 'organisational-relationships',
+            element: <OrganisationalRelationshipsPage />,
+          },
+          {
+            path: 'administration/functional-roles',
+            element: <AdministrationPage />,
+          },
+        ],
       },
     ],
   },

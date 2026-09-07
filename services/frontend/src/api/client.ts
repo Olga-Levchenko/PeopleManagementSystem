@@ -16,13 +16,16 @@ class ApiClient {
       headers: {
         'Content-Type': 'application/json',
       },
+      // Required for the session cookie to be included on cross-origin BFF requests
+      // (localhost:4200 → localhost:3001). Without this, the browser strips the cookie and
+      // every authenticated BFF call returns 401.
+      withCredentials: true,
     })
 
     this.setupInterceptors()
   }
 
   private setupInterceptors() {
-    // TODO: attach authentication headers here when the project gets auth
     this.client.interceptors.request.use(
       config => config,
       error => Promise.reject(error)
@@ -30,7 +33,20 @@ class ApiClient {
 
     this.client.interceptors.response.use(
       response => response,
-      error => Promise.reject(error)
+      (error: unknown) => {
+        // Redirect to the login page on any 401 response so the user can re-authenticate.
+        // Full-page navigation clears any stale in-memory state and starts a fresh auth flow.
+        if (
+          axios.isAxiosError(error) &&
+          error.response?.status === 401 &&
+          // Avoid an infinite redirect loop if the /me check itself returns 401 (AuthContext
+          // handles that case directly without going through the axios client).
+          !error.config?.url?.includes('/auth/me')
+        ) {
+          window.location.href = '/login'
+        }
+        return Promise.reject(error)
+      }
     )
   }
 
