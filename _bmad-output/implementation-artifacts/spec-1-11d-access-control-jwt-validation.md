@@ -2,7 +2,7 @@
 title: 'Story 1.11d: Access Control JWT authentication for Administration routes'
 type: 'feature'
 created: '2026-09-04'
-status: 'in-review'
+status: 'done'
 baseline_commit: '987cb27dea072a9248f8a9f4185d7d23b33daaff'
 review_loop_iteration: 0
 context:
@@ -130,20 +130,20 @@ secrets, or JWKS responses.
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Add `Microsoft.AspNetCore.Authentication.JwtBearer` as an intentional dependency.
+- [x] Add `Microsoft.AspNetCore.Authentication.JwtBearer` as an intentional dependency.
   Its version must match the repository's .NET 8 dependency policy. Verify lock/restore impact,
   vulnerability scanning, and security review.
-- [ ] Implement validated JwtBearer options for issuer, discovery/JWKS, audience, RS256,
+- [x] Implement validated JwtBearer options for issuer, discovery/JWKS, audience, RS256,
   lifetime, required expiry, signed tokens, and five-second clock tolerance.
-- [ ] Apply authentication only to the listed Administration routes.
-- [ ] Keep health, readiness, permissions-check, bootstrap, and recovery boundaries unchanged.
-- [ ] Construct `OidcPrincipalIdentity` only from the verified `ClaimsPrincipal`.
-- [ ] Preserve the existing O4-142 missing, ambiguous, and unavailable resolution outcomes.
-- [ ] Add signed-token HTTP tests with disposable Keycloak.
-- [ ] Add negative tests proving no handler, mutation, or audit execution after authentication
+- [x] Apply authentication only to the listed Administration routes.
+- [x] Keep health, readiness, permissions-check, bootstrap, and recovery boundaries unchanged.
+- [x] Construct `OidcPrincipalIdentity` only from the verified `ClaimsPrincipal`.
+- [x] Preserve the existing O4-142 missing, ambiguous, and unavailable resolution outcomes.
+- [x] Add signed-token HTTP tests with disposable Keycloak.
+- [x] Add negative tests proving no handler, mutation, or audit execution after authentication
   failure.
-- [ ] Add package restore/build/test verification and configuration validation tests.
-- [ ] Record migration impact as none and implement reversible rollback instructions.
+- [x] Add package restore/build/test verification and configuration validation tests.
+- [x] Record migration impact as none and implement reversible rollback instructions.
 
 **Acceptance Criteria:**
 - Given a valid Keycloak-signed token, when any listed Administration route is called, then
@@ -219,5 +219,9 @@ without authentication.
 - Configuration tests — invalid production configuration fails before traffic acceptance.
 - Manual review — excluded routes retain their existing policies and no sensitive identity data
   appears in logs, ProblemDetails, responses, or audit records.
+
+**Actual result:** PR #42 merged to `main` as `268bba7`. All three CI checks passed, including
+the Release build, full test suite, EF pending-model check, lint, and disposable-Keycloak JWT
+integration coverage. No migration or shared-contract changes were introduced.
 
 </frozen-after-approval>
