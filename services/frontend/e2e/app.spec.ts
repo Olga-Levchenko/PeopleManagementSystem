@@ -1,9 +1,14 @@
 import { test, expect, type Page } from '@playwright/test'
+import { mockAuthenticatedSession } from './shared/auth-helpers'
 
 const relationshipForm = (page: Page, title: string) =>
   page.getByRole('heading', { name: title, exact: true }).locator('..')
 
 test.describe('App', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockAuthenticatedSession(page)
+  })
+
   test('should load homepage successfully', async ({ page }) => {
     await page.goto('/')
 
