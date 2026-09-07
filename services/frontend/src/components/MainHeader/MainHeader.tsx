@@ -37,7 +37,7 @@ export const MainHeader = ({ showMenuButton = false }: MainHeaderProps) => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => void signOut()}
+            onClick={signOut}
             className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
             <LogOut className="h-4 w-4" />
