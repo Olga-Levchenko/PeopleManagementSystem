@@ -43,3 +43,6 @@ if (!process.env.DATABASE_URL) {
 if (!process.env.RABBITMQ_URL) {
   process.env.RABBITMQ_URL = 'amqp://placeholder:placeholder@localhost:5672';
 }
+if (!process.env.INTERNAL_SERVICE_SECRET) {
+  process.env.INTERNAL_SERVICE_SECRET = 'e2e-placeholder-secret';
+}
