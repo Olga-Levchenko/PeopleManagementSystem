@@ -134,7 +134,11 @@ export class AuthController {
     const redirectUri = this.config.getOrThrow<string>('OIDC_CALLBACK_URL');
 
     try {
-      const tokens = await this.oidc.exchangeCode(callbackParams, redirectUri, verifier);
+      const tokens = await this.oidc.exchangeCode(
+        callbackParams,
+        redirectUri,
+        verifier,
+      );
 
       session.userId = tokens.sub;
       session.email = tokens.email;
@@ -171,14 +175,15 @@ export class AuthController {
       }
 
       // Best-effort Keycloak SSO termination -- fire-and-forget, redirect regardless.
+      const frontendUrl = this.config.getOrThrow<string>('CORS_ORIGIN');
       if (idToken) {
         void this.oidc
-          .endSession(idToken)
+          .endSession(idToken, `${frontendUrl}/login`)
           .then((endSessionUrl) => {
             if (endSessionUrl) {
               res.redirect(endSessionUrl);
             } else {
-              res.redirect('/login');
+              res.redirect(`${frontendUrl}/login`);
             }
           })
           .catch((err) => {
@@ -186,10 +191,10 @@ export class AuthController {
               'Keycloak end_session call failed (session already destroyed locally)',
               err,
             );
-            res.redirect('/login');
+            res.redirect(`${frontendUrl}/login`);
           });
       } else {
-        res.redirect('/login');
+        res.redirect(`${frontendUrl}/login`);
       }
     });
   }

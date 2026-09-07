@@ -23,6 +23,7 @@
       "implicitFlowEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": ["http://localhost:4200/*", "http://localhost:3001/*"],
+      "postLogoutRedirectUris": ["http://localhost:4200/*"],
       "webOrigins": ["http://localhost:4200"],
       "fullScopeAllowed": false,
       "defaultClientScopes": ["web-origins", "acr", "profile", "email", "basic"],

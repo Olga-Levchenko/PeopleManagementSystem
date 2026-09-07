@@ -10,7 +10,7 @@ interface AuthUser {
 interface AuthContextValue {
   user: AuthUser | null
   loading: boolean
-  signOut: () => Promise<void>
+  signOut: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -58,20 +58,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, [])
 
-  const signOut = async (): Promise<void> => {
-    try {
-      // POST to /logout; the BFF destroys the session and redirects to Keycloak end_session.
-      // We follow the redirect chain via a full-page navigation rather than axios so the browser
-      // lands on the login page after Keycloak SSO is also terminated.
-      await fetch(`${env.api.baseUrl}/api/v1/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-        redirect: 'manual',
-      })
-    } catch {
-      // Network error or redirect blocked -- fall through to redirect to /login locally.
-    }
-    window.location.href = '/login'
+  const signOut = (): void => {
+    // Use a form POST so the browser follows the full redirect chain:
+    // BFF /logout → Keycloak end_session → post_logout_redirect_uri (/login).
+    // fetch() with redirect:'manual' or redirect:'follow' cannot do this correctly across
+    // origins — fetch intercepts the redirect and the Keycloak SSO session is never terminated.
+    const form = document.createElement('form')
+    form.method = 'POST'
+    form.action = `${env.api.baseUrl}/api/v1/auth/logout`
+    document.body.appendChild(form)
+    form.submit()
   }
 
   return <AuthContext.Provider value={{ user, loading, signOut }}>{children}</AuthContext.Provider>
