@@ -5,6 +5,7 @@ using AccessControlService.Domain.Identity;
 using AccessControlService.Infrastructure.Identity;
 using AccessControlService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -44,6 +45,8 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
         Environment.SetEnvironmentVariable("RABBITMQ_PORT", "5699");
         Environment.SetEnvironmentVariable("RABBITMQ_USER", "guest");
         Environment.SetEnvironmentVariable("RABBITMQ_PASSWORD", "guest");
+        Environment.SetEnvironmentVariable("OIDC_ALLOWED_ISSUERS", TEST_ISSUER);
+        Environment.SetEnvironmentVariable("OIDC_AUDIENCE", "bff-confidential");
 
         DbContextOptions<AccessControlDbContext> options = new DbContextOptionsBuilder<AccessControlDbContext>()
             .UseNpgsql(postgresContainer.GetConnectionString())
@@ -69,11 +72,16 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
                 services.RemoveAll<ITrustedServicePrincipalAuthorizer>();
                 services.AddSingleton<ITrustedServicePrincipalAuthorizer, TestTrustedServicePrincipalAuthorizer>();
                 services.AddHttpContextAccessor();
-                services.AddSingleton<IStartupFilter, TestAuthenticationStartupFilter>();
                 services.AddAuthentication(TestAuthenticationHandler.SchemeName)
                     .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(
                         TestAuthenticationHandler.SchemeName,
                         _ => { });
+                services.AddAuthorization(options =>
+                    options.AddPolicy(
+                        "AdministrationJwt",
+                        policy => policy
+                            .AddAuthenticationSchemes(TestAuthenticationHandler.SchemeName)
+                            .RequireAuthenticatedUser()));
             });
         });
         client = factory.CreateClient();
@@ -81,11 +89,16 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
         {
             builder.ConfigureTestServices(services =>
             {
-                services.AddSingleton<IStartupFilter, TestAuthenticationStartupFilter>();
                 services.AddAuthentication(TestAuthenticationHandler.SchemeName)
                     .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(
                         TestAuthenticationHandler.SchemeName,
                         _ => { });
+                services.AddAuthorization(options =>
+                    options.AddPolicy(
+                        "AdministrationJwt",
+                        policy => policy
+                            .AddAuthenticationSchemes(TestAuthenticationHandler.SchemeName)
+                            .RequireAuthenticatedUser()));
             });
         });
     }
@@ -102,6 +115,8 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
         Environment.SetEnvironmentVariable("RABBITMQ_PORT", null);
         Environment.SetEnvironmentVariable("RABBITMQ_USER", null);
         Environment.SetEnvironmentVariable("RABBITMQ_PASSWORD", null);
+        Environment.SetEnvironmentVariable("OIDC_ALLOWED_ISSUERS", null);
+        Environment.SetEnvironmentVariable("OIDC_AUDIENCE", null);
         await postgresContainer.DisposeAsync();
     }
 
@@ -364,7 +379,7 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task RegisteredPeopleResolver_FailsClosedWhenAllowlistIsMissing()
+    public async Task RegisteredPeopleResolver_FailsClosedWhenServiceCredentialIsUnavailable()
     {
         using IServiceScope scope = registeredResolverFactory.Services.CreateScope();
         IPrincipalPersonResolver registeredResolver =
@@ -380,7 +395,7 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
         using HttpResponseMessage response = await registeredClient.SendAsync(request);
 
         Assert.IsType<PeoplePrincipalPersonResolver>(registeredResolver);
-        Assert.Empty(options.AllowedIssuers!);
+        Assert.Contains(TEST_ISSUER, options.AllowedIssuers!);
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
     }
 
@@ -650,16 +665,6 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
                     new ClaimsPrincipal(identity),
                     SchemeName)));
         }
-    }
-
-    private sealed class TestAuthenticationStartupFilter : IStartupFilter
-    {
-        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) =>
-            application =>
-            {
-                application.UseAuthentication();
-                next(application);
-            };
     }
 
     private sealed class TestPrincipalPersonResolver : IPrincipalPersonResolver

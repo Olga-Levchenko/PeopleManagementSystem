@@ -35,6 +35,49 @@ public class RealServerBindingTests
     private const int MaxPortAttempts = 3;
 
     [Fact]
+    public async Task App_WithInvalidProductionOidcConfiguration_FailsBeforeBinding()
+    {
+        string apiDllPath = Path.Combine(AppContext.BaseDirectory, "AccessControlService.Api.dll");
+        int port = GetFreeTcpPort();
+        ProcessStartInfo startInfo = new()
+        {
+            FileName = "dotnet",
+            Arguments = $"\"{apiDllPath}\"",
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            WorkingDirectory = AppContext.BaseDirectory,
+        };
+        startInfo.EnvironmentVariables["PORT"] = port.ToString();
+        startInfo.EnvironmentVariables["CORS_ORIGIN"] = "http://localhost:4200";
+        startInfo.EnvironmentVariables["ConnectionStrings__Postgres"] =
+            "Host=localhost;Port=5499;Database=access_control_service_test;Username=postgres;Password=postgres";
+        startInfo.EnvironmentVariables["RABBITMQ_HOST"] = "localhost";
+        startInfo.EnvironmentVariables["RABBITMQ_PORT"] = "5699";
+        startInfo.EnvironmentVariables["RABBITMQ_USER"] = "guest";
+        startInfo.EnvironmentVariables["RABBITMQ_PASSWORD"] = "guest";
+        startInfo.EnvironmentVariables["DOTNET_ENVIRONMENT"] = "Production";
+        startInfo.EnvironmentVariables.Remove("OIDC_ALLOWED_ISSUERS");
+        startInfo.EnvironmentVariables.Remove("OIDC_AUDIENCE");
+
+        using Process process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Could not start the Access Control process.");
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(10));
+
+        try
+        {
+            await process.WaitForExitAsync(timeout.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync();
+            Assert.Fail("The process accepted invalid production configuration instead of failing fast.");
+        }
+
+        Assert.NotEqual(0, process.ExitCode);
+    }
+
+    [Fact]
     public async Task App_StartedAsRealProcessWithConfiguredPort_IsReachableOverRealHttpSocket()
     {
         var apiDllPath = Path.Combine(AppContext.BaseDirectory, "AccessControlService.Api.dll");
@@ -69,6 +112,9 @@ public class RealServerBindingTests
             startInfo.EnvironmentVariables["RABBITMQ_PORT"] = "5699";
             startInfo.EnvironmentVariables["RABBITMQ_USER"] = "guest";
             startInfo.EnvironmentVariables["RABBITMQ_PASSWORD"] = "guest";
+            startInfo.EnvironmentVariables["OIDC_ALLOWED_ISSUERS"] =
+                "https://id.example.test/realms/people-management";
+            startInfo.EnvironmentVariables["OIDC_AUDIENCE"] = "bff-confidential";
             // '.env'-override protection for this subprocess comes from DotNetEnv.Env.NoClobber()
             // in Program.cs, not from this -- NoClobber() only skips a key that's already set in
             // the process environment (all the keys above), regardless of environment name.

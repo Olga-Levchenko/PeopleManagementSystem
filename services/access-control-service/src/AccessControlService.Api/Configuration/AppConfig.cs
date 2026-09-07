@@ -19,6 +19,8 @@ public sealed class AppConfig
     public string RabbitMqPassword { get; }
     public Uri? PeopleServiceBaseUrl { get; }
     public IReadOnlySet<string> AllowedOidcIssuers { get; }
+    public string OidcIssuer { get; }
+    public string OidcAudience { get; }
     public bool AllowInsecureOidcHttp { get; }
     /// <summary>
     /// Shared secret for S2S trust from internal callers (e.g. people-service) to
@@ -38,6 +40,8 @@ public sealed class AppConfig
         string rabbitMqPassword,
         Uri? peopleServiceBaseUrl,
         IReadOnlySet<string> allowedOidcIssuers,
+        string oidcIssuer,
+        string oidcAudience,
         bool allowInsecureOidcHttp,
         string? internalServiceSecret)
     {
@@ -50,6 +54,8 @@ public sealed class AppConfig
         RabbitMqPassword = rabbitMqPassword;
         PeopleServiceBaseUrl = peopleServiceBaseUrl;
         AllowedOidcIssuers = allowedOidcIssuers;
+        OidcIssuer = oidcIssuer;
+        OidcAudience = oidcAudience;
         AllowInsecureOidcHttp = allowInsecureOidcHttp;
         InternalServiceSecret = internalServiceSecret;
     }
@@ -82,9 +88,10 @@ public sealed class AppConfig
             "PEOPLE_SERVICE_BASE_URL");
         bool allowInsecureOidcHttp =
             environmentName is "Development" or "Test" or "Local";
-        IReadOnlySet<string> allowedOidcIssuers = ReadAllowedOidcIssuers(
+        (string oidcIssuer, IReadOnlySet<string> allowedOidcIssuers) = ReadOidcIssuer(
             configuration,
             allowInsecureOidcHttp);
+        string oidcAudience = RequireOidcAudience(configuration);
         string? internalServiceSecret = OptionalNonBlank(
             configuration,
             "INTERNAL_SERVICE_SECRET");
@@ -102,6 +109,8 @@ public sealed class AppConfig
             rabbitMqPassword,
             peopleServiceBaseUrl,
             allowedOidcIssuers,
+            oidcIssuer,
+            oidcAudience,
             allowInsecureOidcHttp,
             internalServiceSecret);
     }
@@ -166,32 +175,44 @@ public sealed class AppConfig
         return uri;
     }
 
-    private static IReadOnlySet<string> ReadAllowedOidcIssuers(
+    private static (string Issuer, IReadOnlySet<string> Issuers) ReadOidcIssuer(
         IConfiguration configuration,
         bool allowInsecureHttp)
     {
-        string? configuredIssuers = configuration["OIDC_ALLOWED_ISSUERS"];
-        HashSet<string> issuers = new(StringComparer.Ordinal);
-        if (string.IsNullOrWhiteSpace(configuredIssuers))
+        string configuredIssuers = RequireNonBlank(configuration, "OIDC_ALLOWED_ISSUERS");
+        string[] configuredValues = configuredIssuers.Split(',');
+        if (configuredValues.Length != 1 ||
+            string.IsNullOrWhiteSpace(configuredValues[0]) ||
+            !OidcPrincipalIdentity.TryCreate(
+                configuredValues[0].Trim(),
+                "configuration-subject",
+                allowInsecureHttp,
+                out OidcPrincipalIdentity? identity) ||
+            identity is null)
         {
-            return issuers;
+            throw new InvalidOperationException(
+                "Configuration value 'OIDC_ALLOWED_ISSUERS' must contain exactly one valid canonical issuer.");
         }
 
-        foreach (string configuredIssuer in configuredIssuers.Split(','))
+        if (!string.Equals(configuredValues[0].Trim(), identity.Issuer, StringComparison.Ordinal))
         {
-            if (!OidcPrincipalIdentity.TryCreate(
-                    configuredIssuer,
-                    "configuration-subject",
-                    allowInsecureHttp,
-                    out OidcPrincipalIdentity? identity) ||
-                identity is null)
-            {
-                return new HashSet<string>(StringComparer.Ordinal);
-            }
-
-            issuers.Add(identity.Issuer);
+            throw new InvalidOperationException(
+                "Configuration value 'OIDC_ALLOWED_ISSUERS' must use its canonical issuer form.");
         }
 
-        return issuers;
+        return (identity.Issuer, new HashSet<string>([identity.Issuer], StringComparer.Ordinal));
+    }
+
+    private static string RequireOidcAudience(IConfiguration configuration)
+    {
+        const string EXPECTED_AUDIENCE = "bff-confidential";
+        string audience = RequireNonBlank(configuration, "OIDC_AUDIENCE");
+        if (!string.Equals(audience, EXPECTED_AUDIENCE, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Configuration value 'OIDC_AUDIENCE' must be '{EXPECTED_AUDIENCE}'.");
+        }
+
+        return audience;
     }
 }
