@@ -603,6 +603,21 @@
   summary: "Enforce Story 1.6 AC3 (reject manager/PP/department changes via a normal S1 write) once a general S1 profile-write endpoint exists" is COVERED — the rejection requirement is Story 1.6's own AC3; the missing write endpoint it must be enforced against is Story 2.2's ("Inline editing writes through to the profile, subject to access") already-defined scope. Both halves have a story-level home; neither is an orphan.
   evidence: `epics.md`, Story 1.6 AC3 and Story 2.2's title/scope, both read verbatim.
 
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-7-s7-management-notes-flag-gating.md`
+  summary: Add a thin BFF proxy module for `management-notes` (GET/POST/PATCH forwarding to `work-management-service`, mirroring the existing `organisational-relationships` proxy pattern byte-for-byte).
+  evidence: Split from Story 1.7's spec at bmad-build's token-count checkpoint (spec exceeded the 1600-token target at ~2,200-2,500 tokens). None of Story 1.7's 6 acceptance criteria require going through the BFF — all are verifiable directly against `work-management-service`'s own API — matching the exact precedent already set by Story 1.5, which explicitly deferred its own BFF grant/revoke endpoints for the identical reason ("all ACs are verified against access-control-service directly").
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-7-s7-management-notes-flag-gating.md`
+  summary: "`ManagerSectionAccessPolicy.Resolve()`'s S7 cell still doesn't reflect PM narrowing (a PM-only Project-line viewer should be read-only/flagged-notes-only on S7, matching `work-management-service`'s own `management-notes.service.ts` access split, not the policy's current always-`ReadWrite` value)."
+  evidence: Deliberately out of scope for this story per its own Boundaries ("Never" list) — `people-service`'s `ProfileResponse`/`resolveAudience` has no `s7` field at all today (confirmed by reading `profile.ports.ts`/`profile.service.ts` in full), so nothing consumes `managerSectionAccess.s7` yet; leaving it stale is zero-blast-radius today, not a leak. Revisit once `people-service` actually assembles S7 into a profile response.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-7-s7-management-notes-flag-gating.md`
+  summary: `GET /management-notes` has no pagination or result limit — a long-tenured employee's full management-note history is returned in one unbounded response.
+  evidence: Surfaced by Story 1.7's own code review (blind-hunter pass). Not one of the story's 6 ACs and not unique to this endpoint — matches the general, not-yet-addressed pagination gap across this codebase's list endpoints, more naturally solved as a cross-cutting pass (e.g. alongside Epic 2's "Universal filter/column engine over profile fields") than as a one-off fix here.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-7-s7-management-notes-flag-gating.md`
+  summary: O4-90's `ResolveBatchAsync` (added on `main` in parallel with Story 1.7) still computes Project-line via the old two-step `GetProjectIdsManagedAsDmOrPmAsync` path and does not surface `ProjectRoles` — it was not updated to use Story 1.7's new single-intersection `GetProjectRolesAsync` resolution or to distinguish PM from DM.
+  evidence: Discovered while syncing Story 1.7's branch with `main` post-review. `AccessRoleResolver.ResolveBatchAsync` and `AccessRoleResolver.ResolveAsync`/`ResolveProjectQualificationAsync` now use two different mechanisms to answer the same Project-line question — a real, if narrow, divergence for whoever next touches batch resolution or PM/DM-aware bulk views.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-13-persistent-session-store-and-oidc-e2e.md`
   summary: When a Keycloak back-channel logout token contains a `sid` claim, destroy only that specific session rather than all sessions for that `sub` (per OIDC Back-Channel Logout 1.0 spec).

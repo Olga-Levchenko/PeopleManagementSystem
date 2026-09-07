@@ -1,8 +1,20 @@
 import { Module } from '@nestjs/common';
+import { HttpAccessRoleResolutionAdapter } from './access-control-client';
+import { ManagementNotesController } from './management-notes.controller';
+import { ManagementNotesService } from './management-notes.service';
 
-// Structural scaffold only (O4-89) — no controller/service yet. Flag-gating
-// behavior, defaults enforcement, and the PM-vs-DM read/write split are
-// Story 1.7's own spec (bmad-build), pending the projectRoles field decided
-// in ADR-003's 2026-09-02 addendum.
-@Module({})
+// S7 management notes (Story 1.7): flag-gated CRUD, with the caller's access role resolved via
+// access-control-service (never re-derived locally) -- see this module's own service for the
+// UM/DM/PP-vs-PM-vs-self access split.
+@Module({
+  controllers: [ManagementNotesController],
+  providers: [
+    ManagementNotesService,
+    HttpAccessRoleResolutionAdapter,
+    {
+      provide: 'AccessRoleResolutionPort',
+      useExisting: HttpAccessRoleResolutionAdapter,
+    },
+  ],
+})
 export class ManagementNotesModule {}

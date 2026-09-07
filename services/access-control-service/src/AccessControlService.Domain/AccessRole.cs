@@ -45,6 +45,20 @@ public sealed record AccessRole
     public bool ProjectLine { get; init; }
 
     /// <summary>
+    /// The project-scoped roles (<see cref="Domain.ProjectRole.ProjectManager"/>/
+    /// <see cref="Domain.ProjectRole.DeliveryManager"/>) the viewer holds on a project the subject
+    /// is also assigned to -- resolved alongside <see cref="ProjectLine"/> (spec-1-7), non-empty
+    /// only when <see cref="ProjectLine"/> is <c>true</c> (empty whenever it's <c>false</c>, and
+    /// always empty for self-view, same as every other relationship-derived flag on this record).
+    /// Lets a caller distinguish a PM-only viewer (read-only, flagged-notes-only S7 access) from a
+    /// DM (full RW), which <see cref="ProjectLine"/> alone cannot -- see
+    /// <c>work-management-service</c>'s <c>management-notes.service.ts</c> for the consumer.
+    /// A person can hold both roles at once (on different projects the same subject is assigned
+    /// to), so this is a collection, not a single value.
+    /// </summary>
+    public IReadOnlyCollection<ProjectRole> ProjectRoles { get; init; } = Array.Empty<ProjectRole>();
+
+    /// <summary>
     /// True when the viewer qualifies for People-Partner-line access toward the subject: the
     /// viewer is the subject's assigned people partner, or is transitively above that PP in the
     /// PP's own reports-to chain (the "HR line" -- the PP's manager chain, never the subject's own
