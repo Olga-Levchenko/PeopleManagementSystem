@@ -91,7 +91,23 @@ export class AuthController {
       throw new BadRequestException('Missing state or code in callback query.');
     }
 
-    if (!session.oidcState || session.oidcState !== state) {
+    // A callback replay (e.g. browser Back button after successful login) arrives with the
+    // same URL but the session's oidcState was already cleared by the first exchange. If the
+    // session is already authenticated just redirect to the frontend -- the original exchange
+    // succeeded and no second code-exchange is needed. Only throw on a genuine state mismatch
+    // (oidcState set but doesn't match -- real CSRF signal).
+    if (!session.oidcState) {
+      const frontendUrl = this.config.getOrThrow<string>('CORS_ORIGIN');
+      if (session.userId) {
+        res.redirect(frontendUrl);
+        return;
+      }
+      throw new BadRequestException(
+        'State mismatch — possible CSRF; request rejected.',
+      );
+    }
+
+    if (session.oidcState !== state) {
       throw new BadRequestException(
         'State mismatch — possible CSRF; request rejected.',
       );
