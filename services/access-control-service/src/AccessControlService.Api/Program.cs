@@ -1,4 +1,5 @@
 using AccessControlService.Api;
+using AccessControlService.Api.Authorization;
 using AccessControlService.Api.Configuration;
 using AccessControlService.Api.ErrorHandling;
 using AccessControlService.Api.Health;
@@ -10,7 +11,11 @@ using AccessControlService.Infrastructure.Identity;
 using AccessControlService.Infrastructure.Permissions;
 using AccessControlService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -40,6 +45,65 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHttpContextAccessor();
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = appConfig.OidcIssuer;
+        options.MetadataAddress =
+            $"{appConfig.OidcIssuer}/.well-known/openid-configuration";
+        options.RequireHttpsMetadata = !appConfig.AllowInsecureOidcHttp;
+        options.ConfigurationManager = new ConfigurationManager<OpenIdConnectConfiguration>(
+            options.MetadataAddress,
+            new OpenIdConnectConfigurationRetriever(),
+            new HttpDocumentRetriever
+            {
+                RequireHttps = options.RequireHttpsMetadata,
+            });
+        options.Audience = appConfig.OidcAudience;
+        options.SaveToken = false;
+        options.MapInboundClaims = false;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = appConfig.OidcIssuer,
+            ValidateAudience = true,
+            ValidAudience = appConfig.OidcAudience,
+            ValidateLifetime = true,
+            RequireExpirationTime = true,
+            RequireSignedTokens = true,
+            ValidateIssuerSigningKey = true,
+            ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
+            ClockSkew = TimeSpan.FromSeconds(5),
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnAuthenticationFailed = context =>
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                context.Fail("Authentication failed.");
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = context =>
+            {
+                string? subject = context.Principal?.FindFirst("sub")?.Value;
+                if (string.IsNullOrWhiteSpace(subject))
+                {
+                    context.Fail("The verified token does not contain a usable subject.");
+                }
+
+                return Task.CompletedTask;
+            },
+        };
+    });
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(
+        "AdministrationJwt",
+        policy => policy
+            .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+            .RequireAuthenticatedUser());
+});
 
 builder.Services.AddCors(options =>
 {
@@ -85,7 +149,7 @@ builder.Services.AddScoped<
     UnavailableDeploymentRecoveryAuthorizer>();
 builder.Services.AddScoped<
     ITrustedServicePrincipalAuthorizer,
-    UnavailableTrustedServicePrincipalAuthorizer>();
+    HeaderBasedTrustedServicePrincipalAuthorizer>();
 
 // spec-1-1d: the pure, transport-agnostic project-assignment event processor. Scoped because its
 // DbContext dependency is scoped -- spec-1-1e's consumer below creates one DI scope per message
@@ -125,6 +189,8 @@ app.UseCors();
 
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<SafeExceptionHandlingMiddleware>();
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 

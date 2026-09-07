@@ -66,6 +66,9 @@ export class OrganisationalRelationshipsService {
     const headers: Record<string, string> = {
       'content-type': 'application/json',
     };
+    // Prefer an explicit incoming Authorization header (service-to-service bearer-token callers)
+    // over the session-derived token. The controller passes req.headers.authorization when present,
+    // and the session token otherwise -- see AuthController/JwtAuthGuard for why both paths exist.
     if (authorization) {
       headers.authorization = authorization;
     }

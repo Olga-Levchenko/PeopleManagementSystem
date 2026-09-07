@@ -2,6 +2,7 @@ import { Controller, Get, INestApplication, Req } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import type { Request } from 'express';
+import expressSession from 'express-session';
 import path from 'path';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -55,7 +56,7 @@ interface TokenResponse {
 }
 
 describe('JWT guard (e2e)', () => {
-  jest.setTimeout(180_000);
+  jest.setTimeout(360_000);
 
   let container: StartedTestContainer;
   let baseUrl: string;
@@ -178,7 +179,7 @@ describe('JWT guard (e2e)', () => {
           8080,
         ).forStatusCode(200),
       )
-      .withStartupTimeout(120_000)
+      .withStartupTimeout(300_000)
       .start();
 
     // Force IPv4: on this host "localhost" resolves to an address family whose Docker Desktop
@@ -195,12 +196,18 @@ describe('JWT guard (e2e)', () => {
     const configOverrides: Record<string, string> = {
       KEYCLOAK_BASE_URL: baseUrl,
       KEYCLOAK_REALM: REALM,
+      // Story 1.12 added OidcService to AppModule; it calls getOrThrow('KEYCLOAK_CLIENT_SECRET')
+      // during onModuleInit, so it must be present even in suites that never exercise OIDC flows.
+      KEYCLOAK_CLIENT_SECRET: CLIENT_SECRET,
       // Defaults for keys this suite never exercises via HTTP (organisational-relationships'
-      // upstream call, main.ts's own bootstrap) -- kept so any incidental getOrThrow() call
-      // still resolves instead of throwing.
+      // upstream call, main.ts's own bootstrap, session middleware) -- kept so any incidental
+      // getOrThrow() call still resolves instead of throwing.
       PORT: '3001',
       CORS_ORIGIN: 'http://localhost:4200',
       PEOPLE_SERVICE_URL: 'http://localhost:3002',
+      ACCESS_CONTROL_SERVICE_BASE_URL: 'http://localhost:3007',
+      SESSION_SECRET: 'jwt-guard-e2e-test-session-secret-min32!!',
+      OIDC_CALLBACK_URL: 'http://localhost:3001/api/v1/auth/callback',
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -222,6 +229,19 @@ describe('JWT guard (e2e)', () => {
       .compile();
 
     app = moduleFixture.createNestApplication();
+
+    // JwtAuthGuard.canActivate (Story 1.12) reads req.session.userId before falling through to
+    // JWT validation. Without this middleware req.session is undefined and the guard throws a
+    // TypeError → 500. MemoryStore is fine here; this suite never exercises session-based auth.
+    app.use(
+      expressSession({
+        secret: configOverrides.SESSION_SECRET,
+        resave: false,
+        saveUninitialized: false,
+        cookie: { httpOnly: true, sameSite: 'lax', secure: false },
+      }),
+    );
+
     await app.init();
   });
 

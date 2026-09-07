@@ -46,6 +46,8 @@ public class HealthEndpointTests : IClassFixture<WebApplicationFactory<Program>>
         Environment.SetEnvironmentVariable("RABBITMQ_PORT", "5699");
         Environment.SetEnvironmentVariable("RABBITMQ_USER", "guest");
         Environment.SetEnvironmentVariable("RABBITMQ_PASSWORD", "guest");
+        Environment.SetEnvironmentVariable("OIDC_ALLOWED_ISSUERS", "https://id.example.test/realms/people-management");
+        Environment.SetEnvironmentVariable("OIDC_AUDIENCE", "bff-confidential");
 
         _client = factory.CreateClient();
     }
@@ -63,6 +65,8 @@ public class HealthEndpointTests : IClassFixture<WebApplicationFactory<Program>>
         Environment.SetEnvironmentVariable("RABBITMQ_PORT", null);
         Environment.SetEnvironmentVariable("RABBITMQ_USER", null);
         Environment.SetEnvironmentVariable("RABBITMQ_PASSWORD", null);
+        Environment.SetEnvironmentVariable("OIDC_ALLOWED_ISSUERS", null);
+        Environment.SetEnvironmentVariable("OIDC_AUDIENCE", null);
     }
 
     [Fact]

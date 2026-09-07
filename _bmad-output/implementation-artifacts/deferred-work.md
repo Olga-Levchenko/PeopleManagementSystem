@@ -118,6 +118,26 @@
   summary: Share one Testcontainers Postgres instance across `ProjectAssignmentEventProcessorTests`' test methods too (same fix already deferred for `EfRelationshipRepositoryTests`), instead of starting a fresh container per `[Fact]`.
   evidence: Review found the same per-test `IAsyncLifetime` pattern (no shared fixture) now repeated in this new test file — six more fresh containers per run, compounding the existing deferred item's cost as more test files adopt the same pattern.
 
+- source_spec: `_bmad-output/implementation-artifacts/spec-o4-90-batch-access-role-resolution-endpoint.md`
+  summary: Audit whether a FK constraint exists from `people.manages_department_id` → `departments.id`; if not, add it — without it `GetManagedDepartmentSubtreeIdsAsync`'s CTE can seed from a phantom department id and grant reporting-line access to subjects whose DepartmentId happens to match that nonexistent id.
+  evidence: Review found the CTE seeds from `managedDeptId.Value` cast literally, not from a departments-table join; if no FK prevents a stale/nonexistent ManagesDepartmentId, a subject in a phantom department would incorrectly qualify for reporting-line. FK presence not verified from the diff alone.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-o4-90-batch-access-role-resolution-endpoint.md`
+  summary: Reconcile `FakeRelationshipRepository.GetTransitiveReporteeIdsAsync`'s depth semantics with the real Postgres CTE — the fake bounds total nodes dequeued to 100 while the CTE bounds edge depth to 100, so the two disagree at exactly the 100-node boundary.
+  evidence: Review found `hopCount` increments once per node dequeued (node-count semantics), while the CTE's `depth < 100` column bounds edge depth (level semantics). At exactly 100 nodes in a chain, the fake may include or exclude the boundary node differently than the real query; no test covers the 100-node boundary.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-o4-90-batch-access-role-resolution-endpoint.md`
+  summary: Introduce a shared Testcontainers fixture for `AccessRoleResolverCompositionTests`' batch tests — the current pattern reassigns `_factory` per test method without disposing the old instance, creating potential container leaks.
+  evidence: Review found batch composition tests do `_factory = new WebApplicationFactory<Program>()` at the top of each test body, inheriting the pre-existing pattern in the class; each reassignment may leave the old factory (and its Postgres container) undisposed until GC. Pre-existing issue in the test class, now compounded by 9 new batch tests.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-o4-90-batch-access-role-resolution-endpoint.md`
+  summary: Add typed error-response DTOs and `[ProducesResponseType(typeof(ErrorResponse), 400)]` annotations to the `POST /api/v1/access-roles/resolve-batch` action for the duplicate/size-exceeded 400 paths.
+  evidence: Review found the batch endpoint returns `new { error = "..." }` (anonymous object) for 400 cases with no typed DTO, `[ProducesResponseType]` attribute, or Swagger schema — inconsistent with the rest of the controller's documented surface and prevents consumers from strongly-typing error handling.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-o4-90-batch-access-role-resolution-endpoint.md`
+  summary: Short-circuit `GetProjectIdsManagedAsDmOrPmAsync` when all requested subjects have already been resolved via reporting-line (or when the subject list is empty after self-elevation removal), to avoid the unconditional 5th round-trip for viewers who manage no projects.
+  evidence: Review found `ResolveBatchAsync` always calls `GetProjectIdsManagedAsDmOrPmAsync` regardless of whether any subjects remain unresolved, adding a round-trip even when the viewer manages no projects. Minor perf concern; acceptable for current scale but becomes more visible at high concurrency.
+
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1d-project-assignment-event-consumer.md`
   summary: Decide correct behavior when the same `AggregateId` sends a valid, non-stale event for a *different* `(ProjectId, PersonId)` pair than the one its watermark currently records as owned (no intervening revoke) — currently the old pair's `ProjectAssignment` row is never cleaned up and the watermark silently reassigns to the new pair, which could later let a different aggregate "legitimately" claim the orphaned old pair without tripping the conflict check.
   evidence: Second review pass on `spec-1-1d` found this scenario untested and unhandled; resolving it depends on the still-open question of what `AggregateId` really represents under a real producer's semantics (can one relationship's identity legitimately migrate to a different project/person, or does that indicate a producer bug that should be rejected instead) — the same open question already deferred for the cross-aggregate-conflict design generally, so resolving this now would be guessing ahead of `spec-1-1e`'s real producer.
@@ -595,3 +615,18 @@
   summary: `GET /management-notes` has no pagination or result limit — a long-tenured employee's full management-note history is returned in one unbounded response.
   evidence: Surfaced by Story 1.7's own code review (blind-hunter pass). Not one of the story's 6 ACs and not unique to this endpoint — matches the general, not-yet-addressed pagination gap across this codebase's list endpoints, more naturally solved as a cross-cutting pass (e.g. alongside Epic 2's "Universal filter/column engine over profile fields") than as a one-off fix here.
 
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-7-s7-management-notes-flag-gating.md`
+  summary: O4-90's `ResolveBatchAsync` (added on `main` in parallel with Story 1.7) still computes Project-line via the old two-step `GetProjectIdsManagedAsDmOrPmAsync` path and does not surface `ProjectRoles` — it was not updated to use Story 1.7's new single-intersection `GetProjectRolesAsync` resolution or to distinguish PM from DM.
+  evidence: Discovered while syncing Story 1.7's branch with `main` post-review. `AccessRoleResolver.ResolveBatchAsync` and `AccessRoleResolver.ResolveAsync`/`ResolveProjectQualificationAsync` now use two different mechanisms to answer the same Project-line question — a real, if narrow, divergence for whoever next touches batch resolution or PM/DM-aware bulk views.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-13-persistent-session-store-and-oidc-e2e.md`
+  summary: When a Keycloak back-channel logout token contains a `sid` claim, destroy only that specific session rather than all sessions for that `sub` (per OIDC Back-Channel Logout 1.0 spec).
+  evidence: The current implementation in `auth.controller.ts` always destroys all sessions matching `sub`, which is over-eager when `sid` is present (i.e. Keycloak wants to end one device's session, not all). Confirmed by edge-case review of Story 1.13 diff. Low blast-radius to add: after `matchingSids` is assembled, filter by `sessions[sid]?.sid === parsedToken.sid` when `parsedToken.sid` is defined.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-13-persistent-session-store-and-oidc-e2e.md`
+  summary: Add an e2e test for the back-channel logout happy path — login, then post a real Keycloak-signed logout_token to /backchannel-logout, then verify the session cookie returns 401.
+  evidence: All three back-channel logout e2e scenarios in `test/oidc-session.e2e-spec.ts` send invalid/unverifiable tokens (400 paths). No test exercises the session-destruction code path with a real Keycloak-signed RS256 logout_token; a regression there would be undetected by e2e. Implementation would use the Keycloak Admin API (already demonstrated in `jwt-guard.e2e-spec.ts`) to revoke a session and obtain a logout_token.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-13-persistent-session-store-and-oidc-e2e.md`
+  summary: Add a note to BFF's deployment documentation that `createTableIfMissing: true` (connect-pg-simple) requires DDL privileges; if the production DB user has no CREATE TABLE rights, provide a manual SQL migration instead.
+  evidence: `createTableIfMissing: true` will fail on startup in environments with a least-privilege DB user. No documentation currently warns about this; identified in Story 1.13 code review.

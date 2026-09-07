@@ -68,6 +68,36 @@ There is deliberately no `prisma/` or `src/prisma/` here — this service does n
   silently derives a wrong issuer/JWKS URI, and every real token then fails validation with a
   generic JWKS-fetch/401 failure that looks like a Keycloak outage, not a config typo
 
+## Session-based authentication (Story 1.12)
+
+`modules/auth/` now owns two authentication paths, both protected by `JwtAuthGuard`:
+
+1. **Session path (browser)** — BFF-initiated PKCE authorization-code flow via `openid-client@^5`.
+   `AuthController` provides five endpoints (`/login`, `/callback`, `/logout`,
+   `/backchannel-logout`, `/me`). Tokens are stored in an `express-session` session (server-side)
+   and **never sent to the browser** in a response body, URL, or fragment. The session cookie is
+   `HttpOnly`, `SameSite: Lax`, `Secure: true` in non-development environments.
+
+2. **Bearer-token path (service-to-service)** — existing `JwtStrategy` (`passport-jwt`, validated
+   against Keycloak JWKS) is unchanged and falls through from the session-check in `JwtAuthGuard`.
+
+`JwtAuthGuard.canActivate` now runs: (1) `@Public()` opt-out check, (2) session check with
+proactive access-token refresh (within 30 s of expiry), (3) bearer-token fallback.
+
+**In-memory session store limitation:** The default `MemoryStore` leaks memory on long-running
+processes and resets sessions on BFF restart. It is acceptable for local dev only. Any
+multi-process or production deployment **must** replace it with `connect-redis` or
+`connect-pg-simple`. This is a tracked follow-up — see `deferred-work.md`.
+
+**Back-channel logout limitation:** With `MemoryStore`, a Keycloak back-channel logout request
+is validated (JWT signature/claims) and logged, but no BFF session is destroyed because
+`MemoryStore` has no index on `userId`/`sid`. Production back-channel logout requires a
+persistent store with a userId/sid lookup. See `AuthController.backchannelLogout`.
+
+**Forwarding modules:** `OrganisationalRelationshipsController` (and any future forwarding module)
+resolves the outbound `Authorization` header as: (1) incoming bearer token if present; (2)
+`Bearer ${session.accessToken}` from the BFF session if the caller is a browser session user.
+
 ## Gotchas
 
 - **Node 22 only**

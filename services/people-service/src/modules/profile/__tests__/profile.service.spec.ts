@@ -661,7 +661,7 @@ describe('ProfileService', () => {
       fullProfileAccessLine: true,
       managerSectionAccess: {
         s1: { level: 'ReadWrite' },
-        s2: { level: 'None' },   // narrowed Project-line would deny S2
+        s2: { level: 'None' }, // narrowed Project-line would deny S2
         s10: { level: 'Read' },
         s11: { level: 'Read' },
         s16: { level: 'ReadWrite' },
@@ -737,8 +737,16 @@ describe('ProfileService', () => {
     const result = await service.getProfile(VIEWER_ID, VIEWER_ID);
 
     // FPA path: all sections present and S16 includes management-level field
-    expect(Object.keys(result).sort()).toEqual(['s1', 's10', 's11', 's16', 's2']);
-    const s16FieldIds = (result.s16 as Array<{ fieldId: string }>).map((f) => f.fieldId);
+    expect(Object.keys(result).sort()).toEqual([
+      's1',
+      's10',
+      's11',
+      's16',
+      's2',
+    ]);
+    const s16FieldIds = (result.s16 as Array<{ fieldId: string }>).map(
+      (f) => f.fieldId,
+    );
     expect(s16FieldIds).toContain(MGMT_FIELD_ID);
     // Resolver was called with the same ID for both viewer and subject
     expect(resolve).toHaveBeenCalledWith(VIEWER_ID, VIEWER_ID);
@@ -760,8 +768,16 @@ describe('ProfileService', () => {
     const result = await service.getProfile(VIEWER_ID, VIEWER_ID);
 
     // Self-view path: S16 absent management field
-    expect(Object.keys(result).sort()).toEqual(['s1', 's10', 's11', 's16', 's2']);
-    const s16FieldIds = (result.s16 as Array<{ fieldId: string }>).map((f) => f.fieldId);
+    expect(Object.keys(result).sort()).toEqual([
+      's1',
+      's10',
+      's11',
+      's16',
+      's2',
+    ]);
+    const s16FieldIds = (result.s16 as Array<{ fieldId: string }>).map(
+      (f) => f.fieldId,
+    );
     expect(s16FieldIds).not.toContain(MGMT_FIELD_ID);
     expect(s16FieldIds).toContain(EMPLOYEE_FIELD_ID);
   });

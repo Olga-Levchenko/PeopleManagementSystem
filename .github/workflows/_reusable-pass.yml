@@ -1,0 +1,11 @@
+name: Reusable pass-through check
+
+on:
+  workflow_call:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Nothing to build or test
+        run: echo "No service files changed — required check passes."

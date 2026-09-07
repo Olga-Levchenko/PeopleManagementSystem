@@ -81,6 +81,53 @@
       "unknown": "The change could not be completed."
     }
   },
+  "customFields": {
+    "title": "Custom field definitions",
+    "description": "Define custom fields that appear on employee profiles. Only HR Admins can create, edit, or deactivate definitions.",
+    "loading": "Loading custom field definitions...",
+    "active": "Active",
+    "inactive": "Inactive",
+    "create": {
+      "title": "Create custom field definition"
+    },
+    "fields": {
+      "name": "Field name",
+      "dataType": "Data type",
+      "chooseDataType": "Choose a data type",
+      "visibility": "Visibility",
+      "chooseVisibility": "Choose visibility"
+    },
+    "dataTypes": {
+      "TEXT": "Text",
+      "NUMBER": "Number",
+      "DATE": "Date",
+      "BOOLEAN": "Boolean"
+    },
+    "visibilities": {
+      "MANAGEMENT": "Management only",
+      "EMPLOYEE": "Employee and above",
+      "COLLEAGUE": "All colleagues"
+    },
+    "actions": {
+      "create": "Create definition",
+      "edit": "Edit",
+      "save": "Save changes",
+      "cancel": "Cancel",
+      "deactivate": "Deactivate"
+    },
+    "confirm": {
+      "deactivate": "Deactivate this custom field definition?"
+    },
+    "errors": {
+      "validation": "Check the entered values and try again.",
+      "unauthorized": "Your session is not authorized. Please sign in again.",
+      "permission": "You do not have permission to manage custom field definitions.",
+      "missing": "The requested definition was not found.",
+      "conflict": "A custom field with this name already exists.",
+      "unavailable": "The service is temporarily unavailable. Try again later.",
+      "unknown": "The change could not be completed."
+    }
+  },
   "relationships": {
     "title": "Organisational relationships",
     "description": "Use the dedicated relationship operation for manager, People Partner, department, and department-manager changes.",

@@ -21,4 +21,17 @@ export const envValidationSchema = Joi.object({
   KEYCLOAK_REALM: Joi.string()
     .pattern(/^[A-Za-z0-9_-]+$/)
     .required(),
+  // Secret for confidential OIDC client -- used in PKCE code-exchange and back-channel logout
+  // validation. No default: a missing secret must fail fast, not silently use an empty string.
+  KEYCLOAK_CLIENT_SECRET: Joi.string().required(),
+  // Secret for express-session cookie signing. Min 32 chars enforced to prevent trivially weak
+  // secrets slipping into production.
+  SESSION_SECRET: Joi.string().min(32).required(),
+  // The full callback URL Keycloak redirects the browser back to after authorization. Must exactly
+  // match one of the `redirectUris` registered on the `bff-confidential` client in realm-export.json.
+  OIDC_CALLBACK_URL: Joi.string().uri().required(),
+  // Optional PostgreSQL connection string for the persistent session store (connect-pg-simple).
+  // When absent the BFF falls back to MemoryStore with a startup warning -- acceptable for
+  // zero-infra local dev, not for production. See main.ts for the conditional store initialization.
+  DATABASE_URL: Joi.string().uri().optional(),
 });

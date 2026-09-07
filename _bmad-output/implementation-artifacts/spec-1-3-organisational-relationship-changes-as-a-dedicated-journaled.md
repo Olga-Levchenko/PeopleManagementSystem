@@ -2,7 +2,7 @@
 title: 'Story 1-3: Organisational relationship changes as a dedicated journaled operation'
 type: 'feature'
 created: '2026-08-31'
-status: 'in-progress'
+status: 'done'
 review_loop_iteration: 0
 baseline_commit: '3e82fee409f90d4d3dd12d96cf1ec57b2950b77f'
 context:

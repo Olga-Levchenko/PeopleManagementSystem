@@ -115,6 +115,8 @@ public sealed class ProjectAssignmentEventConsumerCompositionTests : IAsyncLifet
         Environment.SetEnvironmentVariable("RABBITMQ_PORT", _connectionOptions.Port.ToString());
         Environment.SetEnvironmentVariable("RABBITMQ_USER", _connectionOptions.UserName);
         Environment.SetEnvironmentVariable("RABBITMQ_PASSWORD", _connectionOptions.Password);
+        Environment.SetEnvironmentVariable("OIDC_ALLOWED_ISSUERS", "https://id.example.test/realms/people-management");
+        Environment.SetEnvironmentVariable("OIDC_AUDIENCE", "bff-confidential");
     }
 
     public async Task DisposeAsync()
@@ -131,6 +133,8 @@ public sealed class ProjectAssignmentEventConsumerCompositionTests : IAsyncLifet
         Environment.SetEnvironmentVariable("RABBITMQ_PORT", null);
         Environment.SetEnvironmentVariable("RABBITMQ_USER", null);
         Environment.SetEnvironmentVariable("RABBITMQ_PASSWORD", null);
+        Environment.SetEnvironmentVariable("OIDC_ALLOWED_ISSUERS", null);
+        Environment.SetEnvironmentVariable("OIDC_AUDIENCE", null);
 
         await Task.WhenAll(_postgresContainer.DisposeAsync().AsTask(), _rabbitMqContainer.DisposeAsync().AsTask());
     }

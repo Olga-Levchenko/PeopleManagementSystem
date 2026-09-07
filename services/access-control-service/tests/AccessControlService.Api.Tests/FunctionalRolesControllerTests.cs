@@ -19,6 +19,8 @@ public sealed class FunctionalRolesControllerTests : IClassFixture<WebApplicatio
         Environment.SetEnvironmentVariable("RABBITMQ_PORT", "5699");
         Environment.SetEnvironmentVariable("RABBITMQ_USER", "guest");
         Environment.SetEnvironmentVariable("RABBITMQ_PASSWORD", "guest");
+        Environment.SetEnvironmentVariable("OIDC_ALLOWED_ISSUERS", "https://id.example.test/realms/people-management");
+        Environment.SetEnvironmentVariable("OIDC_AUDIENCE", "bff-confidential");
         client = factory.CreateClient();
     }
 
@@ -31,6 +33,8 @@ public sealed class FunctionalRolesControllerTests : IClassFixture<WebApplicatio
         Environment.SetEnvironmentVariable("RABBITMQ_PORT", null);
         Environment.SetEnvironmentVariable("RABBITMQ_USER", null);
         Environment.SetEnvironmentVariable("RABBITMQ_PASSWORD", null);
+        Environment.SetEnvironmentVariable("OIDC_ALLOWED_ISSUERS", null);
+        Environment.SetEnvironmentVariable("OIDC_AUDIENCE", null);
         client.Dispose();
     }
 
@@ -87,6 +91,6 @@ public sealed class FunctionalRolesControllerTests : IClassFixture<WebApplicatio
 
         using HttpResponseMessage response = await client.SendAsync(request);
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 }

@@ -1,9 +1,26 @@
 import { test, expect, type Page } from '@playwright/test'
+import { mockAuthenticatedSession } from './shared/auth-helpers'
 
 const relationshipForm = (page: Page, title: string) =>
   page.getByRole('heading', { name: title, exact: true }).locator('..')
 
 test.describe('App', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockAuthenticatedSession(page)
+    // Default: the custom-field-definitions section loads without error so it never
+    // adds a stale `role="alert"` that would invalidate alert-count assertions in
+    // tests that only exercise the functional-roles section.  Tests that specifically
+    // test custom-field-definitions behaviour register their own route that takes
+    // precedence (Playwright evaluates routes LIFO).
+    await page.route('**/api/v1/custom-field-definitions**', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: '[]',
+      }),
+    )
+  })
+
   test('should load homepage successfully', async ({ page }) => {
     await page.goto('/')
 
