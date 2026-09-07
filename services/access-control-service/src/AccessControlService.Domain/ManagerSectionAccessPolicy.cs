@@ -182,4 +182,32 @@ public static class ManagerSectionAccessPolicy
         S15 = SectionAccess.Read,
         S16 = SectionAccess.ReadWrite,
     };
+
+    /// <summary>
+    /// The Full-profile-access audience's per-section access, per
+    /// <c>docs/access-control/section-matrix.md</c>'s Full-profile-access row: all 16 sections as
+    /// <see cref="SectionAccessLevel.ReadWrite"/>, with no restriction on any section. This is the
+    /// maximum possible access -- it takes precedence over any narrower access from other qualifying
+    /// lines in <c>AccessRolesController</c>. Not a call to <see cref="Resolve"/> with a synthetic
+    /// role -- Full-profile-access is derived from a stored grant, not from any relationship.
+    /// </summary>
+    public static ManagerSectionAccess ForFullProfileAccess() => new()
+    {
+        S1 = SectionAccess.ReadWrite,
+        S2 = SectionAccess.ReadWrite,
+        S3 = SectionAccess.ReadWrite,
+        S4 = SectionAccess.ReadWrite,
+        S5 = SectionAccess.ReadWrite,
+        S6 = SectionAccess.ReadWrite,
+        S7 = SectionAccess.ReadWrite,
+        S8 = SectionAccess.ReadWrite,
+        S9 = SectionAccess.ReadWrite,
+        S10 = SectionAccess.ReadWrite,
+        S11 = SectionAccess.ReadWrite,
+        S12 = SectionAccess.ReadWrite,
+        S13 = SectionAccess.ReadWrite,
+        S14 = SectionAccess.ReadWrite,
+        S15 = SectionAccess.ReadWrite,
+        S16 = SectionAccess.ReadWrite,
+    };
 }

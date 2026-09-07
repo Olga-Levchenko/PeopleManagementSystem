@@ -178,6 +178,13 @@ public static class FixtureSeedData
     public static readonly Guid HrDirectorId = Guid.Parse("22222222-0000-0000-0000-000000000009");
     public static readonly Guid HrPartnerId = Guid.Parse("22222222-0000-0000-0000-00000000000a");
 
+    // -- spec-1-5: bootstrap seed ids for the FullProfileAccessGrant and
+    //    FullProfileAccessJournalEntry rows that ensure the zero-holder fail-fast check always
+    //    passes on a freshly-migrated database. Both ids are stable constants (not Guid.NewGuid()
+    //    at migration time) so the migration is deterministic and re-runnable. --
+    public static readonly Guid FullProfileAccessGrantBootstrapId = Guid.Parse("55555555-0000-0000-0000-000000000001");
+    public static readonly Guid FullProfileAccessJournalBootstrapId = Guid.Parse("55555555-0000-0000-0000-000000000002");
+
     public static IReadOnlyList<Department> Departments { get; } = new[]
     {
         new Department

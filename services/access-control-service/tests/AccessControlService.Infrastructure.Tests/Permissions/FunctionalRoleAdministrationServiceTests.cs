@@ -634,6 +634,7 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
             NullLogger<EfRelationshipRepository>.Instance);
         AccessRoleResolver resolver = new(
             repository,
+            new NoOpFullProfileAccessRepository(),
             NullLogger<AccessRoleResolver>.Instance);
         AccessRole before = await resolver.ResolveAsync(
             FixtureSeedData.HrDirectorId,
@@ -1640,5 +1641,20 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
             OidcPrincipalIdentity identity,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(resolution);
+    }
+
+    private sealed class NoOpFullProfileAccessRepository : IFullProfileAccessRepository
+    {
+        public Task<bool> IsHolderAsync(Guid personId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
+        public Task<int> GetActiveCountAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(0);
+
+        public Task GrantAsync(Guid actorId, Guid subjectId, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task RevokeAsync(Guid actorId, Guid subjectId, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 }

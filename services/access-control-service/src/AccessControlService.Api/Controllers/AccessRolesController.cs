@@ -60,14 +60,88 @@ public sealed class AccessRolesController : ControllerBase
             ? ToResponse(ManagerSectionAccessPolicy.ResolveForPeoplePartner())
             : null;
 
+        // Full-profile-access is the maximum possible access -- all 16 sections ReadWrite, no
+        // restriction on any section. It is non-null only when FullProfileAccessLine is true;
+        // callers (people-service) apply it as the most-permissive path, overriding all other lines.
+        var fullProfileAccessSectionAccess = accessRole.FullProfileAccessLine
+            ? ToResponse(ManagerSectionAccessPolicy.ForFullProfileAccess())
+            : null;
+
         return Ok(new AccessRoleResolveResponse
         {
             ReportingLine = accessRole.ReportingLine,
             ProjectLine = accessRole.ProjectLine,
             PeoplePartnerLine = accessRole.PeoplePartnerLine,
+            FullProfileAccessLine = accessRole.FullProfileAccessLine,
             ManagerSectionAccess = managerSectionAccess,
             PeoplePartnerSectionAccess = peoplePartnerSectionAccess,
+            FullProfileAccessSectionAccess = fullProfileAccessSectionAccess,
         });
+    }
+
+    /// <summary>
+    /// Resolves <paramref name="request.ViewerPersonId"/>'s access role toward every id in
+    /// <paramref name="request.SubjectPersonIds"/>, returning one result per subject. Subjects
+    /// absent from the DB resolve to <see cref="AccessRole.None"/> (fail-closed). Enforces two
+    /// limits: duplicate subject ids → 400; more than 500 subject ids → 400.
+    /// <c>managerSectionAccess</c> is <c>null</c> for a subject entry when neither Reporting-line
+    /// nor Project-line qualifies; <c>peoplePartnerSectionAccess</c> is <c>null</c> when
+    /// People-Partner-line doesn't qualify.
+    /// </summary>
+    [HttpPost("resolve-batch")]
+    public async Task<ActionResult<AccessRoleBatchResolveResponse>> ResolveBatch(
+        [FromBody] AccessRoleBatchResolveRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.SubjectPersonIds is null)
+        {
+            return BadRequest(new { error = "subjectPersonIds is required." });
+        }
+
+        if (request.SubjectPersonIds.Count != request.SubjectPersonIds.Distinct().Count())
+        {
+            return BadRequest(new { error = "subjectPersonIds must not contain duplicate values." });
+        }
+
+        if (request.SubjectPersonIds.Count > 500)
+        {
+            return BadRequest(new { error = "subjectPersonIds.Count must not exceed 500." });
+        }
+
+        if (request.SubjectPersonIds.Count == 0)
+        {
+            return Ok(new AccessRoleBatchResolveResponse { Results = Array.Empty<AccessRoleBatchResultItem>() });
+        }
+
+        var accessRoles = await _resolver.ResolveBatchAsync(
+            request.ViewerPersonId,
+            request.SubjectPersonIds,
+            cancellationToken);
+
+        var results = request.SubjectPersonIds.Select(subjectId =>
+        {
+            var accessRole = accessRoles.TryGetValue(subjectId, out var role) ? role : AccessRole.None;
+
+            var managerSectionAccess = accessRole.ReportingLine || accessRole.ProjectLine
+                ? ToResponse(ManagerSectionAccessPolicy.Resolve(accessRole))
+                : null;
+
+            var peoplePartnerSectionAccess = accessRole.PeoplePartnerLine
+                ? ToResponse(ManagerSectionAccessPolicy.ResolveForPeoplePartner())
+                : null;
+
+            return new AccessRoleBatchResultItem
+            {
+                SubjectPersonId = subjectId,
+                ReportingLine = accessRole.ReportingLine,
+                ProjectLine = accessRole.ProjectLine,
+                PeoplePartnerLine = accessRole.PeoplePartnerLine,
+                ManagerSectionAccess = managerSectionAccess,
+                PeoplePartnerSectionAccess = peoplePartnerSectionAccess,
+            };
+        }).ToList();
+
+        return Ok(new AccessRoleBatchResolveResponse { Results = results });
     }
 
     private static ManagerSectionAccessResponse ToResponse(ManagerSectionAccess access) => new()
@@ -110,6 +184,14 @@ public sealed record AccessRoleResolveResponse
     public required bool PeoplePartnerLine { get; init; }
 
     /// <summary>
+    /// <c>true</c> when the viewer holds an active Full-profile-access grant (spec §2.4). This is
+    /// the maximum possible access -- all 16 sections as ReadWrite. When <c>true</c>,
+    /// <see cref="FullProfileAccessSectionAccess"/> is non-null and takes precedence over all
+    /// other qualifying lines.
+    /// </summary>
+    public required bool FullProfileAccessLine { get; init; }
+
+    /// <summary>
     /// The Manager audience's resolved per-section access, or <c>null</c> when neither
     /// <see cref="ReportingLine"/> nor <see cref="ProjectLine"/> qualifies (no Manager access at
     /// all toward this subject).
@@ -123,6 +205,14 @@ public sealed record AccessRoleResolveResponse
     /// <see cref="PeoplePartnerLine"/> is <c>false</c> (no PP access at all toward this subject).
     /// </summary>
     public required ManagerSectionAccessResponse? PeoplePartnerSectionAccess { get; init; }
+
+    /// <summary>
+    /// All 16 sections as ReadWrite, or <c>null</c> when <see cref="FullProfileAccessLine"/> is
+    /// <c>false</c>. When non-null, callers (people-service) must use this as the effective section
+    /// set, overriding all other qualifying lines (most-permissive-path-wins; Full profile access
+    /// is the maximum possible access level).
+    /// </summary>
+    public required ManagerSectionAccessResponse? FullProfileAccessSectionAccess { get; init; }
 }
 
 /// <summary>The Manager audience's resolved access to every profile section (S1-S16).</summary>
@@ -157,4 +247,52 @@ public sealed record SectionAccessResponse
     public required string Level { get; init; }
 
     public string? Restriction { get; init; }
+}
+
+/// <summary>Request body for <c>POST /api/v1/access-roles/resolve-batch</c>.</summary>
+public sealed record AccessRoleBatchResolveRequest
+{
+    /// <summary>The viewer whose access roles toward every subject are resolved.</summary>
+    public required Guid ViewerPersonId { get; init; }
+
+    /// <summary>
+    /// The subjects to resolve. Must not contain duplicates; must not exceed 500 entries; may
+    /// be empty (returns an empty results list).
+    /// </summary>
+    public required IReadOnlyList<Guid> SubjectPersonIds { get; init; }
+}
+
+/// <summary>Response body for <c>POST /api/v1/access-roles/resolve-batch</c>.</summary>
+public sealed record AccessRoleBatchResolveResponse
+{
+    /// <summary>One entry per requested subject id, in the same order as the input list.</summary>
+    public required IReadOnlyList<AccessRoleBatchResultItem> Results { get; init; }
+}
+
+/// <summary>
+/// Per-subject result item inside <see cref="AccessRoleBatchResolveResponse.Results"/>. Carries
+/// the same fields as <see cref="AccessRoleResolveResponse"/> (the single-resolve response) rather
+/// than referencing it directly, so the batch DTO is not coupled to the single-resolve DTO type.
+/// </summary>
+public sealed record AccessRoleBatchResultItem
+{
+    public required Guid SubjectPersonId { get; init; }
+
+    public required bool ReportingLine { get; init; }
+
+    public required bool ProjectLine { get; init; }
+
+    public required bool PeoplePartnerLine { get; init; }
+
+    /// <summary>
+    /// The Manager audience's resolved per-section access, or <c>null</c> when neither
+    /// <see cref="ReportingLine"/> nor <see cref="ProjectLine"/> qualifies.
+    /// </summary>
+    public required ManagerSectionAccessResponse? ManagerSectionAccess { get; init; }
+
+    /// <summary>
+    /// The PP audience's resolved per-section access, or <c>null</c> when
+    /// <see cref="PeoplePartnerLine"/> is <c>false</c>.
+    /// </summary>
+    public required ManagerSectionAccessResponse? PeoplePartnerSectionAccess { get; init; }
 }

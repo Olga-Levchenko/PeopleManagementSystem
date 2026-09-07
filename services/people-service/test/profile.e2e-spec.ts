@@ -244,9 +244,16 @@ describe('Profile (e2e)', () => {
     return { subject, manager, peoplePartner, department };
   }
 
-  it('Self: full s1+s2+s10+s11+s16, resolver never called; management field absent from s16, colleague field present', async () => {
+  it('Self: non-FPA self-view returns full s1+s2+s10+s11+s16; management field absent from s16, colleague field present', async () => {
     const { subject } = await seedSubject();
     currentViewerId = subject.id;
+    // Resolver is called before the self-view short-circuit (FPA check happens first).
+    // Return a non-FPA resolution so the self-view path is taken.
+    resolveMock.mockResolvedValue({
+      reportingLine: false,
+      projectLine: false,
+      managerSectionAccess: null,
+    });
 
     const res = await request(app.getHttpServer())
       .get(`/people/${subject.id}/profile`)
@@ -259,7 +266,6 @@ describe('Profile (e2e)', () => {
       's16',
       's2',
     ]);
-    expect(resolveMock).not.toHaveBeenCalled();
     const body = res.body as {
       s10: Array<Record<string, unknown>>;
       s11: Array<Record<string, unknown>>;

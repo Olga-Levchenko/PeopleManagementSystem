@@ -20,6 +20,13 @@ public sealed class AppConfig
     public Uri? PeopleServiceBaseUrl { get; }
     public IReadOnlySet<string> AllowedOidcIssuers { get; }
     public bool AllowInsecureOidcHttp { get; }
+    /// <summary>
+    /// Shared secret for S2S trust from internal callers (e.g. people-service) to
+    /// <c>POST /api/v1/permissions/check</c>. Null when not configured — the endpoint
+    /// returns 503 rather than failing fast at startup, preserving the "boots fine when
+    /// optional integrations are absent" contract.
+    /// </summary>
+    public string? InternalServiceSecret { get; }
 
     private AppConfig(
         int port,
@@ -31,7 +38,8 @@ public sealed class AppConfig
         string rabbitMqPassword,
         Uri? peopleServiceBaseUrl,
         IReadOnlySet<string> allowedOidcIssuers,
-        bool allowInsecureOidcHttp)
+        bool allowInsecureOidcHttp,
+        string? internalServiceSecret)
     {
         Port = port;
         CorsOrigin = corsOrigin;
@@ -43,6 +51,7 @@ public sealed class AppConfig
         PeopleServiceBaseUrl = peopleServiceBaseUrl;
         AllowedOidcIssuers = allowedOidcIssuers;
         AllowInsecureOidcHttp = allowInsecureOidcHttp;
+        InternalServiceSecret = internalServiceSecret;
     }
 
     /// <summary>
@@ -76,6 +85,9 @@ public sealed class AppConfig
         IReadOnlySet<string> allowedOidcIssuers = ReadAllowedOidcIssuers(
             configuration,
             allowInsecureOidcHttp);
+        string? internalServiceSecret = OptionalNonBlank(
+            configuration,
+            "INTERNAL_SERVICE_SECRET");
 
         var port = ParsePort(portRaw, "PORT");
         var rabbitMqPort = ParsePort(rabbitMqPortRaw, "RABBITMQ_PORT");
@@ -90,7 +102,8 @@ public sealed class AppConfig
             rabbitMqPassword,
             peopleServiceBaseUrl,
             allowedOidcIssuers,
-            allowInsecureOidcHttp);
+            allowInsecureOidcHttp,
+            internalServiceSecret);
     }
 
     private static int ParsePort(string raw, string key)
@@ -125,6 +138,12 @@ public sealed class AppConfig
         // downstream (e.g. CORS_ORIGIN silently never matching a real Origin header, which differs
         // from the trimmed value only by whitespace).
         return value.Trim();
+    }
+
+    private static string? OptionalNonBlank(IConfiguration configuration, string key)
+    {
+        string? value = configuration[key];
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
     private static Uri? OptionalHttpUri(

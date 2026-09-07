@@ -123,6 +123,70 @@ namespace AccessControlService.Infrastructure.Persistence.Migrations
                             ParentDepartmentId = new Guid("11111111-0000-0000-0000-000000000002")
                         });
                 });
+            modelBuilder.Entity("AccessControlService.Infrastructure.Persistence.FullProfileAccessGrant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("GrantedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("GrantedByActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("HolderId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HolderId")
+                        .IsUnique();
+
+                    b.ToTable("full_profile_access_grants", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("55555555-0000-0000-0000-000000000001"),
+                            GrantedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            GrantedByActorId = new Guid("22222222-0000-0000-0000-000000000003"),
+                            HolderId = new Guid("22222222-0000-0000-0000-000000000003")
+                        });
+                });
+
+            modelBuilder.Entity("AccessControlService.Infrastructure.Persistence.FullProfileAccessJournalEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SubjectId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("full_profile_access_journal_entries", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("55555555-0000-0000-0000-000000000002"),
+                            Action = "Grant",
+                            ActorId = new Guid("22222222-0000-0000-0000-000000000003"),
+                            OccurredAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            SubjectId = new Guid("22222222-0000-0000-0000-000000000003")
+                        });
+                });
+
 
             modelBuilder.Entity("AccessControlService.Infrastructure.Persistence.FunctionalRole", b =>
                 {
