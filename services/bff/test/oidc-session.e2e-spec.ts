@@ -286,17 +286,21 @@ describe('OIDC session e2e (Story 1.13)', () => {
         );
         keycloakCookies = mergeCookies(keycloakCookies, incoming);
         if (hopRes.status >= 200 && hopRes.status < 300) {
-          loginFormHtml = hopRes.data as string;
+          loginFormHtml = hopRes.data;
           break;
         }
         const nextUrl = hopRes.headers['location'] as string;
         if (!nextUrl) {
-          throw new Error('Keycloak redirect missing Location header during auth page fetch');
+          throw new Error(
+            'Keycloak redirect missing Location header during auth page fetch',
+          );
         }
         url = nextUrl;
       }
       if (!loginFormHtml) {
-        throw new Error('Did not reach Keycloak login form after following redirects');
+        throw new Error(
+          'Did not reach Keycloak login form after following redirects',
+        );
       }
     }
     const { action, hidden } = parseLoginForm(loginFormHtml);

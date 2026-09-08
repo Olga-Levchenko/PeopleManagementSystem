@@ -112,11 +112,10 @@ export class OidcService implements OnModuleInit {
   }> {
     this.assertClientReady();
 
-    const tokenSet = await this.client.callback(
-      redirectUri,
-      callbackParams,
-      { code_verifier: codeVerifier, state: callbackParams.state },
-    );
+    const tokenSet = await this.client.callback(redirectUri, callbackParams, {
+      code_verifier: codeVerifier,
+      state: callbackParams.state,
+    });
 
     const claims = tokenSet.claims();
 

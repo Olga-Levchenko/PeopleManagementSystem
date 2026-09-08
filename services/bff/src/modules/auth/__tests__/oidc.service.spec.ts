@@ -143,7 +143,10 @@ describe('OidcService', () => {
       });
 
       const result = await service.exchangeCode(
-        { code: 'auth-code', iss: 'http://localhost:8080/realms/people-management' },
+        {
+          code: 'auth-code',
+          iss: 'http://localhost:8080/realms/people-management',
+        },
         'http://localhost:3001/callback',
         'verifier-xyz',
       );
