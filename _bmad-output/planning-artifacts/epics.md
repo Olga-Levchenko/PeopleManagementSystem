@@ -914,6 +914,14 @@ Story 1.4 consumes this story as its production Administration authentication de
 The approved implementation specification is
 `_bmad-output/implementation-artifacts/spec-1-11d-access-control-jwt-validation.md`.
 
+### Story 1.11e: Trusted service authentication and live Administration saves
+
+Jira: O4-162
+
+Depends on completed Stories 1.11d, 1.12, and 1.13, plus O4-142 and O4-146. The approved
+implementation specification is
+`_bmad-output/implementation-artifacts/spec-1-11e-trusted-service-authentication-and-live-administration-saves.md`.
+
 ---
 
 ## Epic 2: All Employees List & Self-Service
