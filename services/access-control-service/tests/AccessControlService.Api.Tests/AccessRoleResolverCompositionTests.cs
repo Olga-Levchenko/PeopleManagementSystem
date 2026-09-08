@@ -589,6 +589,84 @@ public sealed class AccessRoleResolverCompositionTests : IAsyncLifetime
         AssertSection(managerSectionAccess, "s6", "ReadWrite", null);
     }
 
+    // -- spec-1-7: real end-to-end HTTP tests for projectRoles, against this same real,
+    // DI-composed, migrated-Postgres stack and FixtureSeedData's PM/DM multi-path fixture
+    // (PmDmMultiPathId: DM on Project Phoenix, PM on Project Orion; ProjectAssigneeId is a Member
+    // of both).
+
+    [Fact]
+    public async Task ResolveEndpoint_ProjectLineViaDmOnly_ReturnsProjectRolesWithDeliveryManagerOnly()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        // DeliveryManagerOnlyId is DM (not PM) on Project Phoenix; ProjectAssigneeId is a Phoenix
+        // Member -- per FixtureSeedData's own doc comment.
+        using var response = await client.GetAsync(
+            $"/api/v1/access-roles/resolve?viewerPersonId={FixtureSeedData.DeliveryManagerOnlyId}&subjectPersonId={FixtureSeedData.ProjectAssigneeId}");
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+
+        Assert.True(root.GetProperty("projectLine").GetBoolean());
+        var projectRoles = root.GetProperty("projectRoles").EnumerateArray().Select(e => e.GetString()).ToArray();
+        Assert.Equal(new[] { "DeliveryManager" }, projectRoles);
+    }
+
+    [Fact]
+    public async Task ResolveEndpoint_ProjectLineViaPmOnly_ReturnsProjectRolesWithProjectManagerOnly()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        // ProjectManagerOnlyId is PM (not DM) on Project Phoenix; ProjectAssigneeId is a Phoenix
+        // Member -- per FixtureSeedData's own doc comment.
+        using var response = await client.GetAsync(
+            $"/api/v1/access-roles/resolve?viewerPersonId={FixtureSeedData.ProjectManagerOnlyId}&subjectPersonId={FixtureSeedData.ProjectAssigneeId}");
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+
+        Assert.True(root.GetProperty("projectLine").GetBoolean());
+        var projectRoles = root.GetProperty("projectRoles").EnumerateArray().Select(e => e.GetString()).ToArray();
+        Assert.Equal(new[] { "ProjectManager" }, projectRoles);
+    }
+
+    [Fact]
+    public async Task ResolveEndpoint_MultiPathDmOnOneProjectAndPmOnAnother_ReturnsProjectRolesWithBothRoles()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        // PmDmMultiPathId is DM on Project Phoenix and PM on Project Orion; ProjectAssigneeId is a
+        // Member of both -- per FixtureSeedData's own doc comment (AC5's multi-path shape).
+        using var response = await client.GetAsync(
+            $"/api/v1/access-roles/resolve?viewerPersonId={FixtureSeedData.PmDmMultiPathId}&subjectPersonId={FixtureSeedData.ProjectAssigneeId}");
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+
+        Assert.True(root.GetProperty("projectLine").GetBoolean());
+        var projectRoles = root.GetProperty("projectRoles").EnumerateArray().Select(e => e.GetString()!).ToHashSet();
+        Assert.Equal(new HashSet<string> { "DeliveryManager", "ProjectManager" }, projectRoles);
+    }
+
+    [Fact]
+    public async Task ResolveEndpoint_NeitherLineQualifies_ReturnsEmptyProjectRoles()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+
+        using var response = await client.GetAsync(
+            $"/api/v1/access-roles/resolve?viewerPersonId={FixtureSeedData.ExecutiveId}&subjectPersonId={FixtureSeedData.UnrelatedProjectDmId}");
+
+        response.EnsureSuccessStatusCode();
+        var root = await ReadJsonRootAsync(response);
+
+        Assert.False(root.GetProperty("projectLine").GetBoolean());
+        Assert.Empty(root.GetProperty("projectRoles").EnumerateArray());
+    }
+
     [Fact]
     public async Task ResolveEndpoint_BothLinesQualify_ReturnsUnnarrowedManagerSectionAccessNotNarrowed()
     {

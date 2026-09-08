@@ -211,9 +211,14 @@ public sealed class EfRelationshipRepositoryTests : IAsyncLifetime
     [Fact]
     public async Task GetAssignedProjectIdsAsync_KnownAssignee_ReturnsSeededProjectId()
     {
+        // spec-1-7 additionally seeds ProjectAssignee as a Member of Project Orion (the PM/DM
+        // multi-path fixture's shared subject -- see FixtureSeedData's own doc comment), so this
+        // now returns both projects rather than Phoenix alone.
         var projectIds = await _repository.GetAssignedProjectIdsAsync(FixtureSeedData.ProjectAssigneeId);
 
-        Assert.Equal(new[] { FixtureSeedData.ProjectPhoenixId }, projectIds);
+        Assert.Equal(
+            new HashSet<Guid> { FixtureSeedData.ProjectPhoenixId, FixtureSeedData.ProjectOrionId },
+            new HashSet<Guid>(projectIds));
     }
 
     [Fact]
@@ -519,10 +524,13 @@ public sealed class EfRelationshipRepositoryTests : IAsyncLifetime
     [Fact]
     public async Task GetSubjectsOnViewerProjectsAsync_SubjectNotOnViewerProject_ReturnsEmpty()
     {
-        // Orion project; ProjectAssignee is only on Phoenix, not Orion.
+        // HrPartnerId carries no ProjectAssignment row at all (it's a pure org-chart/PP fixture
+        // person -- see FixtureSeedData's HR-line remarks). ProjectAssigneeId is no longer a valid
+        // "not on this project" example here: spec-1-7's PM/DM multi-path fixture additionally
+        // seeded it as a Member of Project Orion, so it IS on Orion as of that story.
         var result = await _repository.GetSubjectsOnViewerProjectsAsync(
             new[] { FixtureSeedData.ProjectOrionId },
-            new[] { FixtureSeedData.ProjectAssigneeId });
+            new[] { FixtureSeedData.HrPartnerId });
 
         Assert.Empty(result);
     }

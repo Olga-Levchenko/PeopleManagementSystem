@@ -447,6 +447,134 @@ public class AccessRoleResolverTests
         Assert.False(result.ProjectLine);
     }
 
+    // -- spec-1-7: AccessRole.ProjectRoles resolution -- I/O & Edge-Case Matrix coverage below. --
+
+    [Fact]
+    public async Task ResolveAsync_ProjectLineViaDm_ProjectRolesContainsDeliveryManagerOnly()
+    {
+        var dm = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+        var project = Guid.NewGuid();
+
+        var repository = new FakeRelationshipRepository()
+            .SetProjectsManagedAsDmOrPm(dm, project)
+            .SetProjectRoles(dm, (project, ProjectRole.DeliveryManager))
+            .SetAssignedProjects(subject, project);
+
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
+
+        var result = await resolver.ResolveAsync(dm, subject);
+
+        Assert.True(result.ProjectLine);
+        Assert.Equal(new[] { ProjectRole.DeliveryManager }, result.ProjectRoles);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ProjectLineViaPm_ProjectRolesContainsProjectManagerOnly()
+    {
+        var pm = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+        var project = Guid.NewGuid();
+
+        var repository = new FakeRelationshipRepository()
+            .SetProjectsManagedAsDmOrPm(pm, project)
+            .SetProjectRoles(pm, (project, ProjectRole.ProjectManager))
+            .SetAssignedProjects(subject, project);
+
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
+
+        var result = await resolver.ResolveAsync(pm, subject);
+
+        Assert.True(result.ProjectLine);
+        Assert.Equal(new[] { ProjectRole.ProjectManager }, result.ProjectRoles);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ViewerDmOnOneProjectAndPmOnAnotherBothAssignedToSubject_ProjectRolesContainsBothRoles()
+    {
+        // AC5's multi-path shape: viewer is DM on project A, PM on project B, subject assigned to
+        // both -- proves ProjectRoles aggregates distinct roles across multiple qualifying
+        // projects for the same (viewer, subject) pair, not just the first match.
+        var viewer = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+        var projectA = Guid.NewGuid();
+        var projectB = Guid.NewGuid();
+
+        var repository = new FakeRelationshipRepository()
+            .SetProjectsManagedAsDmOrPm(viewer, projectA, projectB)
+            .SetProjectRoles(viewer, (projectA, ProjectRole.DeliveryManager), (projectB, ProjectRole.ProjectManager))
+            .SetAssignedProjects(subject, projectA, projectB);
+
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
+
+        var result = await resolver.ResolveAsync(viewer, subject);
+
+        Assert.True(result.ProjectLine);
+        Assert.Equal(
+            new HashSet<ProjectRole> { ProjectRole.DeliveryManager, ProjectRole.ProjectManager },
+            new HashSet<ProjectRole>(result.ProjectRoles));
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ViewerDmOnUnrelatedProjectOnly_ProjectRolesEmptyWhenProjectLineDoesNotQualify()
+    {
+        // Viewer holds a project role, but not on any project the subject is assigned to --
+        // ProjectLine itself doesn't qualify, so ProjectRoles must stay empty rather than including
+        // the viewer's unrelated-project role.
+        var viewer = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+        var viewersProject = Guid.NewGuid();
+        var subjectsProject = Guid.NewGuid();
+
+        var repository = new FakeRelationshipRepository()
+            .SetProjectsManagedAsDmOrPm(viewer, viewersProject)
+            .SetProjectRoles(viewer, (viewersProject, ProjectRole.DeliveryManager))
+            .SetAssignedProjects(subject, subjectsProject);
+
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
+
+        var result = await resolver.ResolveAsync(viewer, subject);
+
+        Assert.False(result.ProjectLine);
+        Assert.Empty(result.ProjectRoles);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_NoProjectAssignmentAtAll_ProjectRolesEmpty()
+    {
+        var viewer = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+
+        var repository = new FakeRelationshipRepository();
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
+
+        var result = await resolver.ResolveAsync(viewer, subject);
+
+        Assert.False(result.ProjectLine);
+        Assert.Empty(result.ProjectRoles);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ViewerEqualsSubject_ProjectRolesEmptyEvenIfGenuinelyDmOnOwnProject()
+    {
+        // Self-view short-circuit applies to ProjectRoles the same way it applies to ProjectLine
+        // itself -- a person is never their own DM/PM for access-role purposes.
+        var personId = Guid.NewGuid();
+        var project = Guid.NewGuid();
+        var repository = new FakeRelationshipRepository()
+            .SetProjectsManagedAsDmOrPm(personId, project)
+            .SetProjectRoles(personId, (project, ProjectRole.DeliveryManager))
+            .SetAssignedProjects(personId, project);
+
+        var resolver = new AccessRoleResolver(repository, new FakeFullProfileAccessRepository(), NullLogger<AccessRoleResolver>.Instance);
+
+        var result = await resolver.ResolveAsync(personId, personId);
+
+        Assert.False(result.ProjectLine);
+        Assert.Empty(result.ProjectRoles);
+        Assert.Equal(0, repository.ProjectRolesLookupCount);
+    }
+
     // -- Review-loopback additions: a cycle elsewhere in the graph must not mask a real match, and
     //    the ancestor walk must discriminate by department, not just "someone manages something". --
 

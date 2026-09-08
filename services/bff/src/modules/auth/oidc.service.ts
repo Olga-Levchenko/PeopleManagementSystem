@@ -92,9 +92,14 @@ export class OidcService implements OnModuleInit {
   /**
    * Exchanges an authorization code for tokens. Returns the full TokenSet so the caller can
    * store whichever claims it needs in the server-side session.
+   *
+   * `callbackParams` must be the full set of query parameters received in the Keycloak redirect
+   * (code, iss, state, session_state, …). openid-client v5 validates the `iss` response
+   * parameter (RFC 9207) and throws `RPError: iss missing from the response` when only `{ code }`
+   * is forwarded and Keycloak 24+ includes `iss` in the redirect.
    */
   async exchangeCode(
-    code: string,
+    callbackParams: Record<string, string>,
     redirectUri: string,
     codeVerifier: string,
   ): Promise<{
@@ -109,8 +114,8 @@ export class OidcService implements OnModuleInit {
 
     const tokenSet = await this.client.callback(
       redirectUri,
-      { code },
-      { code_verifier: codeVerifier },
+      callbackParams,
+      { code_verifier: codeVerifier, state: callbackParams.state },
     );
 
     const claims = tokenSet.claims();

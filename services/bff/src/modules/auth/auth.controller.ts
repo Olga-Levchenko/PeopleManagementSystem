@@ -84,13 +84,30 @@ export class AuthController {
   })
   async callback(@Req() req: Request, @Res() res: Response): Promise<void> {
     const session = req.session as BffSession;
-    const { state, code } = req.query as Record<string, string | undefined>;
+    const query = req.query as Record<string, string | undefined>;
+    const { state, code } = query;
 
     if (!state || !code) {
       throw new BadRequestException('Missing state or code in callback query.');
     }
 
-    if (!session.oidcState || session.oidcState !== state) {
+    // A callback replay (e.g. browser Back button after successful login) arrives with the
+    // same URL but the session's oidcState was already cleared by the first exchange. If the
+    // session is already authenticated just redirect to the frontend -- the original exchange
+    // succeeded and no second code-exchange is needed. Only throw on a genuine state mismatch
+    // (oidcState set but doesn't match -- real CSRF signal).
+    if (!session.oidcState) {
+      const frontendUrl = this.config.getOrThrow<string>('CORS_ORIGIN');
+      if (session.userId) {
+        res.redirect(frontendUrl);
+        return;
+      }
+      throw new BadRequestException(
+        'State mismatch — possible CSRF; request rejected.',
+      );
+    }
+
+    if (session.oidcState !== state) {
       throw new BadRequestException(
         'State mismatch — possible CSRF; request rejected.',
       );
@@ -106,10 +123,22 @@ export class AuthController {
     session.oidcState = undefined;
     session.oidcVerifier = undefined;
 
+    // Forward all string-valued callback params (code, iss, state, session_state, …) so
+    // openid-client can validate the iss response parameter (RFC 9207). Keycloak 24+ includes
+    // iss in the redirect; passing only { code } causes RPError: iss missing from the response.
+    const callbackParams: Record<string, string> = {};
+    for (const [key, value] of Object.entries(query)) {
+      if (typeof value === 'string') callbackParams[key] = value;
+    }
+
     const redirectUri = this.config.getOrThrow<string>('OIDC_CALLBACK_URL');
 
     try {
-      const tokens = await this.oidc.exchangeCode(code, redirectUri, verifier);
+      const tokens = await this.oidc.exchangeCode(
+        callbackParams,
+        redirectUri,
+        verifier,
+      );
 
       session.userId = tokens.sub;
       session.email = tokens.email;
@@ -118,7 +147,8 @@ export class AuthController {
       session.idToken = tokens.idToken;
       session.accessTokenExpiresAt = tokens.accessTokenExpiresAt;
 
-      res.redirect('/');
+      const frontendUrl = this.config.getOrThrow<string>('CORS_ORIGIN');
+      res.redirect(frontendUrl);
     } catch (err) {
       this.logger.error('OIDC code exchange failed', err);
       throw new InternalServerErrorException(
@@ -145,14 +175,15 @@ export class AuthController {
       }
 
       // Best-effort Keycloak SSO termination -- fire-and-forget, redirect regardless.
+      const frontendUrl = this.config.getOrThrow<string>('CORS_ORIGIN');
       if (idToken) {
         void this.oidc
-          .endSession(idToken)
+          .endSession(idToken, `${frontendUrl}/login`)
           .then((endSessionUrl) => {
             if (endSessionUrl) {
               res.redirect(endSessionUrl);
             } else {
-              res.redirect('/login');
+              res.redirect(`${frontendUrl}/login`);
             }
           })
           .catch((err) => {
@@ -160,10 +191,10 @@ export class AuthController {
               'Keycloak end_session call failed (session already destroyed locally)',
               err,
             );
-            res.redirect('/login');
+            res.redirect(`${frontendUrl}/login`);
           });
       } else {
-        res.redirect('/login');
+        res.redirect(`${frontendUrl}/login`);
       }
     });
   }

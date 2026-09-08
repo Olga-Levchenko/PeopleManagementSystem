@@ -45,7 +45,7 @@ Consumers of this doc: `.claude/rules/access-control-invariants.md`,
 | S4 | Employment | Employee type (FTE/Subcontractor), grade, seniority, position history, English level, probation status, employment status, contract type | R | RW | RW | RW | — | cfg | partial |
 | S5 | Documents | Contract, W8, cooperation form, Diia City, CV, certificates | R (own) + upload certificates | R | **R, CV + certificates only** | RW | — | cfg | partial |
 | S6 | Risks | Current level, trend, description, details, date, full history — no closed/terminal state (4.6) | — | RW | RW | RW | — | cfg | partial |
-| S7 | Management notes | Free-form notes by managers and PP, per-record visibility flags | R — only records flagged visible for employee | RW | RW; **PM exception**: R, only records flagged visible for PM² | RW | — | — (never shareable) | partial |
+| S7 | Management notes | Free-form notes by managers and PP, per-record visibility flags | R — only records flagged visible for employee | RW | RW; **PM exception**: R, only records flagged visible for PM² | RW | — | — (never shareable) | full |
 | S8 | Feedbacks | Structured feedback records (4.15), including joining-interview feedback (moved here from S5 in v1.5) | R — only records flagged shared with employee | RW | RW | RW | — | cfg | partial |
 | S9 | Career timeline | System-generated event log (4.9); includes department change; departure/dismissal is explicitly NOT a timeline event (v1.5) — see S4 employment status instead | R | RW | RW | RW | — | cfg | partial |
 | S10 | Leaves and absences | Vacation, sick, parental, extended leave — dates and types | R | R | R | R | **R, dates only — type hidden (v1.5)** | cfg | partial |
@@ -105,6 +105,34 @@ All-sections-ReadWrite coverage for the FPA viewer is verified in the resolve E2
 16 sections iterated by name). The self-view FPA override (FPA holder viewing their own profile
 gets management-level custom fields, not employee-level) is covered in `people-service`'s
 `profile.service.spec.ts`.
+
+**Test coverage note (Story 1.7 — S7 management-notes flag gating):** the **S7 row** above is
+marked `full` — positive and negative coverage exists for every non-uniform cell: Self (positive:
+the employee sees a note once `visibleForEmployee` flips true, `management-notes.e2e-spec.ts`'s
+AC6 case; negative: an unflagged note is absent from the employee's own list,
+`management-notes.service.spec.ts`'s AC2 case), Reporting line/PP (full RW regardless of flag
+state — list/create/update all succeed, AC3 cases in both the unit and e2e suites, including the
+`fullProfileAccessLine` path), Project line with its PM exception (positive: a DM-only viewer gets
+full RW just like Reporting line/PP, AC3; positive+negative: a PM-only viewer is read-only and
+sees only `visibleForPm`-flagged notes, list/create/update, AC4; the multi-path precedence case —
+a viewer who is DM on one project and PM on another toward the same subject gets full RW, DM's path
+winning — AC5, both in `AccessRoleResolverTests`/`AccessRoleResolverCompositionTests` on the
+`access-control-service` side, where the new `projectRoles` field this story added is actually
+resolved, and in `management-notes.service.spec.ts`/`management-notes.e2e-spec.ts` on the
+consuming side), and Colleague (negative: 403 on list/create/update for a viewer holding none of
+the qualifying lines, with the update path additionally proven not to leak note content on a 403).
+Two explicit cross-audience-isolation cases guard against each flag scoping to only its own
+audience rather than "any flag set at all": a `visibleForEmployee`-only note is confirmed invisible
+to a PM-only viewer, and symmetrically a `visibleForPm`-only note is confirmed invisible to the
+employee's own view. `authorPersonId` is proven server-derived from the JWT `sub`, never
+caller-supplied. Coverage spans `access-control-service`'s `AccessRoleResolverTests` (Domain, fake
+repository), `AccessRoleResolverCompositionTests` (Api, real DI-composed HTTP endpoint against the
+new PM/DM-multi-path fixture), and `work-management-service`'s `management-notes.service.spec.ts`
+(unit, fake `AccessRoleResolutionPort`), `access-control-client.spec.ts` (unit —
+`parseAccessRoleResolution`'s own parsing/allowlist behavior plus `HttpAccessRoleResolutionAdapter`'s
+fail-closed contract against a mocked `fetch`: 2xx, non-2xx, network-throw, and timeout/abort, all
+resolving to no access rather than throwing), `management-notes.e2e-spec.ts` (real Prisma, faked
+access-control-client), and `jwt-guard.e2e-spec.ts` (real, ephemeral Keycloak).
 
 ## Rules that follow from the matrix (3.3 — full text is normative, this is a recap)
 

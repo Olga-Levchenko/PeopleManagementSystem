@@ -36,6 +36,7 @@ function makeConfigService(
     getOrThrow: jest.fn((key: string) => {
       const v: Record<string, string> = {
         OIDC_CALLBACK_URL: 'http://localhost:3001/api/v1/auth/callback',
+        CORS_ORIGIN: 'http://localhost:4200',
         ...values,
       };
       if (v[key] === undefined)
@@ -159,7 +160,7 @@ describe('AuthController', () => {
       expect(session.idToken).toBe('it');
       expect(session.oidcState).toBeUndefined();
       expect(session.oidcVerifier).toBeUndefined();
-      expect(res.redirect).toHaveBeenCalledWith('/');
+      expect(res.redirect).toHaveBeenCalledWith('http://localhost:4200');
     });
 
     it('throws BadRequestException on state mismatch', async () => {
@@ -225,7 +226,7 @@ describe('AuthController', () => {
   // ---------- POST /auth/logout ----------
 
   describe('logout', () => {
-    it('calls session.destroy and redirects to /login via endSession URL when idToken is present', () => {
+    it('destroys session, calls endSession with post_logout_redirect_uri, and follows its URL', async () => {
       const session = mockSession({ userId: 'sub', idToken: 'id-token' });
       const destroyMock = jest.fn((cb) => (cb as (err?: unknown) => void)());
       const req = {
@@ -234,16 +235,40 @@ describe('AuthController', () => {
       } as unknown as Request;
       const res = mockResponse();
 
-      oidc.endSession.mockResolvedValueOnce(
-        'http://keycloak/logout?redirect=http://localhost/login',
-      );
+      const endSessionUrl =
+        'http://keycloak/logout?post_logout_redirect_uri=http%3A%2F%2Flocalhost%3A4200%2Flogin';
+      oidc.endSession.mockResolvedValueOnce(endSessionUrl);
 
       controller.logout(req, res);
 
       expect(destroyMock).toHaveBeenCalled();
+      // Wait for the async endSession promise to resolve.
+      await new Promise((r) => setImmediate(r));
+      expect(oidc.endSession).toHaveBeenCalledWith(
+        'id-token',
+        'http://localhost:4200/login',
+      );
+      expect(res.redirect).toHaveBeenCalledWith(endSessionUrl);
     });
 
-    it('redirects to /login directly when no idToken is in session', () => {
+    it('falls back to frontend /login when endSession returns no URL', async () => {
+      const session = mockSession({ userId: 'sub', idToken: 'id-token' });
+      const destroyMock = jest.fn((cb) => (cb as (err?: unknown) => void)());
+      const req = {
+        session: { ...session, destroy: destroyMock },
+        body: {},
+      } as unknown as Request;
+      const res = mockResponse();
+
+      oidc.endSession.mockResolvedValueOnce(undefined);
+
+      controller.logout(req, res);
+
+      await new Promise((r) => setImmediate(r));
+      expect(res.redirect).toHaveBeenCalledWith('http://localhost:4200/login');
+    });
+
+    it('redirects to frontend /login directly when no idToken is in session', async () => {
       const session = mockSession({ userId: 'sub' });
       const destroyMock = jest.fn((cb) => (cb as (err?: unknown) => void)());
       const req = {
@@ -254,9 +279,9 @@ describe('AuthController', () => {
 
       controller.logout(req, res);
 
-      expect(destroyMock).toHaveBeenCalled();
-      // endSession should not be called without an idToken.
+      await new Promise((r) => setImmediate(r));
       expect(oidc.endSession).not.toHaveBeenCalled();
+      expect(res.redirect).toHaveBeenCalledWith('http://localhost:4200/login');
     });
   });
 

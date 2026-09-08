@@ -71,6 +71,7 @@ public sealed class AccessRolesController : ControllerBase
         {
             ReportingLine = accessRole.ReportingLine,
             ProjectLine = accessRole.ProjectLine,
+            ProjectRoles = accessRole.ProjectRoles.Select(r => r.ToString()).ToArray(),
             PeoplePartnerLine = accessRole.PeoplePartnerLine,
             FullProfileAccessLine = accessRole.FullProfileAccessLine,
             ManagerSectionAccess = managerSectionAccess,
@@ -180,6 +181,17 @@ public sealed record AccessRoleResolveResponse
     public required bool ReportingLine { get; init; }
 
     public required bool ProjectLine { get; init; }
+
+    /// <summary>
+    /// The project-scoped role(s) (<c>"ProjectManager"</c>/<c>"DeliveryManager"</c>, same
+    /// string-enum convention as <see cref="SectionAccessResponse.Level"/>) backing
+    /// <see cref="ProjectLine"/>'s qualification -- always empty when <see cref="ProjectLine"/> is
+    /// <c>false</c>. Lets a caller (e.g. <c>work-management-service</c>'s S7 management-notes
+    /// access check, spec-1-7) distinguish a PM-only viewer from a DM, which
+    /// <see cref="ProjectLine"/> alone cannot -- a person can hold both roles at once, on different
+    /// projects the subject is assigned to.
+    /// </summary>
+    public required IReadOnlyCollection<string> ProjectRoles { get; init; }
 
     public required bool PeoplePartnerLine { get; init; }
 

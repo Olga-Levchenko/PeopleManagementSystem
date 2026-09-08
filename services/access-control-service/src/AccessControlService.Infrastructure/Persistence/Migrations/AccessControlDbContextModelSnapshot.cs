@@ -795,6 +795,11 @@ namespace AccessControlService.Infrastructure.Persistence.Migrations
                             Id = new Guid("22222222-0000-0000-0000-00000000000a"),
                             Label = "Fixture Person: HR Partner (Engineer's assigned PP)",
                             ManagerId = new Guid("22222222-0000-0000-0000-000000000009")
+                        },
+                        new
+                        {
+                            Id = new Guid("22222222-0000-0000-0000-00000000000b"),
+                            Label = "Fixture Person: DM on Project Phoenix + PM on Project Orion (multi-path)"
                         });
                 });
 
@@ -903,6 +908,27 @@ namespace AccessControlService.Infrastructure.Persistence.Migrations
                             PersonId = new Guid("22222222-0000-0000-0000-000000000003"),
                             ProjectId = new Guid("33333333-0000-0000-0000-000000000003"),
                             Role = 2
+                        },
+                        new
+                        {
+                            Id = new Guid("44444444-0000-0000-0000-000000000008"),
+                            PersonId = new Guid("22222222-0000-0000-0000-00000000000b"),
+                            ProjectId = new Guid("33333333-0000-0000-0000-000000000001"),
+                            Role = 2
+                        },
+                        new
+                        {
+                            Id = new Guid("44444444-0000-0000-0000-000000000009"),
+                            PersonId = new Guid("22222222-0000-0000-0000-00000000000b"),
+                            ProjectId = new Guid("33333333-0000-0000-0000-000000000002"),
+                            Role = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("44444444-0000-0000-0000-00000000000a"),
+                            PersonId = new Guid("22222222-0000-0000-0000-000000000007"),
+                            ProjectId = new Guid("33333333-0000-0000-0000-000000000002"),
+                            Role = 0
                         });
                 });
 
