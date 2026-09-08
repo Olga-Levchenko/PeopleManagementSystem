@@ -137,9 +137,8 @@ builder.Services.AddSingleton(new PeopleIdentityResolverOptions(
 builder.Services.AddHttpClient<PeoplePrincipalPersonResolver>();
 builder.Services.AddScoped<IPrincipalPersonResolver, PeoplePrincipalPersonResolver>();
 builder.Services.AddScoped<ICorrelationIdAccessor, HttpCorrelationIdAccessor>();
-builder.Services.AddScoped<
-    IInternalServiceCredentialProvider,
-    UnavailableInternalServiceCredentialProvider>();
+builder.Services.AddSingleton<IInternalServiceCredentialProvider>(
+    new AppConfigInternalServiceCredentialProvider(appConfig.InternalServiceSecret));
 builder.Services.AddScoped<
     IBootstrapProvisioningService,
     FunctionalRoleBootstrapProvisioningService>();

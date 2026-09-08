@@ -28,3 +28,15 @@ public sealed class UnavailableInternalServiceCredentialProvider
         ValueTask.FromResult<InternalServiceCredentialResult>(
             new InternalServiceCredentialResult.Unavailable());
 }
+
+public sealed class AppConfigInternalServiceCredentialProvider(string? secret)
+    : IInternalServiceCredentialProvider
+{
+    public ValueTask<InternalServiceCredentialResult> GetAsync(
+        CancellationToken cancellationToken = default) =>
+        string.IsNullOrWhiteSpace(secret)
+            ? ValueTask.FromResult<InternalServiceCredentialResult>(
+                new InternalServiceCredentialResult.Unavailable())
+            : ValueTask.FromResult<InternalServiceCredentialResult>(
+                new InternalServiceCredentialResult.Available("InternalService", secret));
+}

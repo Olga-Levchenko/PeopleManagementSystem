@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "http://json.schemastore.org/launchsettings.json",
   "profiles": {
     "http": {
@@ -11,7 +11,15 @@
         "ASPNETCORE_ENVIRONMENT": "Development",
         "PORT": "3007",
         "CORS_ORIGIN": "http://localhost:4200",
-        "ConnectionStrings__Postgres": "Host=localhost;Port=5432;Database=access_control_service;Username=postgres;Password=postgres"
+        "ConnectionStrings__Postgres": "Host=localhost;Port=5432;Database=access_control_service;Username=postgres;Password=postgres",
+        "RABBITMQ_HOST": "localhost",
+        "RABBITMQ_PORT": "5672",
+        "RABBITMQ_USER": "guest",
+        "RABBITMQ_PASSWORD": "guest",
+        "OIDC_ALLOWED_ISSUERS": "http://localhost:8080/realms/people-management",
+        "OIDC_AUDIENCE": "bff-confidential",
+        "PEOPLE_SERVICE_BASE_URL": "http://localhost:3002",
+        "INTERNAL_SERVICE_SECRET": "36ed4bea90857a85a92d036820548f60c9a86598fc5e9cdbda4af8d15e8a1570"
       }
     }
   }

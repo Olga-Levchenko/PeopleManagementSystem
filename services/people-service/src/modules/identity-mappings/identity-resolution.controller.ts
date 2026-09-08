@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
+import { Public } from '../auth/public.decorator';
 import { ResolveIdentityDto } from './dto/resolve-identity.dto';
 import { IdentityResolutionService } from './identity-resolution.service';
 import { InternalServiceAuthGuard } from './internal-service-auth.guard';
@@ -67,6 +68,7 @@ export class IdentityResolutionProblemDetailsFilter implements ExceptionFilter {
   }
 }
 
+@Public()
 @ApiBearerAuth()
 @UseFilters(IdentityResolutionProblemDetailsFilter)
 @UseGuards(InternalServiceAuthGuard)

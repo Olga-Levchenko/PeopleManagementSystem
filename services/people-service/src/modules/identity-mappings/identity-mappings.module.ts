@@ -6,6 +6,7 @@ import { IdentityResolutionService } from './identity-resolution.service';
 import { IdentityValidationService } from './identity-validation.service';
 import {
   InternalServiceAuthGuard,
+  SecretInternalServiceAuthorizer,
   UnavailableInternalServiceAuthorizer,
 } from './internal-service-auth.guard';
 import { UnavailableIdentityLinkProvisioningAuthorizer } from './identity-provisioning.ports';
@@ -19,6 +20,7 @@ import { UnavailableIdentityLinkProvisioningAuthorizer } from './identity-provis
     IdentityFingerprintService,
     UnavailableIdentityLinkProvisioningAuthorizer,
     InternalServiceAuthGuard,
+    SecretInternalServiceAuthorizer,
     UnavailableInternalServiceAuthorizer,
     {
       provide: 'IIdentityFingerprintService',
@@ -30,7 +32,7 @@ import { UnavailableIdentityLinkProvisioningAuthorizer } from './identity-provis
     },
     {
       provide: 'IInternalServiceAuthorizer',
-      useExisting: UnavailableInternalServiceAuthorizer,
+      useExisting: SecretInternalServiceAuthorizer,
     },
   ],
   exports: [IdentityMappingService, IdentityResolutionService],
