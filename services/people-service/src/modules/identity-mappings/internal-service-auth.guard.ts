@@ -50,27 +50,32 @@ export class InternalServiceAuthGuard implements CanActivate {
 export class SecretInternalServiceAuthorizer implements IInternalServiceAuthorizer {
   constructor(private readonly config: ConfigService) {}
 
-  async authorize(authorizationHeader?: string): Promise<InternalServiceAuthorizationResult> {
+  authorize(
+    authorizationHeader?: string,
+  ): Promise<InternalServiceAuthorizationResult> {
     if (!authorizationHeader) {
-      return { outcome: 'missing' };
+      return Promise.resolve({ outcome: 'missing' });
     }
     const secret = this.config.get<string>('INTERNAL_SERVICE_SECRET');
     if (!secret) {
-      return { outcome: 'missing' };
+      return Promise.resolve({ outcome: 'missing' });
     }
     if (authorizationHeader === `InternalService ${secret}`) {
-      return {
+      return Promise.resolve({
         outcome: 'authenticated',
-        context: { serviceName: 'access-control-service', authenticationId: 'acs' },
-      };
+        context: {
+          serviceName: 'access-control-service',
+          authenticationId: 'acs',
+        },
+      });
     }
-    return { outcome: 'unauthorized' };
+    return Promise.resolve({ outcome: 'unauthorized' });
   }
 }
 
 @Injectable()
 export class UnavailableInternalServiceAuthorizer implements IInternalServiceAuthorizer {
-  authorize(_authorizationHeader?: string): Promise<InternalServiceAuthorizationResult> {
+  authorize(): Promise<InternalServiceAuthorizationResult> {
     return Promise.reject(
       new ServiceUnavailableException(
         'Internal service authorization is unavailable',
