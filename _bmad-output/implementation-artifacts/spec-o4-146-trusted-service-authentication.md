@@ -2,7 +2,7 @@
 title: 'O4-146: Trusted service authentication and downscoped credentials'
 type: 'feature'
 created: '2026-09-07'
-status: 'ready-for-dev'
+status: 'done'
 review_loop_iteration: 0
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-PeopleManagementSystem-2026-08-25/ARCHITECTURE-SPINE.md'
@@ -102,13 +102,13 @@ RFC 8693 delegation, `private_key_jwt`, or client-credentials modes requires ren
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Record the selected Keycloak 26.2+ / Standard Token Exchange v2 design as an ADR, including
+- [x] Record the selected Keycloak 26.2+ / Standard Token Exchange v2 design as an ADR, including
   the service/audience/endpoint matrix and deterministic error semantics.
-- [ ] Record the cryptographic delegated-user binding contract: signed `iss`, `sub`, `azp`, and
+- [x] Record the cryptographic delegated-user binding contract: signed `iss`, `sub`, `azp`, and
   `aud`; O4-142 maps only the verified user `(iss, sub)`; no identity headers are trusted.
-- [ ] Define the proposed follow-up Story with implementation scope, migration sequence, rollback
+- [x] Define the proposed follow-up Story with implementation scope, migration sequence, rollback
   constraints, and required Keycloak, service, contract, and negative-security tests.
-- [ ] Validate the design against the architecture spine, O4-142, O4-156, and current Keycloak
+- [x] Validate the design against the architecture spine, O4-142, O4-156, and current Keycloak
   capabilities without changing runtime artifacts.
 
 **Acceptance Criteria:**
@@ -158,5 +158,9 @@ halt rather than substitute a caller-controlled header.
   proposed follow-up Story agree with O4-142, O4-156, ADR-002, and the architecture spine.
 - Keycloak documentation review -- expected: the selected 26.2+ Standard Token Exchange v2 and
   `private_key_jwt` capabilities remain supported; no runtime test is claimed for this design task.
+
+**Actual result:** PR #54 merged to `main` as `93e60e4`. The design was approved and validated
+without runtime, Keycloak configuration, dependency, contract, migration, or deployment-secret
+changes. Runtime implementation remains the responsibility of the proposed follow-up Story.
 
 </frozen-after-approval>
