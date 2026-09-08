@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-30-2026 12:52
-last_updated: 09-07-2026 22:00
+last_updated: 09-08-2026 18:54
 project: PeopleManagementSystem
 project_key: NOKEY
 tracking_system: file-system
@@ -52,6 +52,7 @@ development_status:
   1-13-persistent-session-store-and-oidc-e2e: done  # PR #44
   o4-91-custom-field-definition-administration: done  # Jira O4-91; PR #40 merged 2026-09-07
   o4-142-principal-personid-mapping: done  # PR #37
+  o4-146-trusted-service-authentication: done
   epic-1-retrospective: optional
 
   epic-2: backlog
