@@ -1,4 +1,7 @@
-import { ForbiddenException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpHrAdminPermissionAdapter } from '../custom-field-definitions.ports';
 
@@ -56,24 +59,13 @@ describe('HttpHrAdminPermissionAdapter', () => {
       `${ACS_BASE_URL}/api/v1/permissions/check`,
     );
     expect(calledInit.method).toBe('POST');
-    expect(
-      (calledInit.headers as Record<string, string>)[
-        'X-Internal-Service-Secret'
-      ],
-    ).toBe(SECRET);
-    expect(
-      (calledInit.headers as Record<string, string>)[
-        'X-Internal-Service-Identity'
-      ],
-    ).toBe('people-service');
-    expect(
-      (calledInit.headers as Record<string, string>)[
-        'X-Delegated-Actor-Issuer'
-      ],
-    ).toBe(EXPECTED_ISSUER);
-    expect(
-      (calledInit.headers as Record<string, string>)['X-Delegated-Actor-Sub'],
-    ).toBe(ACTOR_ID);
+    expect((calledInit.headers as Record<string, string>).Authorization).toBe(
+      'Bearer acs-token',
+    );
+    expect(tokenExchange.exchangeForAudience).toHaveBeenCalledWith(
+      actor.accessToken,
+      'access-control-service',
+    );
     expect(JSON.parse(calledInit.body as string)).toEqual({
       PermissionKey: 'manage-custom-fields',
     });
@@ -118,7 +110,7 @@ describe('HttpHrAdminPermissionAdapter', () => {
     );
 
     await expect(adapter.canWrite(ACTOR_ID)).rejects.toThrow(
-      ForbiddenException,
+      ServiceUnavailableException,
     );
   });
 
@@ -131,7 +123,7 @@ describe('HttpHrAdminPermissionAdapter', () => {
     );
 
     await expect(adapter.canWrite(ACTOR_ID)).rejects.toThrow(
-      ForbiddenException,
+      ServiceUnavailableException,
     );
   });
 });
