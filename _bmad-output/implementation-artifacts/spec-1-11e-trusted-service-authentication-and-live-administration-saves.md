@@ -2,7 +2,7 @@
 title: 'Story 1.11e: Trusted service authentication and live Administration saves'
 type: 'feature'
 created: '2026-09-08'
-status: 'ready-for-dev'
+status: 'done'
 review_loop_iteration: 0
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/spec-o4-146-trusted-service-authentication.md'
@@ -77,6 +77,7 @@ the operator or establish a delegated actor.
 | People -> Access Control | RFC 8693 delegated user token | `access-control-service` | `POST /api/v1/permissions/check` | Verified user `iss/sub`; `azp=people-service`; no caller-supplied actor headers |
 | People -> Access Control | RFC 8693 delegated user token | `access-control-service` | `GET /api/v1/access-roles/resolve?viewerPersonId=:viewerPersonId&subjectPersonId=:subjectPersonId` | Verified user `iss/sub` binds to `viewerPersonId`; `azp=people-service` |
 | Access Control -> People | RFC 8693 delegated token | `people-service` | `POST /api/v1/internal/identity-mappings/resolve` | Token `iss/sub` is authoritative; body must match exactly; `azp=access-control-service` |
+| Access Control -> People bootstrap lookup | RFC 8693 machine-token exchange using Access Control's `private_key_jwt` | `people-service` | `POST /api/v1/internal/bootstrap/identity-mappings/resolve` | Machine token `azp=access-control-service`; body is a separate target lookup; delegated-user and browser tokens are rejected |
 | Deployment -> Access Control | Deployment-authorized client credentials | `access-control-service` | `POST /api/v1/internal/bootstrap/administrator` | Token authenticates operator; separate target identity is resolved, never substituted for operator |
 | Background service -> target | Client credentials | Target service audience | Explicit internal endpoint only | Service `sub/azp`; no human delegation |
 
@@ -97,7 +98,8 @@ the operator or establish a delegated actor.
   trust, enforce target audience and claim binding, and call People with a verified credential.
 - `services/people-service/src/modules/identity-mappings/identity-resolution.controller.ts`,
   `internal-service-auth.guard.ts`, and `identity-resolution.service.ts` -- validate the signed
-  caller token and require exact body/token identity equality while preserving 404/409/503.
+  caller token and require exact body/token identity equality while preserving 404/409/503; add
+  the bootstrap-only target lookup route authenticated by `azp=access-control-service`.
 - `services/access-control-service/src/AccessControlService.Api/Controllers/BootstrapController.cs`
   (new) and `AccessControlService.Infrastructure/Identity/` -- expose only the deployment
   authenticated `POST /api/v1/internal/bootstrap/administrator`, invoke the existing bootstrap
@@ -113,21 +115,21 @@ the operator or establish a delegated actor.
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `authentication-service/keycloak/realm-export.json`, `infra/docker-compose.yml`, all
+- [x] `authentication-service/keycloak/realm-export.json`, `infra/docker-compose.yml`, all
   Testcontainers fixtures, and service configuration -- pin `26.2.5`; configure exchange,
   audiences, clients, private-key injection, and rotation without committing secrets.
-- [ ] `services/bff/src/modules/auth/` and functional-role proxy -- implement target-specific
+- [x] `services/bff/src/modules/auth/` and functional-role proxy -- implement target-specific
   delegated or machine credentials and remove raw browser-token forwarding.
-- [ ] Access Control authentication, trusted-service authorization, and People resolver client --
+- [x] Access Control authentication, trusted-service authorization, and People resolver client --
   validate `iss/sub/azp/aud`, enforce 401/403/503 semantics, and send verified identity.
-- [ ] People identity-mapping guard/controller -- validate the Access Control token and require
+- [x] People identity-mapping guard/controller -- validate the Access Control token and require
   exact body/token claim equality.
-- [ ] Access Control `POST /api/v1/internal/bootstrap/administrator` -- authenticate the
+- [x] Access Control `POST /api/v1/internal/bootstrap/administrator` -- authenticate the
   deployment operator with a machine token, resolve the separate target identity, enforce
   idempotency, and audit verified operator claims without changing recovery code.
-- [ ] Frontend Administration and affected tests -- prove real functional-role and custom-field
+- [x] Frontend Administration and affected tests -- prove real functional-role and custom-field
   saves, safe error handling, and no retry with raw browser credentials.
-- [ ] All affected service test suites -- add real Keycloak `26.2.5`, resolver,
+- [x] All affected service test suites -- add real Keycloak `26.2.5`, resolver,
   negative-security, key-rotation/outage, bootstrap, and disposable-database E2E evidence.
 
 **Acceptance Criteria:**
@@ -155,6 +157,16 @@ operator, while a separate target `(issuer, subject)` is resolved as the person 
 The target cannot replace or impersonate the operator. The bootstrap endpoint is internal and
 deployment-only; it is not registered as a browser-facing route and rejects a user-delegated
 token, wrong audience, wrong `azp`, or missing machine credential.
+
+**Approved bootstrap target-resolution decision:** The existing delegated identity resolver
+remains unchanged and continues to require exact token/body identity equality. Bootstrap target
+resolution uses the separate `POST /api/v1/internal/bootstrap/identity-mappings/resolve`
+endpoint in People. Access Control exchanges the deployment operator token for a short-lived
+`people-service`-audience machine token using Access Control's own `private_key_jwt`; it never
+forwards the deployment operator token or a browser/delegated-user token to People. The new
+People route accepts only `aud=people-service` and `azp=access-control-service`, and treats the
+body identity only as the independently resolved target, never as the authenticated caller or
+delegated actor.
 
 **Bootstrap HTTP contract:** `POST /api/v1/internal/bootstrap/administrator` requires
 `Authorization: Bearer <client-credentials-token>` with `aud=access-control-service` and
