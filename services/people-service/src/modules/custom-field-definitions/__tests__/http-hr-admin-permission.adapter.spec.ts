@@ -51,13 +51,31 @@ describe('HttpHrAdminPermissionAdapter', () => {
       URL,
       RequestInit,
     ];
-    expect(calledUrl.toString()).toBe(`${ACS_BASE_URL}/api/v1/permissions/check`);
+    expect(calledUrl.toString()).toBe(
+      `${ACS_BASE_URL}/api/v1/permissions/check`,
+    );
     expect(calledInit.method).toBe('POST');
-    expect((calledInit.headers as Record<string, string>)['X-Internal-Service-Secret']).toBe(SECRET);
-    expect((calledInit.headers as Record<string, string>)['X-Internal-Service-Identity']).toBe('people-service');
-    expect((calledInit.headers as Record<string, string>)['X-Delegated-Actor-Issuer']).toBe(EXPECTED_ISSUER);
-    expect((calledInit.headers as Record<string, string>)['X-Delegated-Actor-Sub']).toBe(ACTOR_ID);
-    expect(JSON.parse(calledInit.body as string)).toEqual({ PermissionKey: 'manage-custom-fields' });
+    expect(
+      (calledInit.headers as Record<string, string>)[
+        'X-Internal-Service-Secret'
+      ],
+    ).toBe(SECRET);
+    expect(
+      (calledInit.headers as Record<string, string>)[
+        'X-Internal-Service-Identity'
+      ],
+    ).toBe('people-service');
+    expect(
+      (calledInit.headers as Record<string, string>)[
+        'X-Delegated-Actor-Issuer'
+      ],
+    ).toBe(EXPECTED_ISSUER);
+    expect(
+      (calledInit.headers as Record<string, string>)['X-Delegated-Actor-Sub'],
+    ).toBe(ACTOR_ID);
+    expect(JSON.parse(calledInit.body as string)).toEqual({
+      PermissionKey: 'manage-custom-fields',
+    });
   });
 
   it('denied: Granted:false throws ForbiddenException', async () => {
@@ -68,27 +86,35 @@ describe('HttpHrAdminPermissionAdapter', () => {
     });
     const adapter = new HttpHrAdminPermissionAdapter(createConfig());
 
-    await expect(adapter.canWrite(ACTOR_ID)).rejects.toThrow(ForbiddenException);
+    await expect(adapter.canWrite(ACTOR_ID)).rejects.toThrow(
+      ForbiddenException,
+    );
   });
 
   it('403 from ACS throws ForbiddenException (fail-closed)', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 403 });
     const adapter = new HttpHrAdminPermissionAdapter(createConfig());
 
-    await expect(adapter.canWrite(ACTOR_ID)).rejects.toThrow(ForbiddenException);
+    await expect(adapter.canWrite(ACTOR_ID)).rejects.toThrow(
+      ForbiddenException,
+    );
   });
 
   it('503 from ACS throws ForbiddenException (fail-closed)', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 503 });
     const adapter = new HttpHrAdminPermissionAdapter(createConfig());
 
-    await expect(adapter.canWrite(ACTOR_ID)).rejects.toThrow(ForbiddenException);
+    await expect(adapter.canWrite(ACTOR_ID)).rejects.toThrow(
+      ForbiddenException,
+    );
   });
 
   it('network error throws ForbiddenException (fail-closed)', async () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
     const adapter = new HttpHrAdminPermissionAdapter(createConfig());
 
-    await expect(adapter.canWrite(ACTOR_ID)).rejects.toThrow(ForbiddenException);
+    await expect(adapter.canWrite(ACTOR_ID)).rejects.toThrow(
+      ForbiddenException,
+    );
   });
 });
