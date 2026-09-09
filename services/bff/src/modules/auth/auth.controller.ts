@@ -54,7 +54,8 @@ export class AuthController {
 
     // If already authenticated, skip Keycloak entirely.
     if (session.userId) {
-      res.redirect('/');
+      const frontendUrl = this.config.getOrThrow<string>('CORS_ORIGIN');
+      res.redirect(frontendUrl);
       return;
     }
 

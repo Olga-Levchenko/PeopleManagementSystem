@@ -117,7 +117,7 @@ describe('AuthController', () => {
       expect(session.oidcVerifier).toBe('v');
     });
 
-    it('redirects to / immediately when session already has a userId (already authenticated)', () => {
+    it('redirects to frontend immediately when session already has a userId (already authenticated)', () => {
       const session = mockSession({ userId: 'existing-user-sub' });
       const req = mockRequest(session);
       const res = mockResponse();
@@ -125,7 +125,7 @@ describe('AuthController', () => {
       controller.login(req, res);
 
       expect(oidc.buildAuthorizationUrl).not.toHaveBeenCalled();
-      expect(res.redirect).toHaveBeenCalledWith('/');
+      expect(res.redirect).toHaveBeenCalledWith('http://localhost:4200');
     });
   });
 

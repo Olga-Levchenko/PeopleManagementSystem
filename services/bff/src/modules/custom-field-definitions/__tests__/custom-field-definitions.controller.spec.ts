@@ -30,7 +30,6 @@ describe('CustomFieldDefinitionsController — status forwarding', () => {
 
     await controller.list(makeRequest(), response);
 
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(response['status']).toHaveBeenCalledWith(200);
   });
 
@@ -54,7 +53,6 @@ describe('CustomFieldDefinitionsController — status forwarding', () => {
       response,
     );
 
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(response['status']).toHaveBeenCalledWith(201);
     expect(result).toBe(created);
   });
@@ -80,7 +78,6 @@ describe('CustomFieldDefinitionsController — status forwarding', () => {
       response,
     );
 
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(response['status']).toHaveBeenCalledWith(200);
     expect(result).toBe(updated);
   });
@@ -97,7 +94,6 @@ describe('CustomFieldDefinitionsController — status forwarding', () => {
 
     await controller.deactivate('some-uuid', makeRequest(), response);
 
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(response['status']).toHaveBeenCalledWith(200);
   });
 
