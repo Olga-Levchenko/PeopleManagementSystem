@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { OidcService } from '../../auth/oidc.service';
 import { CustomFieldDefinitionsController } from '../custom-field-definitions.controller';
 import type { CustomFieldDefinitionsService } from '../custom-field-definitions.service';
 
@@ -19,6 +20,15 @@ const makeResponse = (): jest.Mocked<Pick<Response, 'status'>> & Response => {
 
 const makeService = (overrides: Partial<CustomFieldDefinitionsService>) =>
   overrides as unknown as CustomFieldDefinitionsService;
+const makeOidcService = (): OidcService =>
+  ({
+    resolveAuthorization: jest
+      .fn()
+      .mockImplementation(
+        (_session: unknown, incomingAuthorization: string | undefined) =>
+          Promise.resolve(incomingAuthorization),
+      ),
+  }) as unknown as OidcService;
 
 describe('CustomFieldDefinitionsController — status forwarding', () => {
   it('forwards 200 status from upstream list', async () => {
@@ -26,7 +36,10 @@ describe('CustomFieldDefinitionsController — status forwarding', () => {
       list: jest.fn().mockResolvedValue({ status: 200, body: [] }),
     });
     const response = makeResponse();
-    const controller = new CustomFieldDefinitionsController(service);
+    const controller = new CustomFieldDefinitionsController(
+      service,
+      makeOidcService(),
+    );
 
     await controller.list(makeRequest(), response);
 
@@ -45,7 +58,10 @@ describe('CustomFieldDefinitionsController — status forwarding', () => {
       create: jest.fn().mockResolvedValue({ status: 201, body: created }),
     });
     const response = makeResponse();
-    const controller = new CustomFieldDefinitionsController(service);
+    const controller = new CustomFieldDefinitionsController(
+      service,
+      makeOidcService(),
+    );
 
     const result = await controller.create(
       { name: 'Level', dataType: 'TEXT', visibility: 'MANAGEMENT' },
@@ -69,7 +85,10 @@ describe('CustomFieldDefinitionsController — status forwarding', () => {
       update: jest.fn().mockResolvedValue({ status: 200, body: updated }),
     });
     const response = makeResponse();
-    const controller = new CustomFieldDefinitionsController(service);
+    const controller = new CustomFieldDefinitionsController(
+      service,
+      makeOidcService(),
+    );
 
     const result = await controller.update(
       'some-uuid',
@@ -90,7 +109,10 @@ describe('CustomFieldDefinitionsController — status forwarding', () => {
         .mockResolvedValue({ status: 200, body: deactivated }),
     });
     const response = makeResponse();
-    const controller = new CustomFieldDefinitionsController(service);
+    const controller = new CustomFieldDefinitionsController(
+      service,
+      makeOidcService(),
+    );
 
     await controller.deactivate('some-uuid', makeRequest(), response);
 
@@ -101,7 +123,10 @@ describe('CustomFieldDefinitionsController — status forwarding', () => {
     const listMock = jest.fn().mockResolvedValue({ status: 200, body: [] });
     const service = makeService({ list: listMock });
     const response = makeResponse();
-    const controller = new CustomFieldDefinitionsController(service);
+    const controller = new CustomFieldDefinitionsController(
+      service,
+      makeOidcService(),
+    );
 
     await controller.list(
       makeRequest({

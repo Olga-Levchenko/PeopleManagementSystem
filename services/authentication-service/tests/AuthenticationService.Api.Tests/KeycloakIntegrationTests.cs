@@ -1,5 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.Sockets;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Testcontainers.Keycloak;
@@ -18,17 +21,30 @@ namespace AuthenticationService.Api.Tests;
 /// </summary>
 public sealed class KeycloakFixture : IAsyncLifetime
 {
+    private const int BffJwksPort = 3001;
+    private const string BFF_CLIENT_KEY_ID = "authentication-service-test-bff-key";
+
     private static readonly string RealmExportPath =
         Path.Combine(AppContext.BaseDirectory, "keycloak", "realm-export.json");
 
-    public KeycloakContainer Container { get; } = new KeycloakBuilder("quay.io/keycloak/keycloak:26.0")
+    private readonly CancellationTokenSource _jwksCancellation = new();
+    private readonly RSA _bffClientKey = RSA.Create(2048);
+    private TcpListener? _jwksListener;
+    private Task? _jwksServerTask;
+
+    public KeycloakContainer Container { get; } = new KeycloakBuilder("quay.io/keycloak/keycloak:26.2.5")
         .WithRealm(RealmExportPath)
         .Build();
 
     public string BaseAddress { get; private set; } = string.Empty;
+    public RSA BffClientKey => _bffClientKey;
+    public string BffClientKeyId => BFF_CLIENT_KEY_ID;
 
     public async Task InitializeAsync()
     {
+        _jwksListener = new TcpListener(IPAddress.Any, BffJwksPort);
+        _jwksListener.Start();
+        _jwksServerTask = ServeJwksAsync(_jwksListener, _jwksCancellation.Token);
         await Container.StartAsync();
         // KeycloakContainer.GetBaseAddress() returns a UriBuilder-rendered value with a trailing
         // slash (e.g. "http://127.0.0.1:55941/"); trimmed here so every "$"{BaseAddress}/realms/..."
@@ -40,7 +56,74 @@ public sealed class KeycloakFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
+        _jwksCancellation.Cancel();
+        _jwksListener?.Stop();
+        if (_jwksServerTask is not null)
+        {
+            await _jwksServerTask;
+        }
+
         await Container.DisposeAsync();
+        _bffClientKey.Dispose();
+        _jwksCancellation.Dispose();
+    }
+
+    private async Task ServeJwksAsync(TcpListener listener, CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            TcpClient client;
+            try
+            {
+                client = await listener.AcceptTcpClientAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (ObjectDisposedException)
+            {
+                return;
+            }
+
+            using (client)
+            {
+                await using NetworkStream stream = client.GetStream();
+                byte[] responseBody = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
+                {
+                    keys = new[]
+                    {
+                        CreatePublicJwk(),
+                    },
+                }));
+                string headers =
+                    $"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {responseBody.Length}\r\nConnection: close\r\n\r\n";
+                byte[] response = Encoding.UTF8.GetBytes(headers).Concat(responseBody).ToArray();
+                await stream.WriteAsync(response, cancellationToken);
+            }
+        }
+    }
+
+    private object CreatePublicJwk()
+    {
+        RSAParameters parameters = _bffClientKey.ExportParameters(false);
+        return new
+        {
+            kty = "RSA",
+            n = Base64UrlEncode(parameters.Modulus!),
+            e = Base64UrlEncode(parameters.Exponent!),
+            alg = "RS256",
+            use = "sig",
+            kid = BFF_CLIENT_KEY_ID,
+        };
+    }
+
+    private static string Base64UrlEncode(byte[] value)
+    {
+        return Convert.ToBase64String(value)
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
     }
 }
 
@@ -65,8 +148,7 @@ public sealed class KeycloakFixture : IAsyncLifetime
 public class KeycloakIntegrationTests : IDisposable
 {
     private const string Realm = "people-management";
-    private const string ClientId = "bff-confidential";
-    private const string ClientSecret = "local-dev-bff-confidential-secret";
+    private const string ClientId = "bff-direct-grant-test";
     private const string TestUsername = "story1-11.test-user";
     private const string TestPassword = "Story1-11-TestPassword!";
 
@@ -195,17 +277,56 @@ public class KeycloakIntegrationTests : IDisposable
 
     private Task<HttpResponseMessage> PostTokenRequest(string password)
     {
+        string tokenEndpoint =
+            $"{_fixture.BaseAddress}/realms/{Realm}/protocol/openid-connect/token";
+        string clientAssertion = CreateClientAssertion(tokenEndpoint);
         return _httpClient.PostAsync(
-            $"{_fixture.BaseAddress}/realms/{Realm}/protocol/openid-connect/token",
+            tokenEndpoint,
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["grant_type"] = "password",
                 ["client_id"] = ClientId,
-                ["client_secret"] = ClientSecret,
+                ["client_assertion_type"] =
+                    "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+                ["client_assertion"] = clientAssertion,
                 ["username"] = TestUsername,
                 ["password"] = password,
                 ["scope"] = "openid",
             }));
+    }
+
+    private string CreateClientAssertion(string tokenEndpoint)
+    {
+        long issuedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        string header = Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            alg = "RS256",
+            typ = "JWT",
+            kid = _fixture.BffClientKeyId,
+        }));
+        string payload = Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            iss = ClientId,
+            sub = ClientId,
+            aud = tokenEndpoint,
+            jti = Guid.NewGuid().ToString(),
+            iat = issuedAt,
+            exp = issuedAt + 60,
+        }));
+        string signingInput = $"{header}.{payload}";
+        byte[] signature = _fixture.BffClientKey.SignData(
+            Encoding.UTF8.GetBytes(signingInput),
+            HashAlgorithmName.SHA256,
+            RSASignaturePadding.Pkcs1);
+        return $"{signingInput}.{Base64UrlEncode(signature)}";
+    }
+
+    private static string Base64UrlEncode(byte[] value)
+    {
+        return Convert.ToBase64String(value)
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
     }
 
     private void SetProcessEnvironment(string port)

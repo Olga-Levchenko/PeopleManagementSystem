@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ServiceTokenExchangeService } from '../auth/service-token-exchange.service';
+import { RequestActorContext } from '../organisational-relationships/request-actor.context';
 
 /** Mirrors access-control-service's `SectionAccessLevel` enum, rendered as PascalCase JSON. */
 export type SectionAccessLevel = 'None' | 'Read' | 'ReadWrite';
@@ -147,7 +149,11 @@ export interface AccessRoleResolutionPort {
 export class HttpAccessRoleResolutionAdapter implements AccessRoleResolutionPort {
   private readonly logger = new Logger(HttpAccessRoleResolutionAdapter.name);
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly actor: RequestActorContext,
+    private readonly tokenExchange: ServiceTokenExchangeService,
+  ) {}
 
   async resolve(
     viewerPersonId: string,
@@ -161,7 +167,16 @@ export class HttpAccessRoleResolutionAdapter implements AccessRoleResolutionPort
     url.searchParams.set('subjectPersonId', subjectPersonId);
 
     try {
-      const response = await fetch(url, { method: 'GET' });
+      const accessToken = await this.tokenExchange.exchangeForAudience(
+        this.actor.accessToken,
+        'access-control-service',
+      );
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
       if (!response.ok) {
         this.logger.warn(
           `access-control-service returned ${response.status} resolving ${viewerPersonId} -> ${subjectPersonId}; failing closed to Colleague`,

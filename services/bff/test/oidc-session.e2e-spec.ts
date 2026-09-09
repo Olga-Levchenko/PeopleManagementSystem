@@ -7,6 +7,10 @@ import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import axios from 'axios';
 import expressSession from 'express-session';
+import { generateKeyPairSync } from 'node:crypto';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import path from 'path';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -28,7 +32,6 @@ import { AppModule } from '../src/app.module';
  */
 
 const REALM = 'people-management';
-const CLIENT_SECRET = 'local-dev-bff-confidential-secret';
 const TEST_USERNAME = 'story1-11.test-user';
 const TEST_PASSWORD = 'Story1-11-TestPassword!';
 
@@ -130,14 +133,24 @@ describe('OIDC session e2e (Story 1.13)', () => {
   let container: StartedTestContainer;
   let keycloakBaseUrl: string;
   let app: INestApplication<App>;
+  let temporaryKeyDirectory: string;
+  let privateKeyPath: string;
 
   beforeAll(async () => {
+    temporaryKeyDirectory = await mkdtemp(join(tmpdir(), 'bff-oidc-e2e-'));
+    privateKeyPath = join(temporaryKeyDirectory, 'client-private-key.pem');
+    const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    await writeFile(
+      privateKeyPath,
+      privateKey.export({ format: 'pem', type: 'pkcs8' }),
+    );
+
     const realmExportPath = path.resolve(
       __dirname,
       '../../authentication-service/keycloak/realm-export.json',
     );
 
-    container = await new GenericContainer('quay.io/keycloak/keycloak:26.0')
+    container = await new GenericContainer('quay.io/keycloak/keycloak:26.2.5')
       .withCopyFilesToContainer([
         {
           source: realmExportPath,
@@ -170,7 +183,9 @@ describe('OIDC session e2e (Story 1.13)', () => {
     const configOverrides: Record<string, string> = {
       KEYCLOAK_BASE_URL: keycloakBaseUrl,
       KEYCLOAK_REALM: REALM,
-      KEYCLOAK_CLIENT_SECRET: CLIENT_SECRET,
+      KEYCLOAK_CLIENT_PRIVATE_KEY_PATH: privateKeyPath,
+      KEYCLOAK_CLIENT_KEY_ID: 'bff-e2e-key',
+      KEYCLOAK_CLIENT_AUTH_SIGNING_ALG: 'RS256',
       SESSION_SECRET: 'e2e-test-session-secret-minimum-32-chars!!',
       OIDC_CALLBACK_URL: OIDC_CALLBACK_URL,
       PORT: String(BFF_PORT),
@@ -236,12 +251,56 @@ describe('OIDC session e2e (Story 1.13)', () => {
     });
 
     await app.listen(BFF_PORT);
+    await configureBffClientJwksUrl(
+      `http://host.docker.internal:${BFF_PORT}/api/v1/auth/jwks`,
+    );
   });
 
   afterAll(async () => {
     await app?.close();
     await container?.stop();
+    await rm(temporaryKeyDirectory, { recursive: true, force: true });
   });
+
+  async function configureBffClientJwksUrl(jwksUrl: string): Promise<void> {
+    const adminTokenResponse = await axios.post<{ access_token: string }>(
+      `${keycloakBaseUrl}/realms/master/protocol/openid-connect/token`,
+      new URLSearchParams({
+        grant_type: 'password',
+        client_id: 'admin-cli',
+        username: 'admin',
+        password: 'admin',
+      }),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+    );
+    const adminToken = adminTokenResponse.data.access_token;
+    const clientsResponse = await axios.get<
+      Array<{ id: string; attributes?: Record<string, string> }>
+    >(`${keycloakBaseUrl}/admin/realms/${REALM}/clients`, {
+      params: { clientId: 'bff-confidential' },
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    const client = clientsResponse.data[0];
+    if (!client) {
+      throw new Error('BFF client was not imported into Keycloak.');
+    }
+
+    await axios.put(
+      `${keycloakBaseUrl}/admin/realms/${REALM}/clients/${client.id}`,
+      {
+        attributes: {
+          ...client.attributes,
+          'jwks.url': jwksUrl,
+        },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+  }
 
   // ---------------------------------------------------------------------------
   // Login helper -- drives the full PKCE flow and returns the BFF session cookie.

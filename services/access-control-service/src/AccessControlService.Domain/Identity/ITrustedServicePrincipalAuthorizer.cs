@@ -1,5 +1,7 @@
 namespace AccessControlService.Domain.Identity;
 
+// Retained only as a test seam for legacy contract fixtures. Production permission
+// endpoints use the PeopleServiceJwt policy and do not resolve this abstraction.
 public interface ITrustedServicePrincipalAuthorizer
 {
     Task<TrustedPermissionCheckAuthorization> AuthorizeAsync(

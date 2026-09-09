@@ -7,6 +7,13 @@ public interface IPrincipalPersonResolver
         CancellationToken cancellationToken = default);
 }
 
+public interface IBootstrapTargetPersonResolver
+{
+    Task<PrincipalPersonResolution> ResolveBootstrapTargetAsync(
+        OidcPrincipalIdentity identity,
+        CancellationToken cancellationToken = default);
+}
+
 public sealed record OidcPrincipalIdentity
 {
     private OidcPrincipalIdentity(string issuer, string subject)
@@ -80,6 +87,11 @@ public abstract record PrincipalPersonResolution
 }
 
 public interface ICorrelationIdAccessor
+{
+    string? Current { get; }
+}
+
+public interface IIncomingAccessTokenAccessor
 {
     string? Current { get; }
 }

@@ -1,8 +1,13 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { passportJwtSecret } from 'jwks-rsa';
 import { ExtractJwt, Strategy, StrategyOptions } from 'passport-jwt';
+import type { Request } from 'express';
 
 /**
  * This is `bff-confidential`'s own client id -- also the `included.client.audience` value baked
@@ -14,7 +19,7 @@ import { ExtractJwt, Strategy, StrategyOptions } from 'passport-jwt';
  * bearer token the browser obtained and the BFF forwards unchanged (see this module's own
  * `auth.module.ts` doc comment) -- it is not a second, different client.
  */
-const BFF_CLIENT_ID = 'bff-confidential';
+const PEOPLE_SERVICE_AUDIENCE = 'people-service';
 
 /**
  * The subset of a Keycloak-issued access token's claims this strategy reads. Only `sub` is ever
@@ -22,6 +27,8 @@ const BFF_CLIENT_ID = 'bff-confidential';
  */
 export interface JwtPayload {
   sub: string;
+  iss?: string;
+  azp?: string;
   [claim: string]: unknown;
 }
 
@@ -33,6 +40,7 @@ export interface JwtPayload {
  */
 export interface AuthenticatedUser {
   sub: string;
+  iss: string;
 }
 
 /**
@@ -81,8 +89,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         jwksUri: deriveJwksUri(issuer),
       }),
       issuer,
-      audience: BFF_CLIENT_ID,
+      audience: PEOPLE_SERVICE_AUDIENCE,
       algorithms: ['RS256'],
+      passReqToCallback: true,
       // Small leeway against real clock drift between this process and Keycloak's -- without it,
       // a token that is genuinely still valid can be spuriously rejected as expired/not-yet-valid
       // whenever the two clocks disagree by even a couple of seconds (a real risk across separate
@@ -103,10 +112,25 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * (or blank) `sub` claim outright -- a signature-valid token carrying no usable identity must
    * not be treated as "authenticated".
    */
-  validate(payload: JwtPayload): AuthenticatedUser {
+  validate(request: Request, payload: JwtPayload): AuthenticatedUser {
     if (typeof payload.sub !== 'string' || payload.sub.trim().length === 0) {
       throw new UnauthorizedException('Token is missing a sub claim.');
     }
-    return { sub: payload.sub };
+    if (typeof payload.azp !== 'string' || payload.azp.trim().length === 0) {
+      throw new UnauthorizedException('Token is missing an azp claim.');
+    }
+    const isAccessControlResolver =
+      request.path.startsWith('/api/v1/internal/identity-mappings') ||
+      request.path.startsWith('/api/v1/internal/bootstrap/identity-mappings');
+    const expectedAzp = isAccessControlResolver
+      ? 'access-control-service'
+      : 'bff-confidential';
+    if (payload.azp !== expectedAzp) {
+      throw new ForbiddenException('Token caller is not authorized.');
+    }
+    if (typeof payload.iss !== 'string' || payload.iss.trim().length === 0) {
+      throw new UnauthorizedException('Token is missing an iss claim.');
+    }
+    return { sub: payload.sub, iss: payload.iss };
   }
 }

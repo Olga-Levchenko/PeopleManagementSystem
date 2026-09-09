@@ -17,12 +17,14 @@ export interface BffSession {
   oidcState?: string;
   /** PKCE code verifier stored during `/login` and consumed by `/callback`. */
   oidcVerifier?: string;
-  /** Keycloak access token -- injected as `Authorization: Bearer` on outbound domain calls. */
+  /** Keycloak browser-session access token -- exchanged before any outbound domain call. */
   accessToken?: string;
   /** Keycloak refresh token -- used to silently renew the access token. */
   refreshToken?: string;
   /** Keycloak ID token -- used as `id_token_hint` on the end_session call. */
   idToken?: string;
+  /** Keycloak browser session ID used to correlate back-channel logout notifications. */
+  oidcSessionId?: string;
   /**
    * Unix epoch seconds when the access token expires (`exp` claim). Stored alongside the token so
    * `JwtAuthGuard` can proactively refresh within 30 s of expiry without decoding the JWT on every
@@ -50,6 +52,7 @@ declare module 'express-session' {
     accessToken?: string;
     refreshToken?: string;
     idToken?: string;
+    oidcSessionId?: string;
     accessTokenExpiresAt?: number;
   }
 }

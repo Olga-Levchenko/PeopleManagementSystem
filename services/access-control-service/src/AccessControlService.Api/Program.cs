@@ -1,5 +1,4 @@
 using AccessControlService.Api;
-using AccessControlService.Api.Authorization;
 using AccessControlService.Api.Configuration;
 using AccessControlService.Api.ErrorHandling;
 using AccessControlService.Api.Health;
@@ -18,6 +17,7 @@ using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Security.Cryptography;
 
 // Load '.env' for local-dev parity with the Node services (committed '.env' is gitignored,
 // '.env.example' is the template). Never clobbers a variable already set in the process
@@ -36,6 +36,7 @@ var appConfig = AppConfig.Load(
     builder.Configuration,
     builder.Environment.EnvironmentName);
 builder.Services.AddSingleton(appConfig);
+const string TARGET_AUDIENCE = "access-control-service";
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -45,6 +46,7 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IIncomingAccessTokenAccessor, HttpIncomingAccessTokenAccessor>();
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -60,7 +62,7 @@ builder.Services
             {
                 RequireHttps = options.RequireHttpsMetadata,
             });
-        options.Audience = appConfig.OidcAudience;
+        options.Audience = TARGET_AUDIENCE;
         options.SaveToken = false;
         options.MapInboundClaims = false;
         options.TokenValidationParameters = new TokenValidationParameters
@@ -68,7 +70,7 @@ builder.Services
             ValidateIssuer = true,
             ValidIssuer = appConfig.OidcIssuer,
             ValidateAudience = true,
-            ValidAudience = appConfig.OidcAudience,
+            ValidAudiences = [TARGET_AUDIENCE],
             ValidateLifetime = true,
             RequireExpirationTime = true,
             RequireSignedTokens = true,
@@ -91,6 +93,13 @@ builder.Services
                 {
                     context.Fail("The verified token does not contain a usable subject.");
                 }
+                else if (!context.Principal!
+                    .FindAll("aud")
+                    .Select(claim => claim.Value)
+                    .Contains(TARGET_AUDIENCE, StringComparer.Ordinal))
+                {
+                    context.Fail("The verified token is not intended for this service.");
+                }
 
                 return Task.CompletedTask;
             },
@@ -102,7 +111,32 @@ builder.Services.AddAuthorization(options =>
         "AdministrationJwt",
         policy => policy
             .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
-            .RequireAuthenticatedUser());
+            .RequireAuthenticatedUser()
+            .RequireClaim("azp", "bff-confidential")
+            .RequireClaim("aud", "access-control-service"));
+    options.AddPolicy(
+        "PeopleServiceJwt",
+        policy => policy
+            .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+            .RequireAuthenticatedUser()
+            .RequireClaim("azp", "people-service")
+            .RequireClaim("aud", "access-control-service"));
+    options.AddPolicy(
+        "AccessRoleResolutionJwt",
+        policy => policy
+            .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+            .RequireAuthenticatedUser()
+            .RequireClaim("aud", "access-control-service")
+            .RequireAssertion(context =>
+                context.User.FindAll("azp").Any(claim =>
+                    claim.Value is "people-service" or "work-management-service")));
+    options.AddPolicy(
+        "DeploymentBootstrapJwt",
+        policy => policy
+            .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+            .RequireAuthenticatedUser()
+            .RequireClaim("azp", "deployment-bootstrap")
+            .RequireClaim("aud", "access-control-service"));
 });
 
 builder.Services.AddCors(options =>
@@ -133,12 +167,15 @@ builder.Services.AddSingleton(new PeopleIdentityResolverOptions(
     appConfig.PeopleServiceBaseUrl,
     TimeSpan.FromSeconds(2),
     appConfig.AllowedOidcIssuers,
-    appConfig.AllowInsecureOidcHttp));
+    appConfig.AllowInsecureOidcHttp,
+    $"{appConfig.OidcIssuer}/protocol/openid-connect/token",
+    appConfig.ServiceAuthPrivateKeyPath,
+    appConfig.ServiceAuthKeyId));
 builder.Services.AddHttpClient<PeoplePrincipalPersonResolver>();
+builder.Services.AddHttpClient<ServiceTokenExchange>();
 builder.Services.AddScoped<IPrincipalPersonResolver, PeoplePrincipalPersonResolver>();
+builder.Services.AddScoped<IBootstrapTargetPersonResolver, PeoplePrincipalPersonResolver>();
 builder.Services.AddScoped<ICorrelationIdAccessor, HttpCorrelationIdAccessor>();
-builder.Services.AddSingleton<IInternalServiceCredentialProvider>(
-    new AppConfigInternalServiceCredentialProvider(appConfig.InternalServiceSecret));
 builder.Services.AddScoped<
     IBootstrapProvisioningService,
     FunctionalRoleBootstrapProvisioningService>();
@@ -146,10 +183,6 @@ builder.Services.AddScoped<IBootstrapRecoveryService, FunctionalRoleRecoveryServ
 builder.Services.AddScoped<
     IDeploymentRecoveryAuthorizer,
     UnavailableDeploymentRecoveryAuthorizer>();
-builder.Services.AddScoped<
-    ITrustedServicePrincipalAuthorizer,
-    HeaderBasedTrustedServicePrincipalAuthorizer>();
-
 // spec-1-1d: the pure, transport-agnostic project-assignment event processor. Scoped because its
 // DbContext dependency is scoped -- spec-1-1e's consumer below creates one DI scope per message
 // rather than resolving this once at startup.
@@ -177,6 +210,86 @@ builder.Services.AddHostedService<ProjectAssignmentEventConsumer>();
 builder.WebHost.UseUrls($"http://0.0.0.0:{appConfig.Port}");
 
 var app = builder.Build();
+
+app.MapGet("/.well-known/jwks.json", async () =>
+{
+    if (string.IsNullOrWhiteSpace(appConfig.ServiceAuthPrivateKeyPath) ||
+        string.IsNullOrWhiteSpace(appConfig.ServiceAuthKeyId))
+    {
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+
+    try
+    {
+        using RSA rsa = RSA.Create();
+        rsa.ImportFromPem(
+            await File.ReadAllTextAsync(appConfig.ServiceAuthPrivateKeyPath));
+        RSAParameters parameters = rsa.ExportParameters(false);
+        return Results.Json(new
+        {
+            keys = new[]
+            {
+                new
+                {
+                    kty = "RSA",
+                    n = Base64Url(parameters.Modulus!),
+                    e = Base64Url(parameters.Exponent!),
+                    kid = appConfig.ServiceAuthKeyId,
+                    alg = "RS256",
+                    use = "sig",
+                },
+            },
+        });
+    }
+    catch (IOException)
+    {
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+    catch (CryptographicException)
+    {
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+});
+
+app.MapGet("/.well-known/deployment-bootstrap-jwks.json", async () =>
+{
+    if (string.IsNullOrWhiteSpace(appConfig.DeploymentBootstrapPublicKeyPath) ||
+        string.IsNullOrWhiteSpace(appConfig.DeploymentBootstrapKeyId))
+    {
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+
+    try
+    {
+        using RSA rsa = RSA.Create();
+        rsa.ImportFromPem(
+            await File.ReadAllTextAsync(appConfig.DeploymentBootstrapPublicKeyPath));
+        RSAParameters parameters = rsa.ExportParameters(false);
+        return Results.Json(new
+        {
+            keys = new[]
+            {
+                new
+                {
+                    kty = "RSA",
+                    n = Base64Url(parameters.Modulus!),
+                    e = Base64Url(parameters.Exponent!),
+                    kid = appConfig.DeploymentBootstrapKeyId,
+                    alg = "RS256",
+                    use = "sig",
+                },
+            },
+        });
+    }
+    catch (IOException)
+    {
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+    catch (CryptographicException)
+    {
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+});
 
 if (app.Environment.IsDevelopment())
 {
@@ -213,6 +326,12 @@ catch (IOException ex)
         "by another process. See the inner exception for details.",
         ex);
 }
+
+static string Base64Url(byte[] value) =>
+    Convert.ToBase64String(value)
+        .TrimEnd('=')
+        .Replace('+', '-')
+        .Replace('/', '_');
 
 // Exposes the implicit Program class to WebApplicationFactory<Program> in the test project.
 public partial class Program

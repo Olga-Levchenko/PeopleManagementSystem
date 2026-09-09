@@ -982,7 +982,10 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
     {
         FunctionalRoleBootstrapProvisioningService provisioning = CreateProvisioning(
             new PrincipalPersonResolution.Resolved(FixtureSeedData.EngineerId));
-        BootstrapProvisioningRequest request = new(TEST_ISSUER, "trusted-bootstrap-sub");
+        BootstrapProvisioningRequest request = new(
+            TEST_ISSUER,
+            "trusted-bootstrap-sub",
+            "deployment:https://operator.example/realms/ops|deployment-bootstrap-operator|deployment-bootstrap");
 
         BootstrapProvisioningResult first = await provisioning.ProvisionAsync(
             request, "bootstrap-correlation-1", CancellationToken.None);
@@ -993,9 +996,11 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
         Assert.Equal(BootstrapProvisioningStatus.AlreadyProvisioned, second.Status);
         AuthorizationAdministrationAudit audit = await dbContext.AuthorizationAdministrationAudits
             .SingleAsync(candidate => candidate.Action == "bootstrap");
-        Assert.Equal("system:bootstrap-provisioning", audit.TrustedProvisioningActor);
-        Assert.DoesNotContain("trusted-bootstrap-sub", audit.TrustedProvisioningActor);
-        Assert.DoesNotContain(TEST_ISSUER, audit.TrustedProvisioningActor);
+        Assert.Equal(
+            "deployment:https://operator.example/realms/ops|deployment-bootstrap-operator|deployment-bootstrap",
+            audit.TrustedProvisioningActor);
+        Assert.Contains("trusted-bootstrap-sub", audit.After);
+        Assert.Contains(TEST_ISSUER, audit.After);
     }
 
     [Fact]
@@ -1628,7 +1633,7 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
             throw new InvalidOperationException("Recovery must authorize before resolution.");
     }
 
-    private sealed class StubPrincipalResolver : IPrincipalPersonResolver
+    private sealed class StubPrincipalResolver : IBootstrapTargetPersonResolver
     {
         private readonly PrincipalPersonResolution resolution;
 
@@ -1637,7 +1642,7 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
             this.resolution = resolution;
         }
 
-        public Task<PrincipalPersonResolution> ResolvePersonAsync(
+        public Task<PrincipalPersonResolution> ResolveBootstrapTargetAsync(
             OidcPrincipalIdentity identity,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(resolution);
@@ -1654,7 +1659,10 @@ public sealed class FunctionalRoleAdministrationServiceTests : IAsyncLifetime
         public Task GrantAsync(Guid actorId, Guid subjectId, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
 
-        public Task RevokeAsync(Guid actorId, Guid subjectId, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
+        public Task<bool> RevokeAsync(
+            Guid actorId,
+            Guid subjectId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
     }
 }

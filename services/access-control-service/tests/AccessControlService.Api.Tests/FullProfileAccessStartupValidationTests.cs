@@ -60,7 +60,10 @@ public class FullProfileAccessStartupValidationTests
         public Task GrantAsync(Guid actorId, Guid subjectId, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
 
-        public Task RevokeAsync(Guid actorId, Guid subjectId, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
+        public Task<bool> RevokeAsync(
+            Guid actorId,
+            Guid subjectId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
     }
 }

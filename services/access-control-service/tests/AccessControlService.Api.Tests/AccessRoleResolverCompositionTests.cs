@@ -3,7 +3,9 @@ using System.Text.Json;
 using AccessControlService.Domain;
 using AccessControlService.Infrastructure.Messaging;
 using AccessControlService.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -904,6 +906,9 @@ public sealed class AccessRoleResolverCompositionTests : IAsyncLifetime
     {
         _factory = new WebApplicationFactory<Program>();
         using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(
+            AccessRoleTestAuthentication.SUBJECT_HEADER,
+            FixtureSeedData.EngineerId.ToString());
 
         using var response = await client.GetAsync(
             $"/api/v1/access-roles/resolve?viewerPersonId=not-a-guid&subjectPersonId={FixtureSeedData.EngineerId}");
@@ -1305,6 +1310,16 @@ public sealed class AccessRoleResolverCompositionTests : IAsyncLifetime
         else
         {
             Assert.Equal(expectedRestriction, section.GetProperty("restriction").GetString());
+        }
+    }
+
+    private sealed class WebApplicationFactory<TEntryPoint>
+        : Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<TEntryPoint>
+        where TEntryPoint : class
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            builder.ConfigureTestServices(AccessRoleTestAuthentication.Configure);
         }
     }
 }

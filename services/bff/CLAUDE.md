@@ -95,8 +95,9 @@ is validated (JWT signature/claims) and logged, but no BFF session is destroyed 
 persistent store with a userId/sid lookup. See `AuthController.backchannelLogout`.
 
 **Forwarding modules:** `OrganisationalRelationshipsController` (and any future forwarding module)
-resolves the outbound `Authorization` header as: (1) incoming bearer token if present; (2)
-`Bearer ${session.accessToken}` from the BFF session if the caller is a browser session user.
+resolves the outbound `Authorization` header as: (1) an audience-specific exchanged token for a
+browser session user; (2) an incoming bearer token for a non-session service caller. The browser
+session token is never forwarded directly to a domain service.
 
 ## Gotchas
 

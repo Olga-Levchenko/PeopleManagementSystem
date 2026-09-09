@@ -2,7 +2,9 @@ import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import type { Request, Response } from 'express';
 import { AppModule } from './app.module';
+import { ServiceTokenExchangeService } from './modules/auth/service-token-exchange.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -27,6 +29,26 @@ async function bootstrap() {
   });
 
   app.enableShutdownHooks();
+  const expressApp = app.getHttpAdapter().getInstance() as {
+    get(
+      path: string,
+      handler: (request: Request, response: Response) => Promise<void>,
+    ): void;
+  };
+  expressApp.get(
+    '/.well-known/jwks.json',
+    async (_request: Request, response: Response) => {
+      const exchange = app.get(ServiceTokenExchangeService);
+      try {
+        response.json(await exchange.getPublicJwks());
+      } catch {
+        response.status(503).json({
+          title: 'Service signing key is unavailable',
+          status: 503,
+        });
+      }
+    },
+  );
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('API')

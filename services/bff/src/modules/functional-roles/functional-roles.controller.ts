@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
+import { OidcService } from '../auth/oidc.service';
 import type { BffSession } from '../auth/session.types';
 import {
   AssignFunctionalRoleDto,
@@ -35,53 +36,62 @@ import {
 @ApiBearerAuth()
 @Controller()
 export class FunctionalRolesController {
-  constructor(private readonly service: FunctionalRolesService) {}
+  constructor(
+    private readonly service: FunctionalRolesService,
+    private readonly oidc: OidcService,
+  ) {}
 
   @Get('permissions/catalogue')
-  getCatalogue(
+  async getCatalogue(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
     return this.forward(
       response,
-      this.service.getCatalogue(this.context(request)),
+      this.service.getCatalogue(await this.context(request)),
     );
   }
 
   @Get('functional-roles')
-  getRoles(
+  async getRoles(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return this.forward(response, this.service.getRoles(this.context(request)));
+    return this.forward(
+      response,
+      this.service.getRoles(await this.context(request)),
+    );
   }
 
   @Get('functional-roles/:roleKey')
-  getRole(
+  async getRole(
     @Param() params: RoleKeyParamsDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
     return this.forward(
       response,
-      this.service.getRole(params.roleKey, this.context(request)),
+      this.service.getRole(params.roleKey, await this.context(request)),
     );
   }
 
   @Get('functional-roles/:roleKey/permissions')
-  getRolePermissions(
+  async getRolePermissions(
     @Param() params: RoleKeyParamsDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
     return this.forward(
       response,
-      this.service.getRolePermissions(params.roleKey, this.context(request)),
+      this.service.getRolePermissions(
+        params.roleKey,
+        await this.context(request),
+      ),
     );
   }
 
   @Post('functional-roles')
-  createRole(
+  async createRole(
     @Body() body: CreateFunctionalRoleDto,
     @Headers('idempotency-key') idempotencyKey: string | undefined,
     @Req() request: Request,
@@ -89,12 +99,15 @@ export class FunctionalRolesController {
   ) {
     return this.forward(
       response,
-      this.service.createRole(body, this.context(request, idempotencyKey)),
+      this.service.createRole(
+        body,
+        await this.context(request, idempotencyKey),
+      ),
     );
   }
 
   @Patch('functional-roles/:roleKey')
-  updateRole(
+  async updateRole(
     @Param() params: RoleKeyParamsDto,
     @Body() body: UpdateFunctionalRoleDto,
     @Req() request: Request,
@@ -102,12 +115,16 @@ export class FunctionalRolesController {
   ) {
     return this.forward(
       response,
-      this.service.updateRole(params.roleKey, body, this.context(request)),
+      this.service.updateRole(
+        params.roleKey,
+        body,
+        await this.context(request),
+      ),
     );
   }
 
   @Post('functional-roles/:roleKey/deactivate')
-  deactivateRole(
+  async deactivateRole(
     @Param() params: RoleKeyParamsDto,
     @Body() body: DeactivateFunctionalRoleDto,
     @Req() request: Request,
@@ -115,12 +132,16 @@ export class FunctionalRolesController {
   ) {
     return this.forward(
       response,
-      this.service.deactivateRole(params.roleKey, body, this.context(request)),
+      this.service.deactivateRole(
+        params.roleKey,
+        body,
+        await this.context(request),
+      ),
     );
   }
 
   @Put('functional-roles/:roleKey/permissions/:permissionKey')
-  grantPermission(
+  async grantPermission(
     @Param() params: RolePermissionParamsDto,
     @Body() body: GrantPermissionDto,
     @Headers('idempotency-key') idempotencyKey: string | undefined,
@@ -133,13 +154,13 @@ export class FunctionalRolesController {
         params.roleKey,
         params.permissionKey,
         body,
-        this.context(request, idempotencyKey),
+        await this.context(request, idempotencyKey),
       ),
     );
   }
 
   @Delete('functional-roles/:roleKey/permissions/:permissionKey')
-  revokePermission(
+  async revokePermission(
     @Param() params: RolePermissionParamsDto,
     @Query() query: RevokePermissionQueryDto,
     @Req() request: Request,
@@ -151,13 +172,13 @@ export class FunctionalRolesController {
         params.roleKey,
         params.permissionKey,
         query.scope,
-        this.context(request),
+        await this.context(request),
       ),
     );
   }
 
   @Post('people/:personId/functional-roles')
-  assignRole(
+  async assignRole(
     @Param() params: PersonParamsDto,
     @Body() body: AssignFunctionalRoleDto,
     @Headers('idempotency-key') idempotencyKey: string | undefined,
@@ -169,13 +190,13 @@ export class FunctionalRolesController {
       this.service.assignRole(
         params.personId,
         body,
-        this.context(request, idempotencyKey),
+        await this.context(request, idempotencyKey),
       ),
     );
   }
 
   @Delete('people/:personId/functional-roles/:roleKey')
-  revokeRole(
+  async revokeRole(
     @Param() params: PersonRoleParamsDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
@@ -185,46 +206,37 @@ export class FunctionalRolesController {
       this.service.revokeRole(
         params.personId,
         params.roleKey,
-        this.context(request),
+        await this.context(request),
       ),
     );
   }
 
   @Get('people/:personId/functional-roles')
-  getAssignments(
+  async getAssignments(
     @Param() params: PersonParamsDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
     return this.forward(
       response,
-      this.service.getAssignments(params.personId, this.context(request)),
+      this.service.getAssignments(params.personId, await this.context(request)),
     );
   }
 
-  private context(request: Request, idempotencyKey?: string): ProxyContext {
+  private async context(
+    request: Request,
+    idempotencyKey?: string,
+  ): Promise<ProxyContext> {
+    const session = request.session as BffSession | undefined;
     return {
-      authorization: this.resolveAuthorization(request),
+      authorization: await this.oidc.resolveAuthorization(
+        session,
+        request.headers.authorization,
+        'access-control-service',
+      ),
       correlationId: request.correlationId,
       idempotencyKey,
     };
-  }
-
-  /**
-   * Resolves the Authorization header to forward to the access-control-service.
-   * Prefers an explicit incoming bearer token (service-to-service callers); falls back to the
-   * session access token for browser session users who authenticate via the OIDC flow and do
-   * not send a bearer token in their request headers.
-   */
-  private resolveAuthorization(request: Request): string | undefined {
-    if (request.headers.authorization) {
-      return request.headers.authorization;
-    }
-    const session = request.session as BffSession | undefined;
-    if (session?.accessToken) {
-      return `Bearer ${session.accessToken}`;
-    }
-    return undefined;
   }
 
   private async forward(

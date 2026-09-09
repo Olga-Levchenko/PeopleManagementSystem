@@ -65,7 +65,7 @@ public sealed class FunctionalRolesControllerTests : IClassFixture<WebApplicatio
     }
 
     [Fact]
-    public async Task PermissionCheck_WithoutTrustedServicePrincipal_ReturnsServiceUnavailable()
+    public async Task PermissionCheck_WithoutServiceToken_ReturnsUnauthorized()
     {
         using HttpResponseMessage response = await client.PostAsync(
             "/api/v1/permissions/check",
@@ -74,8 +74,7 @@ public sealed class FunctionalRolesControllerTests : IClassFixture<WebApplicatio
                 System.Text.Encoding.UTF8,
                 "application/json"));
 
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
-        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]

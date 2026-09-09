@@ -50,17 +50,6 @@ describe('JwtAuthGuard', () => {
     } as unknown as ExecutionContext;
   }
 
-  function superCanActivateSpy() {
-    // JwtAuthGuard extends AuthGuard('jwt') -- the mixin class captured at this file's own
-    // class-definition time. Spying on the prototype one level up from JwtAuthGuard.prototype
-    // targets that exact base class, not a freshly-minted AuthGuard('jwt') from calling it again
-    // here (which would be a different class entirely).
-    return jest.spyOn(
-      Object.getPrototypeOf(JwtAuthGuard.prototype),
-      'canActivate',
-    );
-  }
-
   afterEach(() => {
     jest.restoreAllMocks();
   });
@@ -70,7 +59,6 @@ describe('JwtAuthGuard', () => {
     const reflector = { getAllAndOverride } as unknown as Reflector;
     const oidc = makeOidcService();
     const guard = new JwtAuthGuard(reflector, oidc);
-    const superCanActivate = superCanActivateSpy();
     const context = createContext();
 
     const result = await guard.canActivate(context);
@@ -80,21 +68,18 @@ describe('JwtAuthGuard', () => {
       handler,
       controllerClass,
     ]);
-    expect(superCanActivate).not.toHaveBeenCalled();
   });
 
-  it('delegates to the real passport-jwt guard when no @Public() metadata is present and no session', async () => {
+  it('rejects requests without a BFF session', async () => {
     const getAllAndOverride = jest.fn().mockReturnValue(false);
     const reflector = { getAllAndOverride } as unknown as Reflector;
     const oidc = makeOidcService();
     const guard = new JwtAuthGuard(reflector, oidc);
-    const superCanActivate = superCanActivateSpy().mockResolvedValue(true);
     const context = createContext();
 
-    const result = await guard.canActivate(context);
-
-    expect(superCanActivate).toHaveBeenCalledWith(context);
-    expect(result).toBe(true);
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
   it('authenticates from session when userId is present, setting req.user = { sub }', async () => {
@@ -102,14 +87,12 @@ describe('JwtAuthGuard', () => {
     const reflector = { getAllAndOverride } as unknown as Reflector;
     const oidc = makeOidcService();
     const guard = new JwtAuthGuard(reflector, oidc);
-    const superCanActivate = superCanActivateSpy();
 
     const context = createContext({ userId: 'session-sub' });
 
     const result = await guard.canActivate(context);
 
     expect(result).toBe(true);
-    expect(superCanActivate).not.toHaveBeenCalled();
     // req.user must be populated so downstream handlers can read it.
     // getRequest() returns the same stable object reference used by the guard.
     const req = context.switchToHttp().getRequest<{ user: unknown }>();

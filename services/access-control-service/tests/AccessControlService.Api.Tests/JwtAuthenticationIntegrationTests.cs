@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text.Json;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -23,12 +22,10 @@ public sealed class JwtAuthenticationIntegrationTests : IAsyncLifetime
 {
     private const string ISSUER_REALM = "people-management";
     private const string CLIENT_ID = "bff-confidential";
-    private const string CLIENT_SECRET = "local-dev-bff-confidential-secret";
-    private const string USERNAME = "story1-11.test-user";
-    private const string PASSWORD = "Story1-11-TestPassword!";
+    private const string AUDIENCE = "access-control-service";
     private static readonly Guid ADMINISTRATOR_ID = FixtureSeedData.ExecutiveId;
 
-    private readonly KeycloakContainer keycloak = new KeycloakBuilder("quay.io/keycloak/keycloak:26.0")
+    private readonly KeycloakContainer keycloak = new KeycloakBuilder("quay.io/keycloak/keycloak:26.2.5")
         .WithRealm(Path.Combine(AppContext.BaseDirectory, "keycloak", "realm-export.json"))
         .Build();
     private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:16-alpine")
@@ -85,7 +82,8 @@ public sealed class JwtAuthenticationIntegrationTests : IAsyncLifetime
                         options.ConfigurationManager = null;
                         options.TokenValidationParameters.IssuerSigningKey = controlledSigningKey;
                         options.TokenValidationParameters.ValidIssuer = issuer;
-                        options.TokenValidationParameters.ValidAudience = CLIENT_ID;
+                        options.TokenValidationParameters.ValidAudience = null;
+                        options.TokenValidationParameters.ValidAudiences = [AUDIENCE, CLIENT_ID];
                         options.TokenValidationParameters.ValidAlgorithms = ["RS256"];
                     });
             });
@@ -124,16 +122,20 @@ public sealed class JwtAuthenticationIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AdministrationRoute_WithKeycloakSignedToken_IsAccepted()
+    public async Task AdministrationRoute_WithControlledSignedToken_IsAccepted()
     {
         resolver.Resolution = new PrincipalPersonResolution.Resolved(ADMINISTRATOR_ID);
-        string token = await GetAccessTokenAsync();
+        string token = CreateTestToken(
+            issuer,
+            AUDIENCE,
+            DateTime.UtcNow.AddMinutes(5),
+            "subject");
         using HttpRequestMessage request = new(
             HttpMethod.Get,
             "/api/v1/permissions/catalogue");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        using HttpResponseMessage response = await client.SendAsync(request);
+        using HttpResponseMessage response = await controlledClient.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         JwtSecurityToken verifiedToken = new JwtSecurityTokenHandler().ReadJwtToken(token);
@@ -143,10 +145,57 @@ public sealed class JwtAuthenticationIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AllAdministrationRoutes_WithKeycloakSignedToken_ReachTheirHandlers()
+    public async Task AdministrationRoute_WithValidButWrongAudience_IsUnauthorized()
     {
         resolver.Resolution = new PrincipalPersonResolution.Resolved(ADMINISTRATOR_ID);
-        string token = await GetAccessTokenAsync();
+        string token = CreateTestToken(
+            issuer,
+            CLIENT_ID,
+            DateTime.UtcNow.AddMinutes(5),
+            "subject");
+        int resolverCallsBefore = resolver.Calls;
+
+        using HttpRequestMessage request = new(
+            HttpMethod.Get,
+            "/api/v1/permissions/catalogue");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using HttpResponseMessage response = await controlledClient.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(resolverCallsBefore, resolver.Calls);
+    }
+
+    [Fact]
+    public async Task AccessRoleResolution_WithWorkManagementCaller_IsAccepted()
+    {
+        resolver.Resolution = new PrincipalPersonResolution.Resolved(ADMINISTRATOR_ID);
+        string token = CreateTestToken(
+            issuer,
+            AUDIENCE,
+            DateTime.UtcNow.AddMinutes(5),
+            "subject",
+            SecurityAlgorithms.RsaSha256,
+            "work-management-service");
+        using HttpRequestMessage request = CreateRequest(
+            HttpMethod.Get,
+            $"/api/v1/access-roles/resolve?viewerPersonId={ADMINISTRATOR_ID}&subjectPersonId={FixtureSeedData.EngineerId}",
+            token);
+
+        using HttpResponseMessage response = await controlledClient.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AllAdministrationRoutes_WithControlledSignedToken_ReachTheirHandlers()
+    {
+        resolver.Resolution = new PrincipalPersonResolution.Resolved(ADMINISTRATOR_ID);
+        string token = CreateTestToken(
+            issuer,
+            AUDIENCE,
+            DateTime.UtcNow.AddMinutes(5),
+            "subject");
         string roleKey = $"jwt-route-{Guid.NewGuid():N}";
         (HttpMethod Method, string Path, string? Body, HttpStatusCode Status)[] routes =
         [
@@ -177,7 +226,7 @@ public sealed class JwtAuthenticationIntegrationTests : IAsyncLifetime
         foreach ((HttpMethod method, string path, string? body, HttpStatusCode status) in routes)
         {
             using HttpRequestMessage request = CreateRequest(method, path, token, body);
-            using HttpResponseMessage response = await client.SendAsync(request);
+            using HttpResponseMessage response = await controlledClient.SendAsync(request);
             Assert.Equal(status, response.StatusCode);
         }
 
@@ -200,9 +249,13 @@ public sealed class JwtAuthenticationIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AdministrationRoute_WithTamperedToken_IsRejected()
+    public async Task AdministrationRoute_WithTamperedControlledToken_IsRejected()
     {
-        string token = await GetAccessTokenAsync();
+        string token = CreateTestToken(
+            issuer,
+            AUDIENCE,
+            DateTime.UtcNow.AddMinutes(5),
+            "subject");
         string[] parts = token.Split('.');
         parts[1] = Convert.ToBase64String(
                 JsonSerializer.SerializeToUtf8Bytes(new { iss = "https://forged.invalid" }))
@@ -220,7 +273,7 @@ public sealed class JwtAuthenticationIntegrationTests : IAsyncLifetime
             "Bearer",
             string.Join('.', parts));
 
-        using HttpResponseMessage response = await client.SendAsync(request);
+        using HttpResponseMessage response = await controlledClient.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Equal(callsBefore, resolver.Calls);
@@ -241,16 +294,20 @@ public sealed class JwtAuthenticationIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task EndUserToken_CannotAuthorizePermissionCheck()
     {
-        string token = await GetAccessTokenAsync();
+        string token = CreateTestToken(
+            issuer,
+            AUDIENCE,
+            DateTime.UtcNow.AddMinutes(5),
+            "subject");
         using HttpRequestMessage request = CreateRequest(
             HttpMethod.Post,
             "/api/v1/permissions/check",
             token,
             """{"permissionKey":"view-dashboard","scope":null}""");
 
-        using HttpResponseMessage response = await client.SendAsync(request);
+        using HttpResponseMessage response = await controlledClient.SendAsync(request);
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
@@ -258,7 +315,7 @@ public sealed class JwtAuthenticationIntegrationTests : IAsyncLifetime
     {
         string validControlledToken = CreateTestToken(
             issuer,
-            CLIENT_ID,
+            AUDIENCE,
             DateTime.UtcNow.AddMinutes(5),
             "subject");
         string[] validTokenParts = validControlledToken.Split('.');
@@ -268,15 +325,15 @@ public sealed class JwtAuthenticationIntegrationTests : IAsyncLifetime
         string tamperedSignature = string.Join('.', validTokenParts);
         string[] tokens =
         [
-            CreateTestToken("https://wrong.example/realms/people-management", CLIENT_ID, DateTime.UtcNow.AddMinutes(5), "subject"),
+            CreateTestToken("https://wrong.example/realms/people-management", AUDIENCE, DateTime.UtcNow.AddMinutes(5), "subject"),
             CreateTestToken(issuer, "wrong-audience", DateTime.UtcNow.AddMinutes(5), "subject"),
-            CreateTestToken(issuer, CLIENT_ID, DateTime.UtcNow.AddMinutes(-10), "subject"),
-            CreateTestToken(issuer, CLIENT_ID, DateTime.UtcNow.AddMinutes(5), null),
-            CreateTestToken(issuer, CLIENT_ID, DateTime.UtcNow.AddMinutes(5), " "),
-            CreateTestToken(issuer, CLIENT_ID, DateTime.UtcNow.AddMinutes(5), "subject", SecurityAlgorithms.RsaSha512),
+            CreateTestToken(issuer, AUDIENCE, DateTime.UtcNow.AddMinutes(-10), "subject"),
+            CreateTestToken(issuer, AUDIENCE, DateTime.UtcNow.AddMinutes(5), null),
+            CreateTestToken(issuer, AUDIENCE, DateTime.UtcNow.AddMinutes(5), " "),
+            CreateTestToken(issuer, AUDIENCE, DateTime.UtcNow.AddMinutes(5), "subject", SecurityAlgorithms.RsaSha512),
             tamperedSignature,
             "not-a-jwt",
-            CreateTestToken(issuer, CLIENT_ID, null, "subject"),
+            CreateTestToken(issuer, AUDIENCE, null, "subject"),
         ];
         int callsBefore = resolver.Calls;
         int auditsBefore = await GetAuditCountAsync();
@@ -302,7 +359,7 @@ public sealed class JwtAuthenticationIntegrationTests : IAsyncLifetime
     {
         string token = CreateTestToken(
             issuer,
-            CLIENT_ID,
+            AUDIENCE,
             DateTime.UtcNow.AddMinutes(5),
             "subject");
 
@@ -338,7 +395,7 @@ public sealed class JwtAuthenticationIntegrationTests : IAsyncLifetime
         resolver.Resolution = new PrincipalPersonResolution.Resolved(ADMINISTRATOR_ID);
         string token = CreateTestToken(
             issuer,
-            CLIENT_ID,
+            AUDIENCE,
             DateTime.UtcNow.AddMinutes(5),
             "subject");
         int callsBefore = resolver.Calls;
@@ -375,27 +432,6 @@ public sealed class JwtAuthenticationIntegrationTests : IAsyncLifetime
             AssignedAtUtc = DateTime.UtcNow,
         });
         await context.SaveChangesAsync();
-    }
-
-    private async Task<string> GetAccessTokenAsync()
-    {
-        using HttpClient keycloakClient = new();
-        string baseAddress = keycloak.GetBaseAddress().TrimEnd('/');
-        using HttpResponseMessage response = await keycloakClient.PostAsync(
-            $"{baseAddress}/realms/{ISSUER_REALM}/protocol/openid-connect/token",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["grant_type"] = "password",
-                ["client_id"] = CLIENT_ID,
-                ["client_secret"] = CLIENT_SECRET,
-                ["username"] = USERNAME,
-                ["password"] = PASSWORD,
-                ["scope"] = "openid",
-            }));
-        response.EnsureSuccessStatusCode();
-        JsonElement payload = await response.Content.ReadFromJsonAsync<JsonElement>();
-        return payload.GetProperty("access_token").GetString()
-            ?? throw new InvalidOperationException("Keycloak returned no access token.");
     }
 
     private static HttpRequestMessage CreateRequest(
@@ -435,13 +471,15 @@ public sealed class JwtAuthenticationIntegrationTests : IAsyncLifetime
         string audience,
         DateTime? expiration,
         string? subject,
-        string algorithm = SecurityAlgorithms.RsaSha256)
+        string algorithm = SecurityAlgorithms.RsaSha256,
+        string? authorizedParty = null)
     {
         JwtHeader header = new(new SigningCredentials(controlledSigningKey, algorithm));
         JwtPayload payload = new()
         {
             ["iss"] = tokenIssuer,
             ["aud"] = audience,
+            ["azp"] = authorizedParty ?? CLIENT_ID,
             ["iat"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
         };
         if (expiration is not null)

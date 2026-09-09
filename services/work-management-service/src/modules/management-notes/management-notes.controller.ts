@@ -34,6 +34,21 @@ function requireActorId(request: AuthenticatedRequest): string {
   return actorId;
 }
 
+export function extractBearerToken(
+  authorization: string | undefined,
+): string | undefined {
+  const match = authorization?.match(/^Bearer\s+(.+)$/i);
+  return match?.[1]?.trim() || undefined;
+}
+
+function requireBearerToken(request: AuthenticatedRequest): string {
+  const token = extractBearerToken(request.headers.authorization);
+  if (!token) {
+    throw new UnauthorizedException('Authenticated bearer token is required');
+  }
+  return token;
+}
+
 @ApiBearerAuth()
 @Controller('management-notes')
 export class ManagementNotesController {
@@ -44,7 +59,11 @@ export class ManagementNotesController {
     @Query('subjectPersonId', new ParseUUIDPipe()) subjectPersonId: string,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.service.listNotes(requireActorId(request), subjectPersonId);
+    return this.service.listNotes(
+      requireActorId(request),
+      subjectPersonId,
+      requireBearerToken(request),
+    );
   }
 
   @Post()
@@ -52,7 +71,11 @@ export class ManagementNotesController {
     @Body() dto: CreateManagementNoteDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.service.createNote(requireActorId(request), dto);
+    return this.service.createNote(
+      requireActorId(request),
+      dto,
+      requireBearerToken(request),
+    );
   }
 
   @Patch(':id')
@@ -61,6 +84,11 @@ export class ManagementNotesController {
     @Body() dto: UpdateManagementNoteDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.service.updateNote(requireActorId(request), id, dto);
+    return this.service.updateNote(
+      requireActorId(request),
+      id,
+      dto,
+      requireBearerToken(request),
+    );
   }
 }

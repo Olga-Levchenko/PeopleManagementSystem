@@ -9,8 +9,8 @@ import { OidcService } from './oidc.service';
  * - `JwtStrategy` (`passport-jwt`) validates bearer tokens against Keycloak's real JWKS/issuer.
  * - `OidcService` wraps `openid-client` for the PKCE authorization-code flow, token refresh,
  *   end_session, and back-channel logout-token validation.
- * - `AuthController` exposes the five OIDC lifecycle endpoints (/login, /callback, /logout,
- *   /backchannel-logout, /me).
+ * - `AuthController` exposes the OIDC lifecycle endpoints (/login, /callback, /logout,
+ *   /backchannel-logout, /jwks, /me).
  *
  * `JwtAuthGuard` is deliberately NOT provided/exported here -- `AppModule` registers it directly
  * as `{ provide: APP_GUARD, useClass: JwtAuthGuard }`, which makes Nest's root injector

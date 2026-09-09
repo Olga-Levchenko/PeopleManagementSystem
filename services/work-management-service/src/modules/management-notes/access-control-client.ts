@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ServiceTokenExchangeService } from '../auth/service-token-exchange.service';
 
 /** The two project-scoped roles access-control-service's `projectRoles` field can carry. */
 export type ProjectRole = 'ProjectManager' | 'DeliveryManager';
@@ -61,6 +62,7 @@ export interface AccessRoleResolutionPort {
   resolve(
     viewerPersonId: string,
     subjectPersonId: string,
+    subjectToken?: string,
   ): Promise<AccessRoleResolution>;
 }
 
@@ -89,13 +91,25 @@ const RESOLVE_TIMEOUT_MS = 5_000;
 export class HttpAccessRoleResolutionAdapter implements AccessRoleResolutionPort {
   private readonly logger = new Logger(HttpAccessRoleResolutionAdapter.name);
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly tokenExchange: ServiceTokenExchangeService,
+  ) {}
 
   async resolve(
     viewerPersonId: string,
     subjectPersonId: string,
+    subjectToken?: string,
   ): Promise<AccessRoleResolution> {
+    if (!subjectToken) {
+      return NO_ACCESS_RESOLUTION;
+    }
     try {
+      const signal = AbortSignal.timeout(RESOLVE_TIMEOUT_MS);
+      const accessToken = await this.tokenExchange.exchangeForAccessControl(
+        subjectToken,
+        signal,
+      );
       // Config lookup and URL construction live inside this try too -- a missing/invalid
       // ACCESS_CONTROL_SERVICE_BASE_URL must fail closed the same as a network error, never
       // throw past the caller (Joi startup validation makes this unreachable in practice, but
@@ -112,7 +126,8 @@ export class HttpAccessRoleResolutionAdapter implements AccessRoleResolutionPort
       // catch block below already handles identically to any other network error.
       const response = await fetch(url, {
         method: 'GET',
-        signal: AbortSignal.timeout(RESOLVE_TIMEOUT_MS),
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal,
       });
       if (!response.ok) {
         this.logger.warn(

@@ -9,6 +9,7 @@ import {
   Post,
   Req,
   Res,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -21,11 +22,12 @@ import { Public } from './public.decorator';
 import type { BffSession } from './session.types';
 
 /**
- * Five BFF-owned OIDC lifecycle endpoints:
+ * Six BFF-owned OIDC lifecycle endpoints:
  *  GET  /api/v1/auth/login              — initiate PKCE flow
  *  GET  /api/v1/auth/callback           — receive authorization code from Keycloak
  *  POST /api/v1/auth/logout             — sign out (destroy session + Keycloak SSO)
  *  POST /api/v1/auth/backchannel-logout — Keycloak-initiated back-channel logout
+ *  GET  /api/v1/auth/jwks              — BFF client public signing key
  *  GET  /api/v1/auth/me                 — return session identity
  *
  * All endpoints except `/me` are `@Public()` (no JWT guard). `/me` validates via the session
@@ -146,6 +148,7 @@ export class AuthController {
       session.accessToken = tokens.accessToken;
       session.refreshToken = tokens.refreshToken;
       session.idToken = tokens.idToken;
+      session.oidcSessionId = tokens.oidcSessionId;
       session.accessTokenExpiresAt = tokens.accessTokenExpiresAt;
 
       const frontendUrl = this.config.getOrThrow<string>('CORS_ORIGIN');
@@ -241,11 +244,34 @@ export class AuthController {
     // where sessions survive restarts and a real scan+destroy is required.
     await new Promise<void>((resolve) => {
       if (!req.sessionStore?.all) {
-        // Store does not implement .all() -- log and continue without destroying sessions.
-        this.logger.warn(
-          'Session store does not support .all() -- back-channel logout cannot destroy sessions.',
+        const queryStore = req.sessionStore as typeof req.sessionStore & {
+          query?: (
+            query: string,
+            params: string[],
+            callback: (error: unknown) => void,
+          ) => void;
+        };
+        if (!queryStore?.query) {
+          this.logger.warn(
+            'Session store does not support session enumeration or targeted deletion.',
+          );
+          resolve();
+          return;
+        }
+
+        queryStore.query(
+          'DELETE FROM "session" WHERE sess->>\'userId\' = $1',
+          [parsedToken.sub],
+          (error) => {
+            if (error) {
+              this.logger.warn(
+                'Back-channel logout: failed to delete matching sessions',
+                error,
+              );
+            }
+            resolve();
+          },
         );
-        resolve();
         return;
       }
 
@@ -279,7 +305,10 @@ export class AuthController {
           const matchingSids = Object.entries(sessions)
             .filter(
               ([, sessionData]) =>
-                targetSub && sessionData.userId === targetSub,
+                targetSub &&
+                sessionData.userId === targetSub &&
+                (!parsedToken.sid ||
+                  sessionData.oidcSessionId === parsedToken.sid),
             )
             .map(([sid]) => sid);
 
@@ -319,6 +348,19 @@ export class AuthController {
     });
 
     res.sendStatus(HttpStatus.OK);
+  }
+
+  // ---------- GET /auth/jwks ----------
+
+  @Public()
+  @Get('jwks')
+  @ApiOperation({ summary: 'Publish the BFF client public signing key' })
+  jwks(): { keys: Record<string, unknown>[] } {
+    try {
+      return this.oidc.getPublicJwks();
+    } catch {
+      throw new ServiceUnavailableException('BFF signing key is unavailable.');
+    }
   }
 
   // ---------- GET /auth/me ----------

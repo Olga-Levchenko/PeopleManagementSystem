@@ -149,6 +149,7 @@ describe('AuthController', () => {
         idToken: 'it',
         sub: 'sub-user',
         email: 'user@test.local',
+        oidcSessionId: 'oidc-session-123',
         accessTokenExpiresAt: 9999,
       });
 
@@ -395,6 +396,32 @@ describe('AuthController', () => {
       await controller.backchannelLogout(req, res);
 
       expect(destroyMock).not.toHaveBeenCalled();
+      expect(res.sendStatus).toHaveBeenCalledWith(200);
+    });
+
+    it('uses the persistent store query API when session enumeration is unavailable', async () => {
+      const queryMock = jest.fn(
+        (query: string, params: string[], callback: (error: null) => void) =>
+          callback(null),
+      );
+      const req = {
+        ...mockRequest(mockSession(), {}, { logout_token: 'valid-jwt' }),
+        sessionStore: { query: queryMock },
+      } as unknown as Request;
+      const res = mockResponse();
+
+      oidc.validateLogoutToken.mockResolvedValueOnce({
+        sub: 'target-sub',
+        sid: 'session-abc',
+      });
+
+      await controller.backchannelLogout(req, res);
+
+      expect(queryMock).toHaveBeenCalledWith(
+        'DELETE FROM "session" WHERE sess->>\'userId\' = $1',
+        ['target-sub'],
+        expect.any(Function),
+      );
       expect(res.sendStatus).toHaveBeenCalledWith(200);
     });
   });

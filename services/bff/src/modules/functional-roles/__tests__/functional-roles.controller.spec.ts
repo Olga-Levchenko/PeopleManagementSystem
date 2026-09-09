@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import type { Request, Response } from 'express';
+import { OidcService } from '../../auth/oidc.service';
 import { FunctionalRolesController } from '../functional-roles.controller';
 import { FunctionalRolesService } from '../functional-roles.service';
 
@@ -29,6 +30,19 @@ describe('FunctionalRolesController — resolveAuthorization', () => {
       controllers: [FunctionalRolesController],
       providers: [
         {
+          provide: OidcService,
+          useValue: {
+            resolveAuthorization: jest
+              .fn()
+              .mockImplementation(
+                (
+                  _session: unknown,
+                  incomingAuthorization: string | undefined,
+                ) => Promise.resolve(incomingAuthorization),
+              ),
+          },
+        },
+        {
           provide: FunctionalRolesService,
           useValue: {
             getCatalogue: jest
@@ -57,14 +71,30 @@ describe('FunctionalRolesController — resolveAuthorization', () => {
     );
   });
 
-  it('falls back to session access token when no bearer token is in the request header', async () => {
+  it('exchanges a browser session token instead of forwarding it', async () => {
+    const oidc = {
+      resolveAuthorization: jest
+        .fn()
+        .mockResolvedValue('Bearer exchanged-access-control-token'),
+    };
+    controller = new FunctionalRolesController(
+      service,
+      oidc as unknown as OidcService,
+    );
     const req = mockRequest({
       session: { accessToken: 'session-access-token' },
     });
     await controller.getCatalogue(req, mockResponse());
 
     expect(service.getCatalogue).toHaveBeenCalledWith(
-      expect.objectContaining({ authorization: 'Bearer session-access-token' }),
+      expect.objectContaining({
+        authorization: 'Bearer exchanged-access-control-token',
+      }),
+    );
+    expect(oidc.resolveAuthorization).toHaveBeenCalledWith(
+      expect.objectContaining({ accessToken: 'session-access-token' }),
+      undefined,
+      'access-control-service',
     );
   });
 

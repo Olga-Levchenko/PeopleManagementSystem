@@ -57,7 +57,6 @@ describe('AppModule (e2e)', () => {
       KEYCLOAK_BASE_URL: 'http://localhost:8080',
       KEYCLOAK_REALM: 'people-management',
       ACCESS_CONTROL_SERVICE_BASE_URL: 'http://stub-access-control:3007',
-      INTERNAL_SERVICE_SECRET: 'e2e-placeholder-secret',
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({

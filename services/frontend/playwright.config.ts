@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const liveFrontendUrl = process.env.LIVE_FRONTEND_URL
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
@@ -9,7 +11,7 @@ export default defineConfig({
   reporter: 'html',
 
   use: {
-    baseURL: 'http://127.0.0.1:4200',
+    baseURL: liveFrontendUrl ?? 'http://127.0.0.1:4200',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -21,10 +23,14 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
-    command: 'npx vite',
-    port: 4200,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
-  },
+  ...(liveFrontendUrl
+    ? {}
+    : {
+        webServer: {
+          command: 'npx vite',
+          port: 4200,
+          reuseExistingServer: !process.env.CI,
+          timeout: 120 * 1000,
+        },
+      }),
 })
