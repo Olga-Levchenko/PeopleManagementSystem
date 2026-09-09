@@ -9,6 +9,9 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
+  testIgnore: process.env.LIVE_FRONTEND_URL
+    ? []
+    : ['**/administration.live.spec.ts'],
 
   use: {
     baseURL: liveFrontendUrl ?? 'http://127.0.0.1:4200',
