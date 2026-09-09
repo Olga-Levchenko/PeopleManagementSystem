@@ -205,6 +205,41 @@ current audit, including after failures. Never use production or shared mutable 
 If Docker, browsers, credentials, or external services are unavailable, report `BLOCKED` or
 `NOT RUN`; never report `PASSED`.
 
+### Tier 2a — containerized authentication CI-parity gate
+
+When a changed service's CI workflow sets `run_e2e: true` and the E2E suite starts Keycloak or
+another dependency with Testcontainers, do not validate only the unit suite or a happy-path
+request. Run the same service-level E2E command CI runs, and inspect every authentication setup
+path exercised by that command.
+
+For Keycloak clients, compare the test request with the imported realm export before declaring
+the check ready:
+
+- `clientAuthenticatorType: client-jwt` requires `client_assertion_type`, a signed
+  `client_assertion`, matching `kid`, and a JWKS URL that the Keycloak container can resolve and
+  reach.
+- `clientAuthenticatorType: client-secret` requires the configured test secret and must not rely
+  on a JWT assertion.
+- `directAccessGrantsEnabled` must be enabled for password-grant test clients only. Do not make a
+  production client less secure in the committed realm export merely to make an E2E test pass.
+  If a test mutates a client at runtime, make that mutation explicit in the harness and verify it
+  before the first token request.
+
+For host-published test servers used by a container (JWKS, callback, webhook, or back-channel
+logout endpoints):
+
+- bind the server to a non-loopback interface such as `0.0.0.0`;
+- do not assume `host.docker.internal` resolves on Linux CI;
+- add an explicit Testcontainers host mapping using the repository's supported API
+  (`withExtraHosts([{ host: 'host.docker.internal', ipAddress: 'host-gateway' }])` for Node or
+  `WithExtraHost("host.docker.internal", "host-gateway")` for .NET), or use an equivalent
+  CI-safe network address;
+- verify the URL from the container's network context when the test depends on it.
+
+After changing an E2E harness, rerun the exact CI command, including the full configured test
+scope, not only the test that first exposed the failure. A successful local run that used
+Docker Desktop's implicit hostname mapping is insufficient evidence for a Linux CI runner.
+
 ### Tier 3 — explicit approval required
 
 The following always require explicit approval:
