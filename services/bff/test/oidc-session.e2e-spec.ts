@@ -157,6 +157,9 @@ describe('OIDC session e2e (Story 1.13)', () => {
           target: '/opt/keycloak/data/import/realm-export.json',
         },
       ])
+      .withExtraHosts([
+        { host: 'host.docker.internal', ipAddress: 'host-gateway' },
+      ])
       .withEnvironment({
         KEYCLOAK_ADMIN: 'admin',
         KEYCLOAK_ADMIN_PASSWORD: 'admin',

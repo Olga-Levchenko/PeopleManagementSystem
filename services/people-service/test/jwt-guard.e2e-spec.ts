@@ -82,6 +82,7 @@ describe('JWT guard (e2e)', () => {
       client_secret: CLIENT_SECRET,
       username: TEST_USERNAME,
       password: TEST_PASSWORD,
+      scope: 'openid people-service-audience',
     });
 
     const res = await fetch(
@@ -127,6 +128,52 @@ describe('JWT guard (e2e)', () => {
 
     const json = (await res.json()) as TokenResponse;
     return json.access_token;
+  }
+
+  async function configureDirectGrantClient(): Promise<void> {
+    const adminToken = await obtainAdminToken();
+    const clientsResponse = await fetch(
+      `${baseUrl}/admin/realms/${REALM}/clients?clientId=${CLIENT_ID}`,
+      {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      },
+    );
+    if (!clientsResponse.ok) {
+      throw new Error(
+        `Failed to find direct-grant client: ${clientsResponse.status} ${await clientsResponse.text()}`,
+      );
+    }
+
+    const clients = (await clientsResponse.json()) as Array<
+      Record<string, unknown>
+    >;
+    const client = clients[0];
+    const clientId = client?.id;
+    if (typeof clientId !== 'string') {
+      throw new Error('Direct-grant client was not imported into Keycloak.');
+    }
+
+    const updateResponse = await fetch(
+      `${baseUrl}/admin/realms/${REALM}/clients/${clientId}`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...client,
+          clientAuthenticatorType: 'client-secret',
+          directAccessGrantsEnabled: true,
+          secret: CLIENT_SECRET,
+        }),
+      },
+    );
+    if (!updateResponse.ok) {
+      throw new Error(
+        `Failed to configure direct-grant client: ${updateResponse.status} ${await updateResponse.text()}`,
+      );
+    }
   }
 
   /**
@@ -203,6 +250,7 @@ describe('JWT guard (e2e)', () => {
     const host =
       container.getHost() === 'localhost' ? '127.0.0.1' : container.getHost();
     baseUrl = `http://${host}:${container.getMappedPort(8080)}`;
+    await configureDirectGrantClient();
 
     // See the module-level comment: overriding ConfigService (rather than process.env) is what
     // actually gets the container's real KEYCLOAK_BASE_URL/KEYCLOAK_REALM into JwtStrategy.

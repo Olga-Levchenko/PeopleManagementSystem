@@ -205,6 +205,9 @@ describe('JWT guard (e2e)', () => {
           target: '/opt/keycloak/data/import/realm-export.json',
         },
       ])
+      .withExtraHosts([
+        { host: 'host.docker.internal', ipAddress: 'host-gateway' },
+      ])
       .withEnvironment({
         KEYCLOAK_ADMIN: 'admin',
         KEYCLOAK_ADMIN_PASSWORD: 'admin',

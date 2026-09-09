@@ -34,6 +34,7 @@ public sealed class KeycloakFixture : IAsyncLifetime
 
     public KeycloakContainer Container { get; } = new KeycloakBuilder("quay.io/keycloak/keycloak:26.2.5")
         .WithRealm(RealmExportPath)
+        .WithExtraHost("host.docker.internal", "host-gateway")
         .Build();
 
     public string BaseAddress { get; private set; } = string.Empty;
