@@ -26,8 +26,11 @@ describe('CustomFieldDefinitionsController — dataType rejection', () => {
     expect(() =>
       controller.update(
         'bbbbbbbb-0000-4000-8000-000000000001',
-        {} as never,
-        { dataType: 'TEXT', name: 'X' },
+        {},
+        {
+          dataType: 'TEXT',
+          name: 'X',
+        },
       ),
     ).toThrow(BadRequestException);
 
@@ -35,7 +38,10 @@ describe('CustomFieldDefinitionsController — dataType rejection', () => {
   });
 
   it('calls service.update when raw body has no dataType', async () => {
-    const updated = { id: 'bbbbbbbb-0000-4000-8000-000000000001', name: 'Seniority' };
+    const updated = {
+      id: 'bbbbbbbb-0000-4000-8000-000000000001',
+      name: 'Seniority',
+    };
     const service = {
       listAll: jest.fn(),
       update: jest.fn().mockResolvedValue(updated),
@@ -45,7 +51,7 @@ describe('CustomFieldDefinitionsController — dataType rejection', () => {
 
     const result = await controller.update(
       'bbbbbbbb-0000-4000-8000-000000000001',
-      { name: 'Seniority' } as never,
+      { name: 'Seniority' },
       { name: 'Seniority' },
     );
 

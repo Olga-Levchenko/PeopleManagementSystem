@@ -12,7 +12,9 @@ export type InternalServiceAuthorizationResult =
   | { readonly outcome: 'unauthorized' };
 
 export interface IInternalServiceAuthorizer {
-  authorize(authorizationHeader?: string): Promise<InternalServiceAuthorizationResult>;
+  authorize(
+    authorizationHeader?: string,
+  ): Promise<InternalServiceAuthorizationResult>;
 }
 
 export type IdentityResolutionResult =
