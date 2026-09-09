@@ -1,4 +1,9 @@
 using AccessControlService.Domain;
+using AccessControlService.Domain.Identity;
+using AccessControlService.Api.ErrorHandling;
+using AccessControlService.Infrastructure.Permissions;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,10 +35,14 @@ namespace AccessControlService.Api.Controllers;
 public sealed class FullProfileAccessController : ControllerBase
 {
     private readonly IFullProfileAccessRepository _repository;
+    private readonly IPrincipalPersonResolver _principalResolver;
 
-    public FullProfileAccessController(IFullProfileAccessRepository repository)
+    public FullProfileAccessController(
+        IFullProfileAccessRepository repository,
+        IPrincipalPersonResolver principalResolver)
     {
         _repository = repository;
+        _principalResolver = principalResolver;
     }
 
     /// <summary>
@@ -42,11 +51,12 @@ public sealed class FullProfileAccessController : ControllerBase
     /// success, 403 when the actor is not a holder or attempts self-grant.
     /// </summary>
     [HttpPost("grant")]
+    [Authorize(Policy = "AdministrationJwt")]
     public async Task<IActionResult> Grant(
         [FromBody] FullProfileAccessGrantRequest request,
         CancellationToken cancellationToken)
     {
-        var actorId = request.ActorId;
+        var actorId = await EnsureActorBindingAsync(request.ActorId, cancellationToken);
         var subjectId = request.SubjectId;
 
         // Self-grant guard: spec §2.4 -- no self-assignment.
@@ -101,11 +111,12 @@ public sealed class FullProfileAccessController : ControllerBase
     /// holders.
     /// </summary>
     [HttpPost("revoke")]
+    [Authorize(Policy = "AdministrationJwt")]
     public async Task<IActionResult> Revoke(
         [FromBody] FullProfileAccessRevokeRequest request,
         CancellationToken cancellationToken)
     {
-        var actorId = request.ActorId;
+        var actorId = await EnsureActorBindingAsync(request.ActorId, cancellationToken);
         var subjectId = request.SubjectId;
 
         // Non-holder guard: only an existing holder may revoke.
@@ -136,8 +147,50 @@ public sealed class FullProfileAccessController : ControllerBase
                 statusCode: StatusCodes.Status409Conflict);
         }
 
-        await _repository.RevokeAsync(actorId, subjectId, cancellationToken);
+        var revoked = await _repository.RevokeAsync(actorId, subjectId, cancellationToken);
+        if (!revoked)
+        {
+            return Problem(
+                detail: "The last Full-profile-access holder cannot be revoked. At least one holder must remain at all times.",
+                statusCode: StatusCodes.Status409Conflict);
+        }
+
         return Ok();
+    }
+
+    private async Task<Guid> EnsureActorBindingAsync(
+        Guid requestedActorId,
+        CancellationToken cancellationToken)
+    {
+        if (!OidcPrincipalIdentity.TryCreate(
+                User.FindFirstValue("iss"),
+                User.FindFirstValue("sub"),
+                allowInsecureHttp: false,
+                out OidcPrincipalIdentity? identity) ||
+            identity is null)
+        {
+            throw new UnauthorizedException();
+        }
+
+        PrincipalPersonResolution resolution =
+            await _principalResolver.ResolvePersonAsync(identity, cancellationToken);
+        Guid resolvedActorId = resolution switch
+        {
+            PrincipalPersonResolution.Resolved resolved => resolved.PersonId,
+            PrincipalPersonResolution.Missing => throw new NotFoundException(
+                "The authenticated principal has no active person mapping."),
+            PrincipalPersonResolution.Ambiguous => throw new RoleConflictException(
+                "The authenticated principal has an ambiguous person mapping."),
+            PrincipalPersonResolution.Unavailable => throw new ServiceUnavailableException(),
+            _ => throw new UnauthorizedException(),
+        };
+
+        if (resolvedActorId != requestedActorId)
+        {
+            throw new ForbiddenException("The token subject does not match the actor.");
+        }
+
+        return resolvedActorId;
     }
 }
 

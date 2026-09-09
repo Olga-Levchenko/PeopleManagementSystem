@@ -10,12 +10,14 @@ public interface IBootstrapProvisioningService
 
 public sealed record BootstrapProvisioningRequest(
     string? PrincipalIssuer,
-    string? PrincipalSub);
+    string? PrincipalSub,
+    string? TrustedProvisioningActor = null);
 
 public enum BootstrapProvisioningStatus
 {
     Provisioned,
     AlreadyProvisioned,
+    MissingIdentity,
     UnavailableIdentity,
     AmbiguousIdentity,
     InvalidInput,
@@ -30,6 +32,9 @@ public sealed record BootstrapProvisioningResult(BootstrapProvisioningStatus Sta
 
     public static BootstrapProvisioningResult AlreadyProvisioned() =>
         new(BootstrapProvisioningStatus.AlreadyProvisioned);
+
+    public static BootstrapProvisioningResult MissingIdentity() =>
+        new(BootstrapProvisioningStatus.MissingIdentity);
 
     public static BootstrapProvisioningResult UnavailableIdentity() =>
         new(BootstrapProvisioningStatus.UnavailableIdentity);

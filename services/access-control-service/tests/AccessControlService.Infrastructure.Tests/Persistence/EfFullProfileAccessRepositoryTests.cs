@@ -176,4 +176,31 @@ public sealed class EfFullProfileAccessRepositoryTests : IAsyncLifetime
         await Assert.ThrowsAsync<DbUpdateException>(() =>
             _repository.GrantAsync(FixtureSeedData.PlatformLeadId, FixtureSeedData.PlatformLeadId));
     }
+
+    [Fact]
+    public async Task RevokeAsync_ConcurrentRevokesCannotRemoveTheLastHolder()
+    {
+        await _repository.GrantAsync(
+            FixtureSeedData.PlatformLeadId,
+            FixtureSeedData.EngineerId);
+
+        var options = new DbContextOptionsBuilder<AccessControlDbContext>()
+            .UseNpgsql(_postgresContainer.GetConnectionString())
+            .Options;
+        await using var firstContext = new AccessControlDbContext(options);
+        await using var secondContext = new AccessControlDbContext(options);
+        var firstRepository = new EfFullProfileAccessRepository(firstContext);
+        var secondRepository = new EfFullProfileAccessRepository(secondContext);
+
+        var results = await Task.WhenAll(
+            firstRepository.RevokeAsync(
+                FixtureSeedData.EngineerId,
+                FixtureSeedData.PlatformLeadId),
+            secondRepository.RevokeAsync(
+                FixtureSeedData.PlatformLeadId,
+                FixtureSeedData.EngineerId));
+
+        Assert.Single(results, result => result);
+        Assert.Equal(1, await _repository.GetActiveCountAsync());
+    }
 }

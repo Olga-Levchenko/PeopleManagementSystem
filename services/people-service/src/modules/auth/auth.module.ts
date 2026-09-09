@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './jwt.strategy';
+import { ServiceTokenExchangeService } from './service-token-exchange.service';
 
 /**
  * Wires `people-service`'s JWT authentication: the `passport-jwt` strategy, validated against
@@ -16,7 +17,7 @@ import { JwtStrategy } from './jwt.strategy';
  */
 @Module({
   imports: [PassportModule],
-  providers: [JwtStrategy],
-  exports: [JwtStrategy],
+  providers: [JwtStrategy, ServiceTokenExchangeService],
+  exports: [JwtStrategy, ServiceTokenExchangeService],
 })
 export class AuthModule {}

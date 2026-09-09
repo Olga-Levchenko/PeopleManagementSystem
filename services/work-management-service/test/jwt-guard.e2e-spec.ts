@@ -163,7 +163,7 @@ describe('JWT guard (e2e)', () => {
       '../../authentication-service/keycloak/realm-export.json',
     );
 
-    container = await new GenericContainer('quay.io/keycloak/keycloak:26.0')
+    container = await new GenericContainer('quay.io/keycloak/keycloak:26.2.5')
       .withCopyFilesToContainer([
         {
           source: realmExportPath,

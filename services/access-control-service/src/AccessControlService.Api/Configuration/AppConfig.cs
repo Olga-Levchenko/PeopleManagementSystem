@@ -22,13 +22,10 @@ public sealed class AppConfig
     public string OidcIssuer { get; }
     public string OidcAudience { get; }
     public bool AllowInsecureOidcHttp { get; }
-    /// <summary>
-    /// Shared secret for S2S trust from internal callers (e.g. people-service) to
-    /// <c>POST /api/v1/permissions/check</c>. Null when not configured — the endpoint
-    /// returns 503 rather than failing fast at startup, preserving the "boots fine when
-    /// optional integrations are absent" contract.
-    /// </summary>
-    public string? InternalServiceSecret { get; }
+    public string? ServiceAuthPrivateKeyPath { get; }
+    public string? ServiceAuthKeyId { get; }
+    public string? DeploymentBootstrapPublicKeyPath { get; }
+    public string? DeploymentBootstrapKeyId { get; }
 
     private AppConfig(
         int port,
@@ -43,7 +40,10 @@ public sealed class AppConfig
         string oidcIssuer,
         string oidcAudience,
         bool allowInsecureOidcHttp,
-        string? internalServiceSecret)
+        string? serviceAuthPrivateKeyPath,
+        string? serviceAuthKeyId,
+        string? deploymentBootstrapPublicKeyPath,
+        string? deploymentBootstrapKeyId)
     {
         Port = port;
         CorsOrigin = corsOrigin;
@@ -57,7 +57,10 @@ public sealed class AppConfig
         OidcIssuer = oidcIssuer;
         OidcAudience = oidcAudience;
         AllowInsecureOidcHttp = allowInsecureOidcHttp;
-        InternalServiceSecret = internalServiceSecret;
+        ServiceAuthPrivateKeyPath = serviceAuthPrivateKeyPath;
+        ServiceAuthKeyId = serviceAuthKeyId;
+        DeploymentBootstrapPublicKeyPath = deploymentBootstrapPublicKeyPath;
+        DeploymentBootstrapKeyId = deploymentBootstrapKeyId;
     }
 
     /// <summary>
@@ -92,9 +95,18 @@ public sealed class AppConfig
             configuration,
             allowInsecureOidcHttp);
         string oidcAudience = RequireOidcAudience(configuration);
-        string? internalServiceSecret = OptionalNonBlank(
+        string? serviceAuthPrivateKeyPath = OptionalNonBlank(
             configuration,
-            "INTERNAL_SERVICE_SECRET");
+            "SERVICE_AUTH_PRIVATE_KEY_PATH");
+        string? serviceAuthKeyId = OptionalNonBlank(
+            configuration,
+            "SERVICE_AUTH_KEY_ID");
+        string? deploymentBootstrapPublicKeyPath = OptionalNonBlank(
+            configuration,
+            "DEPLOYMENT_BOOTSTRAP_PUBLIC_KEY_PATH");
+        string? deploymentBootstrapKeyId = OptionalNonBlank(
+            configuration,
+            "DEPLOYMENT_BOOTSTRAP_KEY_ID");
 
         var port = ParsePort(portRaw, "PORT");
         var rabbitMqPort = ParsePort(rabbitMqPortRaw, "RABBITMQ_PORT");
@@ -112,7 +124,10 @@ public sealed class AppConfig
             oidcIssuer,
             oidcAudience,
             allowInsecureOidcHttp,
-            internalServiceSecret);
+            serviceAuthPrivateKeyPath,
+            serviceAuthKeyId,
+            deploymentBootstrapPublicKeyPath,
+            deploymentBootstrapKeyId);
     }
 
     private static int ParsePort(string raw, string key)

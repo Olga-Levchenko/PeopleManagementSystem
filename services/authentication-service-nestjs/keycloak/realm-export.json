@@ -12,19 +12,42 @@
     {
       "clientId": "bff-confidential",
       "name": "BFF confidential client",
-      "description": "Confidential client used by the BFF. directAccessGrantsEnabled is on for this story's integration test only; standardFlowEnabled is on for the future BFF-initiated authorization-code redirect flow.",
+      "description": "Confidential client used by the BFF authorization-code + PKCE flow.",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
-      "clientAuthenticatorType": "client-secret",
-      "secret": "local-dev-bff-confidential-secret",
+      "clientAuthenticatorType": "client-jwt",
       "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": true,
+      "directAccessGrantsEnabled": false,
       "implicitFlowEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": ["http://localhost:4200/*", "http://localhost:3001/*"],
       "webOrigins": ["http://localhost:4200"],
-      "fullScopeAllowed": true
+      "fullScopeAllowed": true,
+      "attributes": {
+        "use.jwks.url": "true",
+        "token.endpoint.auth.signing.alg": "RS256",
+        "jwks.url": "http://host.docker.internal:3001/api/v1/auth/jwks"
+      }
+    },
+    {
+      "clientId": "bff-direct-grant-test",
+      "name": "BFF direct-grant integration test client",
+      "description": "Test-only client for the authentication integration suite; not used by the BFF runtime.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-jwt",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "attributes": {
+        "use.jwks.url": "true",
+        "token.endpoint.auth.signing.alg": "RS256",
+        "jwks.url": "http://host.docker.internal:3001/api/v1/auth/jwks"
+      }
     }
   ],
   "users": [

@@ -31,9 +31,11 @@ public sealed class FakeFullProfileAccessRepository : IFullProfileAccessReposito
         return Task.CompletedTask;
     }
 
-    public Task RevokeAsync(Guid actorId, Guid subjectId, CancellationToken cancellationToken = default)
+    public Task<bool> RevokeAsync(
+        Guid actorId,
+        Guid subjectId,
+        CancellationToken cancellationToken = default)
     {
-        _holders.Remove(subjectId);
-        return Task.CompletedTask;
+        return Task.FromResult(_holders.Remove(subjectId));
     }
 }

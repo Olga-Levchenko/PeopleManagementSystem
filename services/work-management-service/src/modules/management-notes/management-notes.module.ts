@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
 import { HttpAccessRoleResolutionAdapter } from './access-control-client';
 import { ManagementNotesController } from './management-notes.controller';
 import { ManagementNotesService } from './management-notes.service';
@@ -7,6 +8,7 @@ import { ManagementNotesService } from './management-notes.service';
 // access-control-service (never re-derived locally) -- see this module's own service for the
 // UM/DM/PP-vs-PM-vs-self access split.
 @Module({
+  imports: [AuthModule],
   controllers: [ManagementNotesController],
   providers: [
     ManagementNotesService,

@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react'
 import { Home, Network, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { getFunctionalRoles } from '@/api/functionalRoles'
 import { useLayout } from '@/contexts/LayoutContext'
 import { SideMenuItem } from './components/SideMenuItem/SideMenuItem'
 import { SideMenuToggle } from './components/SideMenuToggle/SideMenuToggle'
@@ -13,9 +15,20 @@ interface SideMenuProps {
 export const SideMenu = ({ collapsible = true, expanded }: SideMenuProps) => {
   const { t } = useTranslation()
   const { toggleSidebar, isMobileSidebarOpen, closeMobileSidebar } = useLayout()
+  const [canAccessAdministration, setCanAccessAdministration] = useState(false)
   // The mobile drawer is always rendered at full width, so labels must be
   // visible there even if the desktop sidebar is currently collapsed.
   const showLabels = expanded || isMobileSidebarOpen
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    void getFunctionalRoles(controller.signal)
+      .then(() => setCanAccessAdministration(true))
+      .catch(() => setCanAccessAdministration(false))
+
+    return () => controller.abort()
+  }, [])
 
   return (
     <>
@@ -56,14 +69,16 @@ export const SideMenu = ({ collapsible = true, expanded }: SideMenuProps) => {
             expanded={showLabels}
             onNavigate={closeMobileSidebar}
           />
-          <SideMenuItem
-            icon={Settings}
-            label={t('sidebar.administration')}
-            path="/administration/functional-roles"
-            hint={t('sidebar.administration')}
-            expanded={showLabels}
-            onNavigate={closeMobileSidebar}
-          />
+          {canAccessAdministration && (
+            <SideMenuItem
+              icon={Settings}
+              label={t('sidebar.administration')}
+              path="/administration/functional-roles"
+              hint={t('sidebar.administration')}
+              expanded={showLabels}
+              onNavigate={closeMobileSidebar}
+            />
+          )}
         </nav>
 
         {/* Desktop-only collapse/expand toggle; mobile uses the header hamburger + backdrop instead */}

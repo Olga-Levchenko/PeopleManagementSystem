@@ -1,5 +1,9 @@
+using System.Security.Claims;
 using AccessControlService.Domain;
+using AccessControlService.Domain.Identity;
+using AccessControlService.Infrastructure.Permissions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace AccessControlService.Api.Controllers;
 
@@ -15,10 +19,14 @@ namespace AccessControlService.Api.Controllers;
 public sealed class AccessRolesController : ControllerBase
 {
     private readonly AccessRoleResolver _resolver;
+    private readonly IPrincipalPersonResolver _principalResolver;
 
-    public AccessRolesController(AccessRoleResolver resolver)
+    public AccessRolesController(
+        AccessRoleResolver resolver,
+        IPrincipalPersonResolver principalResolver)
     {
         _resolver = resolver;
+        _principalResolver = principalResolver;
     }
 
     /// <summary>
@@ -39,11 +47,13 @@ public sealed class AccessRolesController : ControllerBase
     /// <see cref="AccessRole.None"/>, since <c>Guid.Empty</c> won't match a real person.
     /// </summary>
     [HttpGet("resolve")]
+    [Authorize(Policy = "AccessRoleResolutionJwt")]
     public async Task<ActionResult<AccessRoleResolveResponse>> Resolve(
         [FromQuery] Guid viewerPersonId,
         [FromQuery] Guid subjectPersonId,
         CancellationToken cancellationToken)
     {
+        await EnsureViewerBindingAsync(viewerPersonId, cancellationToken);
         var accessRole = await _resolver.ResolveAsync(viewerPersonId, subjectPersonId, cancellationToken);
 
         var managerSectionAccess = accessRole.ReportingLine || accessRole.ProjectLine
@@ -90,10 +100,12 @@ public sealed class AccessRolesController : ControllerBase
     /// People-Partner-line doesn't qualify.
     /// </summary>
     [HttpPost("resolve-batch")]
+    [Authorize(Policy = "AccessRoleResolutionJwt")]
     public async Task<ActionResult<AccessRoleBatchResolveResponse>> ResolveBatch(
         [FromBody] AccessRoleBatchResolveRequest request,
         CancellationToken cancellationToken)
     {
+        await EnsureViewerBindingAsync(request.ViewerPersonId, cancellationToken);
         if (request.SubjectPersonIds is null)
         {
             return BadRequest(new { error = "subjectPersonIds is required." });
@@ -143,6 +155,39 @@ public sealed class AccessRolesController : ControllerBase
         }).ToList();
 
         return Ok(new AccessRoleBatchResolveResponse { Results = results });
+    }
+
+    private async Task EnsureViewerBindingAsync(
+        Guid viewerPersonId,
+        CancellationToken cancellationToken)
+    {
+        if (!OidcPrincipalIdentity.TryCreate(
+                User.FindFirstValue("iss"),
+                User.FindFirstValue("sub"),
+                allowInsecureHttp: true,
+                out OidcPrincipalIdentity? identity) ||
+            identity is null)
+        {
+            throw new UnauthorizedException();
+        }
+
+        PrincipalPersonResolution resolution =
+            await _principalResolver.ResolvePersonAsync(identity, cancellationToken);
+        Guid resolvedViewer = resolution switch
+        {
+            PrincipalPersonResolution.Resolved resolved => resolved.PersonId,
+            PrincipalPersonResolution.Missing => throw new NotFoundException(
+                "The authenticated principal has no active person mapping."),
+            PrincipalPersonResolution.Ambiguous => throw new RoleConflictException(
+                "The authenticated principal has an ambiguous person mapping."),
+            PrincipalPersonResolution.Unavailable => throw new ServiceUnavailableException(),
+            _ => throw new UnauthorizedException(),
+        };
+
+        if (resolvedViewer != viewerPersonId)
+        {
+            throw new ForbiddenException("The token subject does not match the viewer.");
+        }
     }
 
     private static ManagerSectionAccessResponse ToResponse(ManagerSectionAccess access) => new()

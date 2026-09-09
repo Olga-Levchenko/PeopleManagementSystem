@@ -8,29 +8,140 @@
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "accessTokenLifespan": 300,
+  "clientScopes": [
+    {
+      "name": "basic",
+      "description": "Basic OpenID Connect claims.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "sub",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-sub-mapper",
+          "consentRequired": false,
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "lightweight.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "email",
+      "description": "Email claims.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "email",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "email",
+            "claim.name": "email",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "profile",
+      "description": "Profile claims.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "people-service-audience",
+      "description": "Opt-in audience for BFF and access-control-service token exchange to people-service.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "people-service-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "people-service",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "access-control-service-audience",
+      "description": "Opt-in audience for BFF and people-service token exchange to access-control-service.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "access-control-service-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "access-control-service",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
   "clients": [
     {
       "clientId": "bff-confidential",
       "name": "BFF confidential client",
-      "description": "Confidential client used by the BFF. directAccessGrantsEnabled is on for this story's integration test only; standardFlowEnabled is on for the future BFF-initiated authorization-code redirect flow.",
+      "description": "Confidential client used by the BFF authorization-code + PKCE flow.",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
-      "clientAuthenticatorType": "client-secret",
-      "secret": "local-dev-bff-confidential-secret",
+      "clientAuthenticatorType": "client-jwt",
       "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": true,
+      "directAccessGrantsEnabled": false,
       "implicitFlowEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": ["http://localhost:4200/*", "http://localhost:3001/*"],
-      "attributes": { "post.logout.redirect.uris": "http://localhost:4200/*" },
       "webOrigins": ["http://localhost:4200"],
       "fullScopeAllowed": false,
       "attributes": {
+        "post.logout.redirect.uris": "http://localhost:4200/*",
         "backchannel.logout.url": "http://localhost:3001/api/v1/auth/backchannel-logout",
-        "backchannel.logout.session.required": "true"
+        "backchannel.logout.session.required": "true",
+        "standard.token.exchange.enabled": "true",
+        "client.use.lightweight.access.token.enabled": "false",
+        "use.jwks.url": "true",
+        "token.endpoint.auth.signing.alg": "RS256",
+        "jwks.url": "http://host.docker.internal:3001/api/v1/auth/jwks"
       },
       "defaultClientScopes": ["web-origins", "acr", "profile", "email", "basic"],
+      "optionalClientScopes": [
+        "people-service-audience",
+        "access-control-service-audience"
+      ],
       "protocolMappers": [
         {
           "name": "bff-confidential-audience",
@@ -39,6 +150,125 @@
           "consentRequired": false,
           "config": {
             "included.client.audience": "bff-confidential",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "bff-confidential-subject",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-sub-mapper",
+          "consentRequired": false,
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "lightweight.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "bff-direct-grant-test",
+      "name": "BFF direct-grant integration test client",
+      "description": "Test-only client for the authentication integration suite; not used by the BFF runtime.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-jwt",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false,
+      "attributes": {
+        "use.jwks.url": "true",
+        "token.endpoint.auth.signing.alg": "RS256",
+        "jwks.url": "http://host.docker.internal:3001/api/v1/auth/jwks"
+      },
+      "defaultClientScopes": ["profile", "email", "basic"]
+    },
+    {
+      "clientId": "people-service",
+      "name": "People service",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-jwt",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "optionalClientScopes": ["access-control-service-audience"],
+      "attributes": {
+        "use.jwks.url": "true",
+        "token.endpoint.auth.signing.alg": "RS256",
+        "jwks.url": "http://host.docker.internal:3002/.well-known/jwks.json",
+        "standard.token.exchange.enabled": "true"
+      }
+    },
+    {
+      "clientId": "work-management-service",
+      "name": "Work Management service",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-jwt",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "optionalClientScopes": ["access-control-service-audience"],
+      "attributes": {
+        "use.jwks.url": "true",
+        "token.endpoint.auth.signing.alg": "RS256",
+        "jwks.url": "http://host.docker.internal:3004/.well-known/jwks.json",
+        "standard.token.exchange.enabled": "true"
+      }
+    },
+    {
+      "clientId": "access-control-service",
+      "name": "Access Control service",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-jwt",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "optionalClientScopes": ["people-service-audience"],
+      "attributes": {
+        "use.jwks.url": "true",
+        "token.endpoint.auth.signing.alg": "RS256",
+        "jwks.url": "http://host.docker.internal:3007/.well-known/jwks.json",
+        "standard.token.exchange.enabled": "true"
+      }
+    },
+    {
+      "clientId": "deployment-bootstrap",
+      "name": "Deployment bootstrap operator",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-jwt",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "attributes": {
+        "use.jwks.url": "true",
+        "token.endpoint.auth.signing.alg": "RS256",
+        "jwks.url": "http://host.docker.internal:3007/.well-known/deployment-bootstrap-jwks.json"
+      },
+      "protocolMappers": [
+        {
+          "name": "deployment-bootstrap-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "access-control-service",
             "id.token.claim": "false",
             "access.token.claim": "true"
           }

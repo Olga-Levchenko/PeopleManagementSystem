@@ -28,7 +28,7 @@ services:
   keycloak:
     # Pinned per Story 1.11 (authentication-service's own Testcontainers integration test
     # exercises this exact tag against services/authentication-service/keycloak/realm-export.json).
-    image: quay.io/keycloak/keycloak:26.0
+    image: quay.io/keycloak/keycloak:26.2.5
     restart: unless-stopped
     # --import-realm provisions the realm/client/test user from realm-export.json — no manual
     # Admin Console step needed. Note: Keycloak's dir import uses an "ignore existing" strategy by

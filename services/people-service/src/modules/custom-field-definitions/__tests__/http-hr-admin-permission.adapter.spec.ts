@@ -1,13 +1,12 @@
-import { ForbiddenException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpHrAdminPermissionAdapter } from '../custom-field-definitions.ports';
 
 const ACS_BASE_URL = 'http://acs.test';
-const SECRET = 'test-shared-secret';
-const KEYCLOAK_BASE_URL = 'http://keycloak.test';
-const KEYCLOAK_REALM = 'people-management';
 const ACTOR_ID = 'sub-aaa111';
-const EXPECTED_ISSUER = `${KEYCLOAK_BASE_URL}/realms/${KEYCLOAK_REALM}`;
 
 describe('HttpHrAdminPermissionAdapter', () => {
   const createConfig = () =>
@@ -15,9 +14,6 @@ describe('HttpHrAdminPermissionAdapter', () => {
       getOrThrow: jest.fn().mockImplementation((key: string) => {
         const values: Record<string, string> = {
           ACCESS_CONTROL_SERVICE_BASE_URL: ACS_BASE_URL,
-          INTERNAL_SERVICE_SECRET: SECRET,
-          KEYCLOAK_BASE_URL,
-          KEYCLOAK_REALM,
         };
         if (!(key in values)) throw new Error(`Unknown config key: ${key}`);
         return values[key];
@@ -25,6 +21,10 @@ describe('HttpHrAdminPermissionAdapter', () => {
     }) as unknown as ConfigService;
 
   let fetchMock: jest.Mock;
+  const actor = { accessToken: 'incoming-user-token' };
+  const tokenExchange = {
+    exchangeForAudience: jest.fn().mockResolvedValue('acs-token'),
+  };
 
   beforeEach(() => {
     fetchMock = jest.fn();
@@ -40,9 +40,13 @@ describe('HttpHrAdminPermissionAdapter', () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
-      json: jest.fn().mockResolvedValue({ Granted: true }),
+      json: jest.fn().mockResolvedValue({ granted: true }),
     });
-    const adapter = new HttpHrAdminPermissionAdapter(createConfig());
+    const adapter = new HttpHrAdminPermissionAdapter(
+      createConfig(),
+      actor as never,
+      tokenExchange as never,
+    );
 
     const result = await adapter.canWrite(ACTOR_ID);
 
@@ -55,36 +59,29 @@ describe('HttpHrAdminPermissionAdapter', () => {
       `${ACS_BASE_URL}/api/v1/permissions/check`,
     );
     expect(calledInit.method).toBe('POST');
-    expect(
-      (calledInit.headers as Record<string, string>)[
-        'X-Internal-Service-Secret'
-      ],
-    ).toBe(SECRET);
-    expect(
-      (calledInit.headers as Record<string, string>)[
-        'X-Internal-Service-Identity'
-      ],
-    ).toBe('people-service');
-    expect(
-      (calledInit.headers as Record<string, string>)[
-        'X-Delegated-Actor-Issuer'
-      ],
-    ).toBe(EXPECTED_ISSUER);
-    expect(
-      (calledInit.headers as Record<string, string>)['X-Delegated-Actor-Sub'],
-    ).toBe(ACTOR_ID);
+    expect((calledInit.headers as Record<string, string>).Authorization).toBe(
+      'Bearer acs-token',
+    );
+    expect(tokenExchange.exchangeForAudience).toHaveBeenCalledWith(
+      actor.accessToken,
+      'access-control-service',
+    );
     expect(JSON.parse(calledInit.body as string)).toEqual({
       PermissionKey: 'manage-custom-fields',
     });
   });
 
-  it('denied: Granted:false throws ForbiddenException', async () => {
+  it('denied: granted:false throws ForbiddenException', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
-      json: jest.fn().mockResolvedValue({ Granted: false }),
+      json: jest.fn().mockResolvedValue({ granted: false }),
     });
-    const adapter = new HttpHrAdminPermissionAdapter(createConfig());
+    const adapter = new HttpHrAdminPermissionAdapter(
+      createConfig(),
+      actor as never,
+      tokenExchange as never,
+    );
 
     await expect(adapter.canWrite(ACTOR_ID)).rejects.toThrow(
       ForbiddenException,
@@ -93,28 +90,40 @@ describe('HttpHrAdminPermissionAdapter', () => {
 
   it('403 from ACS throws ForbiddenException (fail-closed)', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 403 });
-    const adapter = new HttpHrAdminPermissionAdapter(createConfig());
+    const adapter = new HttpHrAdminPermissionAdapter(
+      createConfig(),
+      actor as never,
+      tokenExchange as never,
+    );
 
     await expect(adapter.canWrite(ACTOR_ID)).rejects.toThrow(
       ForbiddenException,
     );
   });
 
-  it('503 from ACS throws ForbiddenException (fail-closed)', async () => {
+  it('503 from ACS throws ServiceUnavailableException', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 503 });
-    const adapter = new HttpHrAdminPermissionAdapter(createConfig());
+    const adapter = new HttpHrAdminPermissionAdapter(
+      createConfig(),
+      actor as never,
+      tokenExchange as never,
+    );
 
     await expect(adapter.canWrite(ACTOR_ID)).rejects.toThrow(
-      ForbiddenException,
+      ServiceUnavailableException,
     );
   });
 
-  it('network error throws ForbiddenException (fail-closed)', async () => {
+  it('network error throws ServiceUnavailableException', async () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
-    const adapter = new HttpHrAdminPermissionAdapter(createConfig());
+    const adapter = new HttpHrAdminPermissionAdapter(
+      createConfig(),
+      actor as never,
+      tokenExchange as never,
+    );
 
     await expect(adapter.canWrite(ACTOR_ID)).rejects.toThrow(
-      ForbiddenException,
+      ServiceUnavailableException,
     );
   });
 });

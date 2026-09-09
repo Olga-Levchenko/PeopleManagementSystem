@@ -32,7 +32,12 @@ public interface IFullProfileAccessRepository
     /// <summary>
     /// Revokes Full-profile-access from <paramref name="subjectId"/>, recording a
     /// <see cref="FullProfileAccessJournalEntry"/> in the same transaction. Callers must verify the
-    /// active-holder count is at least 2 before calling (last-holder guard).
+    /// active-holder count is at least 2 before calling (last-holder guard). The return value is
+    /// <c>false</c> when the atomic transaction observes that revocation would remove the last
+    /// holder.
     /// </summary>
-    Task RevokeAsync(Guid actorId, Guid subjectId, CancellationToken cancellationToken = default);
+    Task<bool> RevokeAsync(
+        Guid actorId,
+        Guid subjectId,
+        CancellationToken cancellationToken = default);
 }

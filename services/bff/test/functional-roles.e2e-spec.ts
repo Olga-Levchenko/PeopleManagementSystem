@@ -11,6 +11,7 @@ import { App } from 'supertest/types';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { JwtAuthGuard } from '../src/modules/auth/jwt-auth.guard';
+import { OidcService } from '../src/modules/auth/oidc.service';
 
 describe('Functional roles BFF HTTP contract (e2e)', () => {
   let app: INestApplication<App>;
@@ -25,6 +26,12 @@ describe('Functional roles BFF HTTP contract (e2e)', () => {
     })
       .overrideProvider(JwtAuthGuard)
       .useClass(TestAuthenticationGuard)
+      .overrideProvider(OidcService)
+      .useValue({
+        resolveAuthorization: jest
+          .fn()
+          .mockResolvedValue('exchanged-test-token'),
+      })
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -62,7 +69,7 @@ describe('Functional roles BFF HTTP contract (e2e)', () => {
     const rolesHeaders = rolesInit.headers as Record<string, string>;
     expect(rolesUrl).toBe('http://localhost:3007/api/v1/functional-roles');
     expect(rolesInit.method).toBe('GET');
-    expect(rolesHeaders.authorization).toBe('Bearer test-only-token');
+    expect(rolesHeaders.authorization).toBe('exchanged-test-token');
     expect(rolesHeaders['x-correlation-id']).toBe('contract-correlation');
 
     upstream.mockResolvedValue(
@@ -95,7 +102,7 @@ describe('Functional roles BFF HTTP contract (e2e)', () => {
     expect(grantUrl).toBe(
       'http://localhost:3007/api/v1/functional-roles/unit-manager/permissions/view-dashboard',
     );
-    expect(grantHeaders.authorization).toBe('Bearer test-only-token');
+    expect(grantHeaders.authorization).toBe('exchanged-test-token');
     expect(grantHeaders['x-correlation-id']).toBe('grant-correlation');
     expect(grantHeaders['idempotency-key']).toBe('grant-idempotency');
   });

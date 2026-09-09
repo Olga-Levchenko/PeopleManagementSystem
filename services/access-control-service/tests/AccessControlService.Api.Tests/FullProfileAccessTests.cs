@@ -2,7 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AccessControlService.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.PostgreSql;
@@ -89,6 +91,48 @@ public sealed class FullProfileAccessTests : IAsyncLifetime
     // -- I/O matrix row: "Non-holder attempts grant" --
 
     [Fact]
+    public async Task Grant_AnonymousCaller_Returns401()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+        using HttpRequestMessage request = new(
+            HttpMethod.Post,
+            "/api/v1/full-profile-access/grant");
+        request.Headers.Add(FullProfileAccessTestAuthentication.ANONYMOUS_HEADER, "true");
+        request.Content = JsonContent.Create(new
+        {
+            actorId = FixtureSeedData.PlatformLeadId,
+            subjectId = FixtureSeedData.DirectorId,
+        });
+
+        using HttpResponseMessage response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Grant_ActorBodyDifferentFromVerifiedPrincipal_Returns403()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+        using HttpRequestMessage request = new(
+            HttpMethod.Post,
+            "/api/v1/full-profile-access/grant");
+        request.Headers.Add(
+            FullProfileAccessTestAuthentication.SUBJECT_HEADER,
+            FixtureSeedData.PlatformLeadId.ToString());
+        request.Content = JsonContent.Create(new
+        {
+            actorId = FixtureSeedData.EngineerId,
+            subjectId = FixtureSeedData.DirectorId,
+        });
+
+        using HttpResponseMessage response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Grant_NonHolderActor_Returns403()
     {
         _factory = new WebApplicationFactory<Program>();
@@ -96,7 +140,11 @@ public sealed class FullProfileAccessTests : IAsyncLifetime
 
         // EngineerId is not a holder (only PlatformLeadId is seeded).
         var body = new { actorId = FixtureSeedData.EngineerId, subjectId = FixtureSeedData.DirectorId };
-        using var response = await client.PostAsJsonAsync("/api/v1/full-profile-access/grant", body);
+        using var response = await SendAsActorAsync(
+            client,
+            "/api/v1/full-profile-access/grant",
+            FixtureSeedData.EngineerId,
+            body);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
@@ -111,7 +159,11 @@ public sealed class FullProfileAccessTests : IAsyncLifetime
 
         // PlatformLeadId is a holder, but actorId == subjectId is always rejected.
         var body = new { actorId = FixtureSeedData.PlatformLeadId, subjectId = FixtureSeedData.PlatformLeadId };
-        using var response = await client.PostAsJsonAsync("/api/v1/full-profile-access/grant", body);
+        using var response = await SendAsActorAsync(
+            client,
+            "/api/v1/full-profile-access/grant",
+            FixtureSeedData.PlatformLeadId,
+            body);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
@@ -125,7 +177,11 @@ public sealed class FullProfileAccessTests : IAsyncLifetime
         using var client = _factory.CreateClient();
 
         var body = new { actorId = FixtureSeedData.PlatformLeadId, subjectId = FixtureSeedData.EngineerId };
-        using var response = await client.PostAsJsonAsync("/api/v1/full-profile-access/grant", body);
+        using var response = await SendAsActorAsync(
+            client,
+            "/api/v1/full-profile-access/grant",
+            FixtureSeedData.PlatformLeadId,
+            body);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
@@ -155,7 +211,11 @@ public sealed class FullProfileAccessTests : IAsyncLifetime
 
         // Only PlatformLeadId is a holder (the bootstrap seed). Revoking the last holder must 409.
         var body = new { actorId = FixtureSeedData.PlatformLeadId, subjectId = FixtureSeedData.PlatformLeadId };
-        using var response = await client.PostAsJsonAsync("/api/v1/full-profile-access/revoke", body);
+        using var response = await SendAsActorAsync(
+            client,
+            "/api/v1/full-profile-access/revoke",
+            FixtureSeedData.PlatformLeadId,
+            body);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
@@ -170,12 +230,20 @@ public sealed class FullProfileAccessTests : IAsyncLifetime
 
         // First grant a second holder so there are 2.
         var grantBody = new { actorId = FixtureSeedData.PlatformLeadId, subjectId = FixtureSeedData.EngineerId };
-        using var grantResponse = await client.PostAsJsonAsync("/api/v1/full-profile-access/grant", grantBody);
+        using var grantResponse = await SendAsActorAsync(
+            client,
+            "/api/v1/full-profile-access/grant",
+            FixtureSeedData.PlatformLeadId,
+            grantBody);
         grantResponse.EnsureSuccessStatusCode();
 
         // Now revoke the second holder.
         var revokeBody = new { actorId = FixtureSeedData.PlatformLeadId, subjectId = FixtureSeedData.EngineerId };
-        using var revokeResponse = await client.PostAsJsonAsync("/api/v1/full-profile-access/revoke", revokeBody);
+        using var revokeResponse = await SendAsActorAsync(
+            client,
+            "/api/v1/full-profile-access/revoke",
+            FixtureSeedData.PlatformLeadId,
+            revokeBody);
 
         Assert.Equal(HttpStatusCode.OK, revokeResponse.StatusCode);
 
@@ -206,7 +274,11 @@ public sealed class FullProfileAccessTests : IAsyncLifetime
         // EngineerId is not a holder (only PlatformLeadId is seeded). A revoke where the subject
         // is not a holder must return 404, not 200 or 500.
         var body = new { actorId = FixtureSeedData.PlatformLeadId, subjectId = FixtureSeedData.EngineerId };
-        using var response = await client.PostAsJsonAsync("/api/v1/full-profile-access/revoke", body);
+        using var response = await SendAsActorAsync(
+            client,
+            "/api/v1/full-profile-access/revoke",
+            FixtureSeedData.PlatformLeadId,
+            body);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -221,8 +293,13 @@ public sealed class FullProfileAccessTests : IAsyncLifetime
 
         // PlatformLeadId is the bootstrap holder -- resolving as viewer against any subject should
         // return fullProfileAccessLine: true and fullProfileAccessSectionAccess with all 16 RW.
-        using var response = await client.GetAsync(
+        using HttpRequestMessage request = new(
+            HttpMethod.Get,
             $"/api/v1/access-roles/resolve?viewerPersonId={FixtureSeedData.PlatformLeadId}&subjectPersonId={FixtureSeedData.EngineerId}");
+        request.Headers.Add(
+            FullProfileAccessTestAuthentication.SUBJECT_HEADER,
+            FixtureSeedData.PlatformLeadId.ToString());
+        using var response = await client.SendAsync(request);
 
         response.EnsureSuccessStatusCode();
 
@@ -255,8 +332,13 @@ public sealed class FullProfileAccessTests : IAsyncLifetime
         using var client = _factory.CreateClient();
 
         // EngineerId is not a holder.
-        using var response = await client.GetAsync(
+        using HttpRequestMessage request = new(
+            HttpMethod.Get,
             $"/api/v1/access-roles/resolve?viewerPersonId={FixtureSeedData.EngineerId}&subjectPersonId={FixtureSeedData.DirectorId}");
+        request.Headers.Add(
+            FullProfileAccessTestAuthentication.SUBJECT_HEADER,
+            FixtureSeedData.EngineerId.ToString());
+        using var response = await client.SendAsync(request);
 
         response.EnsureSuccessStatusCode();
 
@@ -277,8 +359,78 @@ public sealed class FullProfileAccessTests : IAsyncLifetime
         using var client = _factory.CreateClient();
 
         var body = new { actorId = FixtureSeedData.EngineerId, subjectId = FixtureSeedData.PlatformLeadId };
-        using var response = await client.PostAsJsonAsync("/api/v1/full-profile-access/revoke", body);
+        using var response = await SendAsActorAsync(
+            client,
+            "/api/v1/full-profile-access/revoke",
+            FixtureSeedData.EngineerId,
+            body);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Revoke_AnonymousCaller_Returns401()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+        using HttpRequestMessage request = new(
+            HttpMethod.Post,
+            "/api/v1/full-profile-access/revoke");
+        request.Headers.Add(FullProfileAccessTestAuthentication.ANONYMOUS_HEADER, "true");
+        request.Content = JsonContent.Create(new
+        {
+            actorId = FixtureSeedData.PlatformLeadId,
+            subjectId = FixtureSeedData.EngineerId,
+        });
+
+        using HttpResponseMessage response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Revoke_ActorBodyDifferentFromVerifiedPrincipal_Returns403()
+    {
+        _factory = new WebApplicationFactory<Program>();
+        using var client = _factory.CreateClient();
+        using HttpRequestMessage request = new(
+            HttpMethod.Post,
+            "/api/v1/full-profile-access/revoke");
+        request.Headers.Add(
+            FullProfileAccessTestAuthentication.SUBJECT_HEADER,
+            FixtureSeedData.PlatformLeadId.ToString());
+        request.Content = JsonContent.Create(new
+        {
+            actorId = FixtureSeedData.EngineerId,
+            subjectId = FixtureSeedData.PlatformLeadId,
+        });
+
+        using HttpResponseMessage response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    private static async Task<HttpResponseMessage> SendAsActorAsync(
+        HttpClient client,
+        string path,
+        Guid actorId,
+        object body)
+    {
+        using HttpRequestMessage request = new(HttpMethod.Post, path);
+        request.Headers.Add(
+            FullProfileAccessTestAuthentication.SUBJECT_HEADER,
+            actorId.ToString());
+        request.Content = JsonContent.Create(body);
+        return await client.SendAsync(request);
+    }
+
+    private sealed class WebApplicationFactory<TEntryPoint>
+        : Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<TEntryPoint>
+        where TEntryPoint : class
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            builder.ConfigureTestServices(FullProfileAccessTestAuthentication.Configure);
+        }
     }
 }

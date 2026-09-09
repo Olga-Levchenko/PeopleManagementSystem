@@ -53,9 +53,21 @@ public sealed class EfFullProfileAccessRepository : IFullProfileAccessRepository
         await transaction.CommitAsync(cancellationToken);
     }
 
-    public async Task RevokeAsync(Guid actorId, Guid subjectId, CancellationToken cancellationToken = default)
+    public async Task<bool> RevokeAsync(
+        Guid actorId,
+        Guid subjectId,
+        CancellationToken cancellationToken = default)
     {
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var activeGrants = await _dbContext.FullProfileAccessGrants
+            .FromSqlRaw("SELECT * FROM full_profile_access_grants FOR UPDATE")
+            .ToListAsync(cancellationToken);
+        if (activeGrants.Count <= 1)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return false;
+        }
 
         var grant = await _dbContext.FullProfileAccessGrants
             .Where(g => g.HolderId == subjectId)
@@ -67,7 +79,7 @@ public sealed class EfFullProfileAccessRepository : IFullProfileAccessRepository
             // of defence, but this early-return ensures the journal is never written without a
             // corresponding grant-row removal even if called directly.
             await transaction.RollbackAsync(cancellationToken);
-            return;
+            return false;
         }
 
         _dbContext.FullProfileAccessGrants.Remove(grant);
@@ -83,5 +95,6 @@ public sealed class EfFullProfileAccessRepository : IFullProfileAccessRepository
 
         await _dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        return true;
     }
 }

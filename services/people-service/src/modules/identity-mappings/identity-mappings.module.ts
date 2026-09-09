@@ -1,27 +1,27 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
 import { IdentityFingerprintService } from './identity-fingerprint.service';
 import { IdentityMappingService } from './identity-mapping.service';
-import { IdentityResolutionController } from './identity-resolution.controller';
+import {
+  BootstrapIdentityResolutionController,
+  IdentityResolutionController,
+} from './identity-resolution.controller';
 import { IdentityResolutionService } from './identity-resolution.service';
 import { IdentityValidationService } from './identity-validation.service';
-import {
-  InternalServiceAuthGuard,
-  SecretInternalServiceAuthorizer,
-  UnavailableInternalServiceAuthorizer,
-} from './internal-service-auth.guard';
 import { UnavailableIdentityLinkProvisioningAuthorizer } from './identity-provisioning.ports';
 
 @Module({
-  controllers: [IdentityResolutionController],
+  imports: [AuthModule],
+  controllers: [
+    IdentityResolutionController,
+    BootstrapIdentityResolutionController,
+  ],
   providers: [
     IdentityMappingService,
     IdentityResolutionService,
     IdentityValidationService,
     IdentityFingerprintService,
     UnavailableIdentityLinkProvisioningAuthorizer,
-    InternalServiceAuthGuard,
-    SecretInternalServiceAuthorizer,
-    UnavailableInternalServiceAuthorizer,
     {
       provide: 'IIdentityFingerprintService',
       useExisting: IdentityFingerprintService,
@@ -29,10 +29,6 @@ import { UnavailableIdentityLinkProvisioningAuthorizer } from './identity-provis
     {
       provide: 'IIdentityLinkProvisioningAuthorizer',
       useExisting: UnavailableIdentityLinkProvisioningAuthorizer,
-    },
-    {
-      provide: 'IInternalServiceAuthorizer',
-      useExisting: SecretInternalServiceAuthorizer,
     },
   ],
   exports: [IdentityMappingService, IdentityResolutionService],

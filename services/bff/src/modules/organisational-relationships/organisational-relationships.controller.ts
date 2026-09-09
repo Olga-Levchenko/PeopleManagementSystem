@@ -9,13 +9,17 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
+import { OidcService } from '../auth/oidc.service';
 import type { BffSession } from '../auth/session.types';
 import { OrganisationalRelationshipsService } from './organisational-relationships.service';
 
 @ApiBearerAuth()
 @Controller('organisational-relationships')
 export class OrganisationalRelationshipsController {
-  constructor(private readonly service: OrganisationalRelationshipsService) {}
+  constructor(
+    private readonly service: OrganisationalRelationshipsService,
+    private readonly oidc: OidcService,
+  ) {}
 
   @Patch('people/:personId/manager')
   async changeManager(
@@ -30,7 +34,7 @@ export class OrganisationalRelationshipsController {
       await this.service.changeManager(
         personId,
         body,
-        this.resolveAuthorization(incomingAuth, req),
+        await this.resolveAuthorization(incomingAuth, req),
       ),
     );
   }
@@ -48,7 +52,7 @@ export class OrganisationalRelationshipsController {
       await this.service.changePeoplePartner(
         personId,
         body,
-        this.resolveAuthorization(incomingAuth, req),
+        await this.resolveAuthorization(incomingAuth, req),
       ),
     );
   }
@@ -66,7 +70,7 @@ export class OrganisationalRelationshipsController {
       await this.service.changeDepartment(
         personId,
         body,
-        this.resolveAuthorization(incomingAuth, req),
+        await this.resolveAuthorization(incomingAuth, req),
       ),
     );
   }
@@ -84,7 +88,7 @@ export class OrganisationalRelationshipsController {
       await this.service.changeDepartmentManager(
         departmentId,
         body,
-        this.resolveAuthorization(incomingAuth, req),
+        await this.resolveAuthorization(incomingAuth, req),
       ),
     );
   }
@@ -110,16 +114,12 @@ export class OrganisationalRelationshipsController {
   private resolveAuthorization(
     incomingAuth: string | undefined,
     req: Request,
-  ): string | undefined {
-    if (incomingAuth) {
-      return incomingAuth;
-    }
-
-    const session = req.session as BffSession;
-    if (session.accessToken) {
-      return `Bearer ${session.accessToken}`;
-    }
-
-    return undefined;
+  ): Promise<string | undefined> {
+    const session = req.session as BffSession | undefined;
+    return this.oidc.resolveAuthorization(
+      session,
+      incomingAuth,
+      'people-service',
+    );
   }
 }

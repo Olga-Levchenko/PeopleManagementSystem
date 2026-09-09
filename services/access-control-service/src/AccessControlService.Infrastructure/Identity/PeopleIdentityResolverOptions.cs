@@ -4,7 +4,10 @@ public sealed record PeopleIdentityResolverOptions(
     Uri? BaseAddress,
     TimeSpan Timeout,
     IReadOnlySet<string>? AllowedIssuers = null,
-    bool AllowInsecureHttp = false);
+    bool AllowInsecureHttp = false,
+    string? TokenEndpoint = null,
+    string? ServicePrivateKeyPath = null,
+    string? ServiceKeyId = null);
 
 public interface IInternalServiceCredentialProvider
 {
@@ -18,25 +21,4 @@ public abstract record InternalServiceCredentialResult
         : InternalServiceCredentialResult;
 
     public sealed record Unavailable : InternalServiceCredentialResult;
-}
-
-public sealed class UnavailableInternalServiceCredentialProvider
-    : IInternalServiceCredentialProvider
-{
-    public ValueTask<InternalServiceCredentialResult> GetAsync(
-        CancellationToken cancellationToken = default) =>
-        ValueTask.FromResult<InternalServiceCredentialResult>(
-            new InternalServiceCredentialResult.Unavailable());
-}
-
-public sealed class AppConfigInternalServiceCredentialProvider(string? secret)
-    : IInternalServiceCredentialProvider
-{
-    public ValueTask<InternalServiceCredentialResult> GetAsync(
-        CancellationToken cancellationToken = default) =>
-        string.IsNullOrWhiteSpace(secret)
-            ? ValueTask.FromResult<InternalServiceCredentialResult>(
-                new InternalServiceCredentialResult.Unavailable())
-            : ValueTask.FromResult<InternalServiceCredentialResult>(
-                new InternalServiceCredentialResult.Available("InternalService", secret));
 }

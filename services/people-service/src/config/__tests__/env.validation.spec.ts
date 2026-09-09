@@ -13,7 +13,6 @@ describe('envValidationSchema', () => {
     KEYCLOAK_BASE_URL: 'http://localhost:8080',
     KEYCLOAK_REALM: 'people-management',
     ACCESS_CONTROL_SERVICE_BASE_URL: 'http://localhost:3007',
-    INTERNAL_SERVICE_SECRET: 'test-secret',
   };
 
   it('accepts a fully valid environment with no error', () => {
@@ -62,18 +61,10 @@ describe('envValidationSchema', () => {
     expect(error).toBeTruthy();
   });
 
-  it('rejects an environment with INTERNAL_SERVICE_SECRET omitted', () => {
-    const withoutSecret: Record<string, string> = { ...validEnv };
-    delete withoutSecret.INTERNAL_SERVICE_SECRET;
-    const { error } = envValidationSchema.validate(withoutSecret);
-
-    expect(error).toBeTruthy();
-  });
-
-  it('rejects INTERNAL_SERVICE_SECRET as an empty string', () => {
+  it('rejects an unsupported service signing algorithm', () => {
     const { error } = envValidationSchema.validate({
       ...validEnv,
-      INTERNAL_SERVICE_SECRET: '',
+      SERVICE_AUTH_SIGNING_ALG: 'HS256',
     });
 
     expect(error).toBeTruthy();

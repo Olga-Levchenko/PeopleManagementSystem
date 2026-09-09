@@ -56,7 +56,7 @@ BFF-initiated), BFF JWT validation, and downstream identity propagation are late
 - `dotnet build --configuration Release` — build (matches CI)
 - `dotnet test --configuration Release` — unit + integration tests, Release configuration (matches
   CI; `KeycloakIntegrationTests` needs Docker running locally to start its ephemeral Keycloak
-  container, and pulls `quay.io/keycloak/keycloak:26.0` on first run)
+  container, and pulls `quay.io/keycloak/keycloak:26.2.5` on first run)
 - `dotnet run --project src/AuthenticationService.Api` — run locally (needs Keycloak up via
   `infra/docker-compose.yml` and a local `.env`, see Environment)
 

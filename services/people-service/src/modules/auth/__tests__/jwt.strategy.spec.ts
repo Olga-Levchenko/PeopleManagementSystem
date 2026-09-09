@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { deriveIssuer, deriveJwksUri, JwtStrategy } from '../jwt.strategy';
 
@@ -29,6 +29,13 @@ describe('JwtStrategy', () => {
     KEYCLOAK_BASE_URL: 'http://localhost:8080',
     KEYCLOAK_REALM: 'people-management',
   });
+  const bffRequest = { path: '/api/v1/people' } as never;
+  const internalRequest = {
+    path: '/api/v1/internal/identity-mappings/resolve',
+  } as never;
+  const bootstrapRequest = {
+    path: '/api/v1/internal/bootstrap/identity-mappings/resolve',
+  } as never;
 
   it('returns exactly { sub }, discarding every other claim on the payload', () => {
     const strategy = new JwtStrategy(config);
@@ -37,27 +44,32 @@ describe('JwtStrategy', () => {
       email: 'story1-11.test-user@peoplemanagement.local',
       preferred_username: 'story1-11.test-user',
       realm_access: { roles: ['some-role'] },
+      azp: 'bff-confidential',
+      iss: 'https://localhost:8080/realms/people-management',
       exp: 9999999999,
     };
 
-    const result = strategy.validate(payload);
+    const result = strategy.validate(bffRequest, payload);
 
-    expect(result).toEqual({ sub: 'a1b2c3-employee-id' });
-    expect(Object.keys(result)).toEqual(['sub']);
+    expect(result).toEqual({
+      sub: 'a1b2c3-employee-id',
+      iss: 'https://localhost:8080/realms/people-management',
+    });
+    expect(Object.keys(result)).toEqual(['sub', 'iss']);
   });
 
   it('rejects a payload with no sub claim', () => {
     const strategy = new JwtStrategy(config);
 
     expect(() =>
-      strategy.validate({ sub: undefined as unknown as string }),
+      strategy.validate(bffRequest, { sub: undefined as unknown as string }),
     ).toThrow(UnauthorizedException);
   });
 
   it('rejects a payload with a blank/whitespace-only sub claim', () => {
     const strategy = new JwtStrategy(config);
 
-    expect(() => strategy.validate({ sub: '   ' })).toThrow(
+    expect(() => strategy.validate(bffRequest, { sub: '   ' })).toThrow(
       UnauthorizedException,
     );
   });
@@ -69,10 +81,12 @@ describe('JwtStrategy', () => {
     // number or object) -- calling .trim() on a non-string would throw an unhandled TypeError
     // (surfacing as a 500) instead of the clean, intentional 401 this guard is meant to produce.
     expect(() =>
-      strategy.validate({ sub: 12345 as unknown as string }),
+      strategy.validate(bffRequest, { sub: 12345 as unknown as string }),
     ).toThrow(UnauthorizedException);
     expect(() =>
-      strategy.validate({ sub: { nested: true } as unknown as string }),
+      strategy.validate(bffRequest, {
+        sub: { nested: true } as unknown as string,
+      }),
     ).toThrow(UnauthorizedException);
   });
 
@@ -96,12 +110,66 @@ describe('JwtStrategy', () => {
     );
   });
 
-  it('validates the audience claim against the bff-confidential client id', () => {
+  it('validates the audience claim against the people-service client id', () => {
     const strategy = new JwtStrategy(config);
 
     expect((strategy as unknown as StrategyInternals)._verifOpts.audience).toBe(
-      'bff-confidential',
+      'people-service',
     );
+  });
+
+  it('allows the Access Control caller only on identity resolution', () => {
+    const strategy = new JwtStrategy(config);
+
+    expect(
+      strategy.validate(internalRequest, {
+        sub: 'service-sub',
+        azp: 'access-control-service',
+        iss: 'https://localhost:8080/realms/people-management',
+      }),
+    ).toEqual({
+      sub: 'service-sub',
+      iss: 'https://localhost:8080/realms/people-management',
+    });
+  });
+
+  it('rejects an unauthorized caller on identity resolution', () => {
+    const strategy = new JwtStrategy(config);
+
+    expect(() =>
+      strategy.validate(internalRequest, {
+        sub: 'service-sub',
+        azp: 'bff-confidential',
+        iss: 'https://localhost:8080/realms/people-management',
+      }),
+    ).toThrow(ForbiddenException);
+  });
+
+  it('allows Access Control only on bootstrap target resolution', () => {
+    const strategy = new JwtStrategy(config);
+
+    expect(
+      strategy.validate(bootstrapRequest, {
+        sub: 'deployment-operator',
+        azp: 'access-control-service',
+        iss: 'https://localhost:8080/realms/people-management',
+      }),
+    ).toEqual({
+      sub: 'deployment-operator',
+      iss: 'https://localhost:8080/realms/people-management',
+    });
+  });
+
+  it('rejects a delegated browser caller on bootstrap target resolution', () => {
+    const strategy = new JwtStrategy(config);
+
+    expect(() =>
+      strategy.validate(bootstrapRequest, {
+        sub: 'user-sub',
+        azp: 'bff-confidential',
+        iss: 'https://localhost:8080/realms/people-management',
+      }),
+    ).toThrow(ForbiddenException);
   });
 
   it('sets a small clock-tolerance for real clock drift between this process and Keycloak', () => {

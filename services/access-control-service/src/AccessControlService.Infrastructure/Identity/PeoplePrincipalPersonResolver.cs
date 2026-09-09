@@ -6,9 +6,12 @@ using AccessControlService.Domain.Identity;
 
 namespace AccessControlService.Infrastructure.Identity;
 
-public sealed class PeoplePrincipalPersonResolver : IPrincipalPersonResolver
+public sealed class PeoplePrincipalPersonResolver
+    : IPrincipalPersonResolver, IBootstrapTargetPersonResolver
 {
     private const string RESOLVE_PATH = "/api/v1/internal/identity-mappings/resolve";
+    private const string BOOTSTRAP_RESOLVE_PATH =
+        "/api/v1/internal/bootstrap/identity-mappings/resolve";
     private static readonly JsonSerializerOptions JSON_OPTIONS = new(JsonSerializerDefaults.Web)
     {
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
@@ -16,24 +19,58 @@ public sealed class PeoplePrincipalPersonResolver : IPrincipalPersonResolver
 
     private readonly HttpClient httpClient;
     private readonly PeopleIdentityResolverOptions options;
-    private readonly IInternalServiceCredentialProvider credentialProvider;
+    private readonly ServiceTokenExchange tokenExchange;
+    private readonly IIncomingAccessTokenAccessor accessTokenAccessor;
     private readonly ICorrelationIdAccessor correlationIdAccessor;
+    private readonly IInternalServiceCredentialProvider? legacyCredentialProvider;
+
+    public PeoplePrincipalPersonResolver(
+        HttpClient httpClient,
+        PeopleIdentityResolverOptions options,
+        ServiceTokenExchange tokenExchange,
+        IIncomingAccessTokenAccessor accessTokenAccessor,
+        ICorrelationIdAccessor correlationIdAccessor)
+    {
+        this.httpClient = httpClient;
+        this.options = options;
+        this.tokenExchange = tokenExchange;
+        this.accessTokenAccessor = accessTokenAccessor;
+        this.correlationIdAccessor = correlationIdAccessor;
+    }
 
     public PeoplePrincipalPersonResolver(
         HttpClient httpClient,
         PeopleIdentityResolverOptions options,
         IInternalServiceCredentialProvider credentialProvider,
         ICorrelationIdAccessor correlationIdAccessor)
+        : this(
+            httpClient,
+            options,
+            new ServiceTokenExchange(httpClient, options),
+            new UnavailableIncomingAccessTokenAccessor(),
+            correlationIdAccessor)
     {
-        this.httpClient = httpClient;
-        this.options = options;
-        this.credentialProvider = credentialProvider;
-        this.correlationIdAccessor = correlationIdAccessor;
+        legacyCredentialProvider = credentialProvider;
     }
 
     public async Task<PrincipalPersonResolution> ResolvePersonAsync(
         OidcPrincipalIdentity identity,
         CancellationToken cancellationToken = default)
+    {
+        return await ResolveAsync(identity, RESOLVE_PATH, cancellationToken);
+    }
+
+    public async Task<PrincipalPersonResolution> ResolveBootstrapTargetAsync(
+        OidcPrincipalIdentity identity,
+        CancellationToken cancellationToken = default)
+    {
+        return await ResolveAsync(identity, BOOTSTRAP_RESOLVE_PATH, cancellationToken);
+    }
+
+    private async Task<PrincipalPersonResolution> ResolveAsync(
+        OidcPrincipalIdentity identity,
+        string path,
+        CancellationToken cancellationToken)
     {
         if (!OidcPrincipalIdentity.TryCreate(
                 identity.Issuer,
@@ -57,11 +94,24 @@ public sealed class PeoplePrincipalPersonResolver : IPrincipalPersonResolver
             return new PrincipalPersonResolution.InvalidIdentity();
         }
 
-        InternalServiceCredentialResult credential =
-            await credentialProvider.GetAsync(cancellationToken);
-        if (credential is not InternalServiceCredentialResult.Available available ||
-            string.IsNullOrWhiteSpace(available.Scheme) ||
-            string.IsNullOrWhiteSpace(available.Credential))
+        string? delegatedToken;
+        if (legacyCredentialProvider is not null)
+        {
+            InternalServiceCredentialResult credential =
+                await legacyCredentialProvider.GetAsync(cancellationToken);
+            delegatedToken = credential is InternalServiceCredentialResult.Available available &&
+                string.Equals(available.Scheme, "Bearer", StringComparison.Ordinal) &&
+                !string.IsNullOrWhiteSpace(available.Credential)
+                ? available.Credential
+                : null;
+        }
+        else
+        {
+            delegatedToken = await tokenExchange.ExchangeForPeopleAsync(
+                accessTokenAccessor.Current,
+                cancellationToken);
+        }
+        if (string.IsNullOrWhiteSpace(delegatedToken))
         {
             return new PrincipalPersonResolution.Unavailable();
         }
@@ -74,15 +124,15 @@ public sealed class PeoplePrincipalPersonResolver : IPrincipalPersonResolver
         {
             using HttpRequestMessage request = new(
                 HttpMethod.Post,
-                new Uri(options.BaseAddress, RESOLVE_PATH));
+                new Uri(options.BaseAddress, path));
             request.Content = JsonContent.Create(new
             {
                 issuer = canonicalIdentity.Issuer,
                 subject = canonicalIdentity.Subject,
             });
             request.Headers.Authorization = new AuthenticationHeaderValue(
-                available.Scheme,
-                available.Credential);
+                "Bearer",
+                delegatedToken);
 
             string? correlationId = correlationIdAccessor.Current;
             if (!string.IsNullOrWhiteSpace(correlationId))
@@ -147,4 +197,11 @@ public sealed class PeoplePrincipalPersonResolver : IPrincipalPersonResolver
     }
 
     private sealed record ResolvePersonResponse(Guid PersonId);
+
+}
+
+internal sealed class UnavailableIncomingAccessTokenAccessor
+    : IIncomingAccessTokenAccessor
+{
+    public string? Current => null;
 }

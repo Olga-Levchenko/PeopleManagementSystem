@@ -1,4 +1,11 @@
 import path from 'node:path';
+import { createServer, type Server } from 'node:http';
+import {
+  createSign,
+  generateKeyPairSync,
+  randomUUID,
+  type KeyObject,
+} from 'node:crypto';
 import {
   INestApplication,
   ValidationPipe,
@@ -25,8 +32,10 @@ const REALM_EXPORT_PATH = path.resolve(
 );
 const TEST_USERNAME = 'story1-11.test-user';
 const TEST_PASSWORD = 'Story1-11-TestPassword!';
-const CLIENT_ID = 'bff-confidential';
-const CLIENT_SECRET = 'local-dev-bff-confidential-secret';
+const CLIENT_ID = 'bff-direct-grant-test';
+const CLIENT_KEY_ID = 'authentication-service-nestjs-test-bff-key';
+const JWKS_PORT = 3001;
+let clientPrivateKey: KeyObject;
 
 type DiscoveryDocument = { issuer: string; jwks_uri: string };
 type TokenResponse = { access_token: string; token_type: string };
@@ -42,9 +51,41 @@ describe('Platform authentication via Keycloak (integration)', () => {
   let container: StartedTestContainer;
   let keycloakBaseUrl: string;
   let app: INestApplication<App>;
+  let jwksServer: Server;
 
   beforeAll(async () => {
-    container = await new GenericContainer('quay.io/keycloak/keycloak:26.0')
+    const keyPair = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    clientPrivateKey = keyPair.privateKey;
+    const publicJwk = keyPair.publicKey.export({ format: 'jwk' }) as Record<
+      string,
+      unknown
+    >;
+    jwksServer = createServer((request, response) => {
+      if (request.url !== '/api/v1/auth/jwks') {
+        response.writeHead(404);
+        response.end();
+        return;
+      }
+
+      response.setHeader('Content-Type', 'application/json');
+      response.end(
+        JSON.stringify({
+          keys: [
+            {
+              ...publicJwk,
+              kid: CLIENT_KEY_ID,
+              alg: 'RS256',
+              use: 'sig',
+            },
+          ],
+        }),
+      );
+    });
+    await new Promise<void>((resolve) =>
+      jwksServer.listen(JWKS_PORT, '0.0.0.0', () => resolve()),
+    );
+
+    container = await new GenericContainer('quay.io/keycloak/keycloak:26.2.5')
       .withExposedPorts(8080)
       .withEnvironment({
         KEYCLOAK_ADMIN: 'admin',
@@ -98,6 +139,13 @@ describe('Platform authentication via Keycloak (integration)', () => {
   afterAll(async () => {
     await app?.close();
     await container?.stop();
+    await new Promise<void>((resolve, reject) => {
+      if (!jwksServer) {
+        resolve();
+        return;
+      }
+      jwksServer.close((error) => (error ? reject(error) : resolve()));
+    });
   }, 60_000);
 
   it('provisions the configured realm with no manual Admin Console step', async () => {
@@ -119,7 +167,11 @@ describe('Platform authentication via Keycloak (integration)', () => {
         body: new URLSearchParams({
           grant_type: 'password',
           client_id: CLIENT_ID,
-          client_secret: CLIENT_SECRET,
+          client_assertion_type:
+            'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+          client_assertion: createClientAssertion(
+            `${keycloakBaseUrl}/realms/${REALM}/protocol/openid-connect/token`,
+          ),
           username: TEST_USERNAME,
           password: TEST_PASSWORD,
           scope: 'openid',
@@ -153,7 +205,11 @@ describe('Platform authentication via Keycloak (integration)', () => {
         body: new URLSearchParams({
           grant_type: 'password',
           client_id: CLIENT_ID,
-          client_secret: CLIENT_SECRET,
+          client_assertion_type:
+            'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+          client_assertion: createClientAssertion(
+            `${keycloakBaseUrl}/realms/${REALM}/protocol/openid-connect/token`,
+          ),
           username: TEST_USERNAME,
           password: 'not-the-right-password',
         }),
@@ -179,3 +235,29 @@ describe('Platform authentication via Keycloak (integration)', () => {
     expect(body.realm).toBe(REALM);
   });
 });
+
+function createClientAssertion(tokenEndpoint: string): string {
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const header = encodeJwtPart({
+    alg: 'RS256',
+    typ: 'JWT',
+    kid: CLIENT_KEY_ID,
+  });
+  const payload = encodeJwtPart({
+    iss: CLIENT_ID,
+    sub: CLIENT_ID,
+    aud: tokenEndpoint,
+    iat: issuedAt,
+    exp: issuedAt + 60,
+    jti: randomUUID(),
+  });
+  const signingInput = `${header}.${payload}`;
+  const signer = createSign('RSA-SHA256');
+  signer.update(signingInput);
+  signer.end();
+  return `${signingInput}.${signer.sign(clientPrivateKey).toString('base64url')}`;
+}
+
+function encodeJwtPart(value: Record<string, unknown>): string {
+  return Buffer.from(JSON.stringify(value)).toString('base64url');
+}

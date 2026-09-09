@@ -26,4 +26,16 @@ export class RequestActorContext {
     }
     return actorId;
   }
+
+  get accessToken(): string {
+    const authorization = this.request.headers.authorization;
+    if (
+      !authorization ||
+      !authorization.startsWith('Bearer ') ||
+      authorization.length <= 'Bearer '.length
+    ) {
+      throw new UnauthorizedException('Authenticated access token is required');
+    }
+    return authorization.slice('Bearer '.length).trim();
+  }
 }

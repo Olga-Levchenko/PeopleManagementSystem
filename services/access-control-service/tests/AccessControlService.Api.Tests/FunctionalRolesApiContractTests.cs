@@ -77,11 +77,20 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
                         TestAuthenticationHandler.SchemeName,
                         _ => { });
                 services.AddAuthorization(options =>
+                {
                     options.AddPolicy(
                         "AdministrationJwt",
                         policy => policy
                             .AddAuthenticationSchemes(TestAuthenticationHandler.SchemeName)
-                            .RequireAuthenticatedUser()));
+                            .RequireAuthenticatedUser());
+                    options.AddPolicy(
+                        "PeopleServiceJwt",
+                        policy => policy
+                            .AddAuthenticationSchemes(TestAuthenticationHandler.SchemeName)
+                            .RequireAuthenticatedUser()
+                            .RequireClaim("azp", "people-service")
+                            .RequireClaim("aud", "access-control-service"));
+                });
             });
         });
         client = factory.CreateClient();
@@ -342,7 +351,7 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
             trustedService: true,
             delegatedSub: "malformed-delegated-sub");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
     [Fact]
@@ -355,7 +364,7 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
             """{"permissionKey":"view-dashboard","scope":null}""",
             delegatedSub: FixtureSeedData.ExecutiveId.ToString());
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
@@ -614,6 +623,9 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
         if (trustedService)
         {
             request.Headers.Add("X-Test-Service", "trusted-test-service");
+            request.Headers.Add(
+                TEST_SUB_HEADER,
+                delegatedSub ?? personId?.ToString() ?? string.Empty);
         }
 
         if (delegatedSub is not null)
@@ -658,6 +670,16 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
                 [
                     new Claim("iss", TEST_ISSUER),
                     new Claim("sub", values.First()!),
+                    new Claim(
+                        "azp",
+                        Request.Headers.ContainsKey("X-Test-Service")
+                            ? "people-service"
+                            : "bff-confidential"),
+                    new Claim(
+                        "aud",
+                        Request.Headers.ContainsKey("X-Test-Service")
+                            ? "access-control-service"
+                            : "bff-confidential"),
                 ],
                 SchemeName);
             return Task.FromResult(

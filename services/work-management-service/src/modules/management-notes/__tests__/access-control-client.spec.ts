@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config';
+import { ServiceTokenExchangeService } from '../../auth/service-token-exchange.service';
 import {
   HttpAccessRoleResolutionAdapter,
   NO_ACCESS_RESOLUTION,
@@ -103,9 +104,11 @@ describe('HttpAccessRoleResolutionAdapter', () => {
     }) as unknown as ConfigService;
 
   let fetchMock: jest.Mock;
+  let exchangeMock: jest.Mock;
 
   beforeEach(() => {
     fetchMock = jest.fn();
+    exchangeMock = jest.fn().mockResolvedValue('exchanged-access-token');
     global.fetch = fetchMock;
     jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
@@ -127,9 +130,15 @@ describe('HttpAccessRoleResolutionAdapter', () => {
       status: 200,
       json: jest.fn().mockResolvedValue(body),
     });
-    const adapter = new HttpAccessRoleResolutionAdapter(createConfig());
+    const adapter = new HttpAccessRoleResolutionAdapter(createConfig(), {
+      exchangeForAccessControl: exchangeMock,
+    } as unknown as ServiceTokenExchangeService);
 
-    const result = await adapter.resolve(VIEWER_ID, SUBJECT_ID);
+    const result = await adapter.resolve(
+      VIEWER_ID,
+      SUBJECT_ID,
+      'incoming-token',
+    );
 
     expect(result).toEqual(body);
     const [calledUrl, calledInit] = fetchMock.mock.calls[0] as [
@@ -140,6 +149,13 @@ describe('HttpAccessRoleResolutionAdapter', () => {
       `${BASE_URL}/api/v1/access-roles/resolve?viewerPersonId=${VIEWER_ID}&subjectPersonId=${SUBJECT_ID}`,
     );
     expect(calledInit.method).toBe('GET');
+    expect(calledInit.headers).toEqual({
+      Authorization: 'Bearer exchanged-access-token',
+    });
+    expect(exchangeMock).toHaveBeenCalledWith(
+      'incoming-token',
+      expect.any(AbortSignal),
+    );
     // A timeout signal is always attached -- see access-control-client.ts's own
     // RESOLVE_TIMEOUT_MS doc comment for why a fail-closed access decision must bound how long it
     // waits on the network.
@@ -152,18 +168,48 @@ describe('HttpAccessRoleResolutionAdapter', () => {
       status: 500,
       json: jest.fn(),
     });
-    const adapter = new HttpAccessRoleResolutionAdapter(createConfig());
+    const adapter = new HttpAccessRoleResolutionAdapter(createConfig(), {
+      exchangeForAccessControl: exchangeMock,
+    } as unknown as ServiceTokenExchangeService);
 
-    const result = await adapter.resolve(VIEWER_ID, SUBJECT_ID);
+    const result = await adapter.resolve(
+      VIEWER_ID,
+      SUBJECT_ID,
+      'incoming-token',
+    );
 
     expect(result).toEqual(NO_ACCESS_RESOLUTION);
   });
 
+  it('token exchange timeout: fails closed without calling Access Control', async () => {
+    exchangeMock.mockRejectedValue(
+      new DOMException('The operation was aborted.', 'TimeoutError'),
+    );
+    const adapter = new HttpAccessRoleResolutionAdapter(createConfig(), {
+      exchangeForAccessControl: exchangeMock,
+    } as unknown as ServiceTokenExchangeService);
+
+    const result = await adapter.resolve(
+      VIEWER_ID,
+      SUBJECT_ID,
+      'incoming-token',
+    );
+
+    expect(result).toEqual(NO_ACCESS_RESOLUTION);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('network error (fetch throws): fails closed to NO_ACCESS_RESOLUTION, logged not thrown', async () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
-    const adapter = new HttpAccessRoleResolutionAdapter(createConfig());
+    const adapter = new HttpAccessRoleResolutionAdapter(createConfig(), {
+      exchangeForAccessControl: exchangeMock,
+    } as unknown as ServiceTokenExchangeService);
 
-    const result = await adapter.resolve(VIEWER_ID, SUBJECT_ID);
+    const result = await adapter.resolve(
+      VIEWER_ID,
+      SUBJECT_ID,
+      'incoming-token',
+    );
 
     expect(result).toEqual(NO_ACCESS_RESOLUTION);
   });
@@ -175,9 +221,15 @@ describe('HttpAccessRoleResolutionAdapter', () => {
     fetchMock.mockRejectedValue(
       new DOMException('The operation was aborted.', 'TimeoutError'),
     );
-    const adapter = new HttpAccessRoleResolutionAdapter(createConfig());
+    const adapter = new HttpAccessRoleResolutionAdapter(createConfig(), {
+      exchangeForAccessControl: exchangeMock,
+    } as unknown as ServiceTokenExchangeService);
 
-    const result = await adapter.resolve(VIEWER_ID, SUBJECT_ID);
+    const result = await adapter.resolve(
+      VIEWER_ID,
+      SUBJECT_ID,
+      'incoming-token',
+    );
 
     expect(result).toEqual(NO_ACCESS_RESOLUTION);
   });

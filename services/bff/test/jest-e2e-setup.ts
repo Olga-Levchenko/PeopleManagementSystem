@@ -1,3 +1,28 @@
+import { generateKeyPairSync } from 'node:crypto';
+import { existsSync, unlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+const e2ePrivateKeyPath = join(
+  tmpdir(),
+  `pms-bff-e2e-${process.pid}-private-key.pem`,
+);
+if (!existsSync(e2ePrivateKeyPath)) {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  writeFileSync(
+    e2ePrivateKeyPath,
+    privateKey.export({ format: 'pem', type: 'pkcs8' }),
+    { mode: 0o600 },
+  );
+  process.on('exit', () => {
+    try {
+      unlinkSync(e2ePrivateKeyPath);
+    } catch {
+      // The operating system may already have removed the temporary file.
+    }
+  });
+}
+
 // Runs before each e2e test file's own imports. `env.validation.ts` makes KEYCLOAK_BASE_URL/
 // KEYCLOAK_REALM required (no Joi .default(...)), on purpose -- a real deployment that omits them
 // must fail fast rather than silently validating tokens against a localhost fallback. But
@@ -25,8 +50,14 @@ if (!process.env.ACCESS_CONTROL_SERVICE_BASE_URL) {
 }
 // New required vars added by Story 1.12. Placeholders here satisfy Joi's .required() for e2e
 // specs that don't exercise the OIDC flow (same pattern as KEYCLOAK_BASE_URL above).
-if (!process.env.KEYCLOAK_CLIENT_SECRET) {
-  process.env.KEYCLOAK_CLIENT_SECRET = 'local-dev-bff-confidential-secret';
+if (!process.env.KEYCLOAK_CLIENT_PRIVATE_KEY_PATH) {
+  process.env.KEYCLOAK_CLIENT_PRIVATE_KEY_PATH = e2ePrivateKeyPath;
+}
+if (!process.env.KEYCLOAK_CLIENT_KEY_ID) {
+  process.env.KEYCLOAK_CLIENT_KEY_ID = 'test-key';
+}
+if (!process.env.KEYCLOAK_CLIENT_AUTH_SIGNING_ALG) {
+  process.env.KEYCLOAK_CLIENT_AUTH_SIGNING_ALG = 'RS256';
 }
 if (!process.env.SESSION_SECRET) {
   process.env.SESSION_SECRET = 'local-dev-session-secret-32chars-min';

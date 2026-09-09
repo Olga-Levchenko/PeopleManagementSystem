@@ -21,9 +21,13 @@ export const envValidationSchema = Joi.object({
   KEYCLOAK_REALM: Joi.string()
     .pattern(/^[A-Za-z0-9_-]+$/)
     .required(),
-  // Secret for confidential OIDC client -- used in PKCE code-exchange and back-channel logout
-  // validation. No default: a missing secret must fail fast, not silently use an empty string.
-  KEYCLOAK_CLIENT_SECRET: Joi.string().required(),
+  // Private-key JWT material for the confidential OIDC client. The key itself is deployment
+  // injected and is never stored in this repository.
+  KEYCLOAK_CLIENT_PRIVATE_KEY_PATH: Joi.string().min(1).required(),
+  KEYCLOAK_CLIENT_KEY_ID: Joi.string()
+    .pattern(/^[A-Za-z0-9._-]+$/)
+    .required(),
+  KEYCLOAK_CLIENT_AUTH_SIGNING_ALG: Joi.string().valid('RS256').required(),
   // Secret for express-session cookie signing. Min 32 chars enforced to prevent trivially weak
   // secrets slipping into production.
   SESSION_SECRET: Joi.string().min(32).required(),

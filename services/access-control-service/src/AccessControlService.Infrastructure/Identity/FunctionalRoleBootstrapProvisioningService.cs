@@ -14,17 +14,20 @@ public sealed class FunctionalRoleBootstrapProvisioningService : IBootstrapProvi
     private const string SYSTEM_BOOTSTRAP_ACTOR = "system:bootstrap-provisioning";
 
     private readonly AccessControlDbContext dbContext;
-    private readonly IPrincipalPersonResolver principalResolver;
+    private readonly IBootstrapTargetPersonResolver targetResolver;
     private readonly FunctionalRoleReconciliationService reconciliationService;
+    private readonly bool allowInsecureHttp;
 
     public FunctionalRoleBootstrapProvisioningService(
         AccessControlDbContext dbContext,
-        IPrincipalPersonResolver principalResolver,
-        FunctionalRoleReconciliationService reconciliationService)
+        IBootstrapTargetPersonResolver targetResolver,
+        FunctionalRoleReconciliationService reconciliationService,
+        PeopleIdentityResolverOptions? identityResolverOptions = null)
     {
         this.dbContext = dbContext;
-        this.principalResolver = principalResolver;
+        this.targetResolver = targetResolver;
         this.reconciliationService = reconciliationService;
+        this.allowInsecureHttp = identityResolverOptions?.AllowInsecureHttp ?? false;
     }
 
     public async Task<BootstrapProvisioningResult> ProvisionAsync(
@@ -35,6 +38,7 @@ public sealed class FunctionalRoleBootstrapProvisioningService : IBootstrapProvi
         if (!OidcPrincipalIdentity.TryCreate(
                 request.PrincipalIssuer,
                 request.PrincipalSub,
+                allowInsecureHttp,
                 out OidcPrincipalIdentity? identity) ||
             identity is null)
         {
@@ -42,7 +46,7 @@ public sealed class FunctionalRoleBootstrapProvisioningService : IBootstrapProvi
         }
 
         PrincipalPersonResolution resolution =
-            await principalResolver.ResolvePersonAsync(identity, cancellationToken);
+            await targetResolver.ResolveBootstrapTargetAsync(identity, cancellationToken);
         if (resolution is PrincipalPersonResolution.Unavailable)
         {
             return BootstrapProvisioningResult.UnavailableIdentity();
@@ -51,6 +55,16 @@ public sealed class FunctionalRoleBootstrapProvisioningService : IBootstrapProvi
         if (resolution is PrincipalPersonResolution.Ambiguous)
         {
             return BootstrapProvisioningResult.AmbiguousIdentity();
+        }
+
+        if (resolution is PrincipalPersonResolution.Missing)
+        {
+            return BootstrapProvisioningResult.MissingIdentity();
+        }
+
+        if (resolution is PrincipalPersonResolution.InvalidIdentity)
+        {
+            return BootstrapProvisioningResult.InvalidInput();
         }
 
         if (resolution is not PrincipalPersonResolution.Resolved resolved)
@@ -116,13 +130,16 @@ public sealed class FunctionalRoleBootstrapProvisioningService : IBootstrapProvi
                     Action = "bootstrap",
                     TargetType = "person-functional-role-assignment",
                     TargetId = assignment.Id,
-                    TrustedProvisioningActor = SYSTEM_BOOTSTRAP_ACTOR,
+                    TrustedProvisioningActor =
+                        request.TrustedProvisioningActor ?? SYSTEM_BOOTSTRAP_ACTOR,
                     After = JsonSerializer.Serialize(new
                     {
                         assignment.Id,
                         assignment.PersonId,
                         assignment.FunctionalRoleId,
                         assignment.IsActive,
+                        TargetIssuer = identity.Issuer,
+                        TargetSubject = identity.Subject,
                     }),
                     OccurredAtUtc = DateTime.UtcNow,
                     CorrelationId = correlationId,

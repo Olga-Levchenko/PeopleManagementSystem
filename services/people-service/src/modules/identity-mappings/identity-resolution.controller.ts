@@ -7,16 +7,14 @@ import {
   HttpException,
   HttpStatus,
   Post,
+  Req,
   Res,
   UseFilters,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
-import { Public } from '../auth/public.decorator';
 import { ResolveIdentityDto } from './dto/resolve-identity.dto';
 import { IdentityResolutionService } from './identity-resolution.service';
-import { InternalServiceAuthGuard } from './internal-service-auth.guard';
 
 @Catch()
 export class IdentityResolutionProblemDetailsFilter implements ExceptionFilter {
@@ -68,10 +66,8 @@ export class IdentityResolutionProblemDetailsFilter implements ExceptionFilter {
   }
 }
 
-@Public()
 @ApiBearerAuth()
 @UseFilters(IdentityResolutionProblemDetailsFilter)
-@UseGuards(InternalServiceAuthGuard)
 @Controller('internal/identity-mappings')
 export class IdentityResolutionController {
   constructor(private readonly service: IdentityResolutionService) {}
@@ -88,6 +84,75 @@ export class IdentityResolutionController {
   @ApiResponse({ status: 404, description: 'Mapping missing or revoked' })
   @ApiResponse({ status: 409, description: 'Multiple active mappings found' })
   @ApiResponse({ status: 503, description: 'Dependency unavailable' })
+  async resolve(
+    @Body() body: ResolveIdentityDto,
+    @Req() request: Request,
+    @Res() response: Response,
+  ): Promise<Response> {
+    const authenticatedUser: { iss?: unknown; sub?: unknown } | undefined =
+      request.user;
+    const tokenIssuer = authenticatedUser?.iss;
+    const tokenSubject = authenticatedUser?.sub;
+    if (tokenIssuer !== body.issuer || tokenSubject !== body.subject) {
+      throw new HttpException(
+        'Identity does not match the authenticated token',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+    const result = await this.service.resolve(body.issuer, body.subject);
+    switch (result.outcome) {
+      case 'resolved':
+        return response
+          .status(HttpStatus.OK)
+          .json({ personId: result.personId });
+      case 'missing':
+        throw new HttpException(
+          'Identity mapping was not found',
+          HttpStatus.NOT_FOUND,
+        );
+      case 'ambiguous':
+        throw new HttpException(
+          'Identity mapping is ambiguous',
+          HttpStatus.CONFLICT,
+        );
+      default:
+        throw new HttpException(
+          'Identity resolution is unavailable',
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+    }
+  }
+}
+
+@ApiBearerAuth()
+@UseFilters(IdentityResolutionProblemDetailsFilter)
+@Controller('internal/bootstrap/identity-mappings')
+export class BootstrapIdentityResolutionController {
+  constructor(private readonly service: IdentityResolutionService) {}
+
+  @Post('resolve')
+  @ApiOperation({
+    summary: 'Resolve a bootstrap target OIDC identity to a PersonId',
+  })
+  @ApiResponse({ status: 200, schema: { example: { personId: 'uuid' } } })
+  @ApiResponse({
+    status: 400,
+    description: 'Malformed or disallowed target identity',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Bootstrap machine authentication missing',
+  })
+  @ApiResponse({ status: 403, description: 'Caller is not Access Control' })
+  @ApiResponse({ status: 404, description: 'Identity mapping was not found' })
+  @ApiResponse({
+    status: 409,
+    description: 'Multiple active identity mappings found',
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'Identity resolution is unavailable',
+  })
   async resolve(
     @Body() body: ResolveIdentityDto,
     @Res() response: Response,

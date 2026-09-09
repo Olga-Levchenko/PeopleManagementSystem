@@ -3,10 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import type { Request } from 'express';
 import expressSession from 'express-session';
+import { generateKeyPairSync } from 'node:crypto';
+import { createServer, type Server } from 'node:http';
 import path from 'path';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
+import { Issuer } from 'openid-client';
 import { AppModule } from '../src/app.module';
 
 /**
@@ -28,7 +31,6 @@ import { AppModule } from '../src/app.module';
 
 const REALM = 'people-management';
 const CLIENT_ID = 'bff-confidential';
-const CLIENT_SECRET = 'local-dev-bff-confidential-secret';
 const TEST_USERNAME = 'story1-11.test-user';
 const TEST_PASSWORD = 'Story1-11-TestPassword!';
 
@@ -61,32 +63,24 @@ describe('JWT guard (e2e)', () => {
   let container: StartedTestContainer;
   let baseUrl: string;
   let app: INestApplication<App>;
+  let jwksServer: Server;
+  let tokenClient: {
+    grant: (body: Record<string, string>) => Promise<{ access_token?: string }>;
+  };
 
   async function obtainToken(): Promise<TokenResponse> {
-    const body = new URLSearchParams({
+    const tokenSet = await tokenClient.grant({
       grant_type: 'password',
-      client_id: CLIENT_ID,
-      client_secret: CLIENT_SECRET,
       username: TEST_USERNAME,
       password: TEST_PASSWORD,
+      scope: 'openid',
     });
-
-    const res = await fetch(
-      `${baseUrl}/realms/${REALM}/protocol/openid-connect/token`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body,
-      },
-    );
-
-    if (!res.ok) {
+    if (!tokenSet.access_token) {
       throw new Error(
-        `Direct-grant token request failed: ${res.status} ${await res.text()}`,
+        'Direct-grant token response did not contain an access token.',
       );
     }
-
-    return (await res.json()) as TokenResponse;
+    return { access_token: tokenSet.access_token };
   }
 
   async function obtainAdminToken(): Promise<string> {
@@ -154,18 +148,65 @@ describe('JWT guard (e2e)', () => {
     }
   }
 
+  async function configureClientJwks(
+    adminToken: string,
+    jwksUrl: string,
+  ): Promise<void> {
+    const clientsRes = await fetch(
+      `${baseUrl}/admin/realms/${REALM}/clients?clientId=${CLIENT_ID}`,
+      { headers: { Authorization: `Bearer ${adminToken}` } },
+    );
+    const clients = (await clientsRes.json()) as Array<Record<string, unknown>>;
+    const client = clients[0];
+    const clientId = client?.id;
+    if (typeof clientId !== 'string') {
+      throw new Error('BFF client was not imported into Keycloak.');
+    }
+
+    const attributes = {
+      ...((client.attributes as Record<string, string> | undefined) ?? {}),
+      'use.jwks.url': 'true',
+      'jwks.url': jwksUrl,
+      'jwks.string': '',
+    };
+    const updateRes = await fetch(
+      `${baseUrl}/admin/realms/${REALM}/clients/${clientId}`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...client,
+          clientAuthenticatorType: 'client-jwt',
+          directAccessGrantsEnabled: true,
+          attributes,
+        }),
+      },
+    );
+    if (!updateRes.ok) {
+      throw new Error(
+        `Failed to configure BFF client JWKS: ${updateRes.status} ${await updateRes.text()}`,
+      );
+    }
+  }
+
   beforeAll(async () => {
     const realmExportPath = path.resolve(
       __dirname,
       '../../authentication-service/keycloak/realm-export.json',
     );
 
-    container = await new GenericContainer('quay.io/keycloak/keycloak:26.0')
+    container = await new GenericContainer('quay.io/keycloak/keycloak:26.2.5')
       .withCopyFilesToContainer([
         {
           source: realmExportPath,
           target: '/opt/keycloak/data/import/realm-export.json',
         },
+      ])
+      .withExtraHosts([
+        { host: 'host.docker.internal', ipAddress: 'host-gateway' },
       ])
       .withEnvironment({
         KEYCLOAK_ADMIN: 'admin',
@@ -191,14 +232,59 @@ describe('JWT guard (e2e)', () => {
       container.getHost() === 'localhost' ? '127.0.0.1' : container.getHost();
     baseUrl = `http://${host}:${container.getMappedPort(8080)}`;
 
+    const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const privateJwk = privateKey.export({ format: 'jwk' }) as Record<
+      string,
+      unknown
+    >;
+    privateJwk.kid = 'bff-jwt-guard-e2e-key';
+    privateJwk.alg = 'RS256';
+    privateJwk.use = 'sig';
+    const publicJwk = {
+      kty: privateJwk.kty,
+      n: privateJwk.n,
+      e: privateJwk.e,
+      kid: privateJwk.kid,
+      alg: privateJwk.alg,
+      use: privateJwk.use,
+    };
+    jwksServer = createServer((_request, response) => {
+      response.setHeader('Content-Type', 'application/json');
+      response.end(JSON.stringify({ keys: [publicJwk] }));
+    });
+    await new Promise<void>((resolve) => {
+      jwksServer.listen(0, '0.0.0.0', resolve);
+    });
+    const jwksAddress = jwksServer.address();
+    if (!jwksAddress || typeof jwksAddress === 'string') {
+      throw new Error('The BFF E2E JWKS server did not expose a TCP port.');
+    }
+    await configureClientJwks(
+      await obtainAdminToken(),
+      `http://host.docker.internal:${jwksAddress.port}/jwks.json`,
+    );
+    const issuer = await Issuer.discover(`${baseUrl}/realms/${REALM}`);
+    const clientJwks = JSON.parse(
+      JSON.stringify({ keys: [privateJwk] }),
+    ) as ConstructorParameters<typeof issuer.Client>[1];
+    tokenClient = new issuer.Client(
+      {
+        client_id: CLIENT_ID,
+        token_endpoint_auth_method: 'private_key_jwt',
+        token_endpoint_auth_signing_alg: 'RS256',
+      },
+      clientJwks,
+    );
+
     // See the module-level comment: overriding ConfigService (rather than process.env) is what
     // actually gets the container's real KEYCLOAK_BASE_URL/KEYCLOAK_REALM into JwtStrategy.
     const configOverrides: Record<string, string> = {
       KEYCLOAK_BASE_URL: baseUrl,
       KEYCLOAK_REALM: REALM,
-      // Story 1.12 added OidcService to AppModule; it calls getOrThrow('KEYCLOAK_CLIENT_SECRET')
-      // during onModuleInit, so it must be present even in suites that never exercise OIDC flows.
-      KEYCLOAK_CLIENT_SECRET: CLIENT_SECRET,
+      KEYCLOAK_CLIENT_PRIVATE_KEY_PATH:
+        process.env.KEYCLOAK_CLIENT_PRIVATE_KEY_PATH!,
+      KEYCLOAK_CLIENT_KEY_ID: 'test-key',
+      KEYCLOAK_CLIENT_AUTH_SIGNING_ALG: 'RS256',
       // Defaults for keys this suite never exercises via HTTP (organisational-relationships'
       // upstream call, main.ts's own bootstrap, session middleware) -- kept so any incidental
       // getOrThrow() call still resolves instead of throwing.
@@ -230,9 +316,9 @@ describe('JWT guard (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
 
-    // JwtAuthGuard.canActivate (Story 1.12) reads req.session.userId before falling through to
-    // JWT validation. Without this middleware req.session is undefined and the guard throws a
-    // TypeError → 500. MemoryStore is fine here; this suite never exercises session-based auth.
+    // JwtAuthGuard.canActivate (Story 1.12) reads req.session.userId before enforcing the
+    // session-only browser boundary. Without this middleware req.session is undefined and the
+    // guard throws a TypeError → 500.
     app.use(
       expressSession({
         secret: configOverrides.SESSION_SECRET,
@@ -247,6 +333,13 @@ describe('JWT guard (e2e)', () => {
 
   afterAll(async () => {
     await app?.close();
+    await new Promise<void>((resolve, reject) => {
+      if (!jwksServer) {
+        resolve();
+        return;
+      }
+      jwksServer.close((error) => (error ? reject(error) : resolve()));
+    });
     await container?.stop();
   });
 
@@ -254,18 +347,13 @@ describe('JWT guard (e2e)', () => {
     await request(app.getHttpServer()).get('/__test-probe/whoami').expect(401);
   });
 
-  it('valid token: request reaches the controller and request.user.sub matches the sub claim', async () => {
+  it('valid bearer token without a BFF session: 401, browser token is not accepted', async () => {
     const { access_token: accessToken } = await obtainToken();
-    const payload = JSON.parse(
-      Buffer.from(accessToken.split('.')[1], 'base64').toString('utf8'),
-    ) as { sub: string };
 
-    const res = await request(app.getHttpServer())
+    await request(app.getHttpServer())
       .get('/__test-probe/whoami')
       .set('Authorization', `Bearer ${accessToken}`)
-      .expect(200);
-
-    expect((res.body as { sub: string }).sub).toBe(payload.sub);
+      .expect(401);
   });
 
   it('malformed token: 401', async () => {
@@ -342,27 +430,17 @@ describe('JWT guard (e2e)', () => {
       expect(fetchSpy).not.toHaveBeenCalled();
     });
 
-    it('PATCH /organisational-relationships/.../manager with a valid token: guard lets it through (not 401/403)', async () => {
+    it('PATCH /organisational-relationships/.../manager with a bearer token but no session: 401', async () => {
       const { access_token: accessToken } = await obtainToken();
 
-      // people-service isn't actually running in this suite -- mocked so the request can reach
-      // and pass through OrganisationalRelationshipsService without a real upstream dependency.
-      // What's under test here is only that the guard let the request through, not what
-      // people-service would have done with it.
-      const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue({
-        status: 200,
-        headers: new Headers({ 'content-type': 'application/json' }),
-        json: jest.fn().mockResolvedValue({ ok: true }),
-      } as unknown as Response);
+      const fetchSpy = jest.spyOn(globalThis, 'fetch');
 
-      const res = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .patch('/organisational-relationships/people/some-person-id/manager')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({ relatedPersonId: 'some-manager-id' });
 
-      expect(res.status).not.toBe(401);
-      expect(res.status).not.toBe(403);
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(fetchSpy).not.toHaveBeenCalled();
     });
   });
 });

@@ -10,6 +10,16 @@ describe('HttpAccessRoleResolutionAdapter', () => {
     ({
       getOrThrow: jest.fn().mockReturnValue(BASE_URL),
     }) as unknown as ConfigService;
+  const actor = { accessToken: 'incoming-user-token' };
+  const tokenExchange = {
+    exchangeForAudience: jest.fn().mockResolvedValue('acs-token'),
+  };
+  const createAdapter = () =>
+    new HttpAccessRoleResolutionAdapter(
+      createConfig(),
+      actor as never,
+      tokenExchange as never,
+    );
 
   let fetchMock: jest.Mock;
 
@@ -37,7 +47,7 @@ describe('HttpAccessRoleResolutionAdapter', () => {
       status: 200,
       json: jest.fn().mockResolvedValue(body),
     });
-    const adapter = new HttpAccessRoleResolutionAdapter(createConfig());
+    const adapter = createAdapter();
 
     const result = await adapter.resolve(VIEWER_ID, SUBJECT_ID);
 
@@ -67,7 +77,10 @@ describe('HttpAccessRoleResolutionAdapter', () => {
     expect(calledUrl.toString()).toBe(
       `${BASE_URL}/api/v1/access-roles/resolve?viewerPersonId=${VIEWER_ID}&subjectPersonId=${SUBJECT_ID}`,
     );
-    expect(calledInit).toEqual({ method: 'GET' });
+    expect(calledInit).toEqual({
+      method: 'GET',
+      headers: { Authorization: 'Bearer acs-token' },
+    });
   });
 
   it('non-2xx response: fails closed to the "neither line" shape, logged not thrown', async () => {
@@ -76,7 +89,7 @@ describe('HttpAccessRoleResolutionAdapter', () => {
       status: 500,
       json: jest.fn(),
     });
-    const adapter = new HttpAccessRoleResolutionAdapter(createConfig());
+    const adapter = createAdapter();
 
     const result = await adapter.resolve(VIEWER_ID, SUBJECT_ID);
 
@@ -112,7 +125,7 @@ describe('HttpAccessRoleResolutionAdapter', () => {
       status: 200,
       json: jest.fn().mockResolvedValue(body),
     });
-    const adapter = new HttpAccessRoleResolutionAdapter(createConfig());
+    const adapter = createAdapter();
 
     const result = await adapter.resolve(VIEWER_ID, SUBJECT_ID);
 
@@ -130,7 +143,7 @@ describe('HttpAccessRoleResolutionAdapter', () => {
 
   it('network error (fetch throws): fails closed to the "neither line" shape, logged not thrown', async () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
-    const adapter = new HttpAccessRoleResolutionAdapter(createConfig());
+    const adapter = createAdapter();
 
     const result = await adapter.resolve(VIEWER_ID, SUBJECT_ID);
 

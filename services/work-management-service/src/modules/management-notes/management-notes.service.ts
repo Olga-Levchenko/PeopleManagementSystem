@@ -54,6 +54,7 @@ export class ManagementNotesService {
   private async resolveAccess(
     viewerId: string,
     subjectPersonId: string,
+    subjectToken?: string,
   ): Promise<ManagementNotesAccess> {
     if (viewerId === subjectPersonId) {
       return 'self';
@@ -62,6 +63,7 @@ export class ManagementNotesService {
     const resolution = await this.accessRoleResolution.resolve(
       viewerId,
       subjectPersonId,
+      subjectToken,
     );
 
     const isFullRw =
@@ -83,8 +85,13 @@ export class ManagementNotesService {
   async listNotes(
     viewerId: string,
     subjectPersonId: string,
+    subjectToken?: string,
   ): Promise<ManagementNoteView[]> {
-    const access = await this.resolveAccess(viewerId, subjectPersonId);
+    const access = await this.resolveAccess(
+      viewerId,
+      subjectPersonId,
+      subjectToken,
+    );
 
     switch (access) {
       case 'full':
@@ -101,8 +108,13 @@ export class ManagementNotesService {
   async createNote(
     viewerId: string,
     dto: CreateManagementNoteDto,
+    subjectToken?: string,
   ): Promise<ManagementNoteView> {
-    const access = await this.resolveAccess(viewerId, dto.subjectPersonId);
+    const access = await this.resolveAccess(
+      viewerId,
+      dto.subjectPersonId,
+      subjectToken,
+    );
     if (access !== 'full') {
       // Covers 'pm' (read-only), 'self' (read-only for own record), and 'none' alike -- only
       // full RW may ever create a note, regardless of flag values requested.
@@ -134,6 +146,7 @@ export class ManagementNotesService {
     viewerId: string,
     noteId: string,
     dto: UpdateManagementNoteDto,
+    subjectToken?: string,
   ): Promise<ManagementNoteView> {
     // The note's own subjectPersonId is needed to resolve access, and PATCH /:id carries no
     // subjectPersonId of its own -- a genuinely-missing note 404s before any access check (there
@@ -148,7 +161,11 @@ export class ManagementNotesService {
       throw new NotFoundException();
     }
 
-    const access = await this.resolveAccess(viewerId, existing.subjectPersonId);
+    const access = await this.resolveAccess(
+      viewerId,
+      existing.subjectPersonId,
+      subjectToken,
+    );
     if (access !== 'full') {
       throw new ForbiddenException();
     }

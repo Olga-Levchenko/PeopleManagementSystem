@@ -27,8 +27,8 @@ const REFRESH_LEEWAY_SECONDS = 30;
  *      `true` (no bearer token required). Also proactively refreshes the access token when it is
  *      within `REFRESH_LEEWAY_SECONDS` of expiry, so forwarded domain calls always carry a valid
  *      token.
- *   3. Bearer-token fallback — fall through to the existing `passport-jwt` strategy for any
- *      service-to-service caller that already carries a bearer token.
+ *   3. No session — reject the browser request; backend audience-specific credentials are
+ *      acquired server-side from the validated session and are never accepted from the browser.
  *
  * A route opts OUT via `@Public()` (`modules/auth/public.decorator.ts`), never the other way
  * around; only `/health` and the five auth endpoints use it.
@@ -99,7 +99,6 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       return true;
     }
 
-    // No session -- fall through to the bearer-token path for service-to-service callers.
-    return super.canActivate(context) as Promise<boolean>;
+    throw new UnauthorizedException('Authenticated session is required.');
   }
 }

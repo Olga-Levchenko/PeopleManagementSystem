@@ -17,18 +17,15 @@ public sealed class FunctionalRolesController : ControllerBase
 {
     private readonly FunctionalRoleAdministrationService service;
     private readonly IPrincipalPersonResolver principalResolver;
-    private readonly ITrustedServicePrincipalAuthorizer trustedServicePrincipalAuthorizer;
     private readonly AppConfig appConfig;
 
     public FunctionalRolesController(
         FunctionalRoleAdministrationService service,
         IPrincipalPersonResolver principalResolver,
-        ITrustedServicePrincipalAuthorizer trustedServicePrincipalAuthorizer,
         AppConfig appConfig)
     {
         this.service = service;
         this.principalResolver = principalResolver;
-        this.trustedServicePrincipalAuthorizer = trustedServicePrincipalAuthorizer;
         this.appConfig = appConfig;
     }
 
@@ -292,32 +289,14 @@ public sealed class FunctionalRolesController : ControllerBase
     }
 
     [HttpPost("permissions/check")]
+    [Authorize(Policy = "PeopleServiceJwt")]
     public async Task<ActionResult<PermissionCheckResponse>> CheckPermission(
         PermissionCheckRequest request,
         CancellationToken cancellationToken)
     {
         try
         {
-            TrustedPermissionCheckAuthorization authorization =
-                await trustedServicePrincipalAuthorizer.AuthorizeAsync(cancellationToken);
-            if (authorization is TrustedPermissionCheckAuthorization.Unavailable)
-            {
-                throw new ServiceUnavailableException();
-            }
-
-            if (authorization is TrustedPermissionCheckAuthorization.Unauthorized)
-            {
-                throw new UnauthorizedException();
-            }
-
-            if (authorization is not TrustedPermissionCheckAuthorization.Authorized authorized)
-            {
-                throw new UnauthorizedException();
-            }
-
-            Guid actor = await ResolveDelegatedActorAsync(
-                authorized.Context,
-                cancellationToken);
+            Guid actor = await ResolveActorAsync(cancellationToken);
             bool granted = await service.CheckPermissionAsync(
                 actor, request.PermissionKey, ScopeText(request.Scope), cancellationToken);
             return Ok(new PermissionCheckResponse(granted));
@@ -355,36 +334,6 @@ public sealed class FunctionalRolesController : ControllerBase
             PrincipalPersonResolution.Missing => throw new NotFoundException("The authenticated principal has no active person mapping."),
             PrincipalPersonResolution.InvalidIdentity => throw new UnauthorizedException(),
             _ => throw new ServiceUnavailableException(),
-        };
-    }
-
-    private async Task<Guid> ResolveDelegatedActorAsync(
-        TrustedPermissionCheckContext context,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(context.ServiceIdentity) ||
-            !OidcPrincipalIdentity.TryCreate(
-                context.DelegatedActorIssuer,
-                context.DelegatedActorSub,
-                appConfig.AllowInsecureOidcHttp,
-                out OidcPrincipalIdentity? identity) ||
-            identity is null)
-        {
-            throw new UnauthorizedException();
-        }
-
-        PrincipalPersonResolution resolution =
-            await principalResolver.ResolvePersonAsync(
-                identity,
-                cancellationToken);
-        return resolution switch
-        {
-            PrincipalPersonResolution.Resolved resolved => resolved.PersonId,
-            PrincipalPersonResolution.Unavailable => throw new ServiceUnavailableException(),
-            PrincipalPersonResolution.Ambiguous => throw new UnauthorizedException(),
-            PrincipalPersonResolution.Missing => throw new UnauthorizedException(),
-            PrincipalPersonResolution.InvalidIdentity => throw new UnauthorizedException(),
-            _ => throw new UnauthorizedException(),
         };
     }
 

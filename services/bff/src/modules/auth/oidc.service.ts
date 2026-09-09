@@ -3,10 +3,27 @@ import {
   InternalServerErrorException,
   Logger,
   OnModuleInit,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Issuer, TokenSet, type Client, generators } from 'openid-client';
+import { createPrivateKey, createPublicKey, verify } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { Issuer, type Client, generators } from 'openid-client';
 import { deriveIssuer } from './jwt.strategy';
+import type { BffSession } from './session.types';
+
+export const BACKEND_AUDIENCES = [
+  'people-service',
+  'access-control-service',
+] as const;
+export type BackendAudience = (typeof BACKEND_AUDIENCES)[number];
+const BACKEND_AUDIENCE_SCOPES: Record<BackendAudience, string> = {
+  'people-service': 'people-service-audience',
+  'access-control-service': 'access-control-service-audience',
+};
+const BFF_CLIENT_ID = 'bff-confidential';
+const BACKCHANNEL_LOGOUT_EVENT =
+  'http://schemas.openid.net/event/backchannel-logout';
 
 /**
  * A parsed, validated Keycloak logout token. The only claims the BFF cares about are `sub`
@@ -34,29 +51,62 @@ export interface LogoutToken {
 export class OidcService implements OnModuleInit {
   private readonly logger = new Logger(OidcService.name);
   private client!: Client;
+  private publicJwk?: Record<string, unknown>;
+  private issuerUrl?: string;
+  private logoutJwksUri?: string;
 
   constructor(private readonly config: ConfigService) {}
 
   async onModuleInit(): Promise<void> {
     const issuer = deriveIssuer(this.config);
     const clientId = 'bff-confidential';
-    const clientSecret = this.config.getOrThrow<string>(
-      'KEYCLOAK_CLIENT_SECRET',
+    const privateKeyPath = this.config.getOrThrow<string>(
+      'KEYCLOAK_CLIENT_PRIVATE_KEY_PATH',
+    );
+    const keyId = this.config.getOrThrow<string>('KEYCLOAK_CLIENT_KEY_ID');
+    const signingAlgorithm = this.config.getOrThrow<string>(
+      'KEYCLOAK_CLIENT_AUTH_SIGNING_ALG',
     );
 
     try {
       const discovered = await Issuer.discover(issuer);
-      this.client = new discovered.Client({
-        client_id: clientId,
-        client_secret: clientSecret,
-        response_types: ['code'],
-      });
+      this.issuerUrl = issuer;
+      this.logoutJwksUri = discovered.metadata.jwks_uri;
+      const privateKey = createPrivateKey(await readFile(privateKeyPath));
+      const privateJwk = privateKey.export({ format: 'jwk' }) as Record<
+        string,
+        unknown
+      >;
+      privateJwk.kid = keyId;
+      privateJwk.alg = signingAlgorithm;
+      privateJwk.use = 'sig';
+
+      const publicJwk = createPublicKey(privateKey).export({
+        format: 'jwk',
+      }) as Record<string, unknown>;
+      publicJwk.kid = keyId;
+      publicJwk.alg = signingAlgorithm;
+      publicJwk.use = 'sig';
+      this.publicJwk = publicJwk;
+
+      const clientJwks = JSON.parse(
+        JSON.stringify({ keys: [privateJwk] }),
+      ) as ConstructorParameters<typeof discovered.Client>[1];
+      this.client = new discovered.Client(
+        {
+          client_id: clientId,
+          token_endpoint_auth_method: 'private_key_jwt',
+          token_endpoint_auth_signing_alg: signingAlgorithm,
+          response_types: ['code'],
+        },
+        clientJwks,
+      );
       this.logger.log(`OIDC discovery complete for issuer: ${issuer}`);
     } catch (err) {
-      // Log the failure so the startup error is visible, but don't crash the process: the BFF
-      // can still serve health checks and other public routes. The first authenticated request
-      // will fail with an InternalServerErrorException (see the guard on `this.client` below).
-      this.logger.error('OIDC discovery failed on startup', err);
+      // Keep startup behavior unchanged: health and public routes remain available. Any
+      // authenticated OIDC or token-exchange operation fails closed until the key provider is
+      // available.
+      this.logger.error('OIDC client initialisation failed on startup', err);
     }
   }
 
@@ -108,23 +158,35 @@ export class OidcService implements OnModuleInit {
     idToken: string | undefined;
     sub: string;
     email: string | undefined;
+    oidcSessionId: string | undefined;
     accessTokenExpiresAt: number | undefined;
   }> {
     this.assertClientReady();
 
-    const tokenSet = await this.client.callback(redirectUri, callbackParams, {
-      code_verifier: codeVerifier,
-      state: callbackParams.state,
-    });
+    const tokenSet = await this.client.callback(
+      redirectUri,
+      callbackParams,
+      {
+        code_verifier: codeVerifier,
+        state: callbackParams.state,
+      },
+      { clientAssertionPayload: this.clientAssertionPayload() },
+    );
 
     const claims = tokenSet.claims();
+    let email = typeof claims.email === 'string' ? claims.email : undefined;
+    if (!email && tokenSet.access_token) {
+      const userInfo = await this.client.userinfo(tokenSet.access_token);
+      email = typeof userInfo.email === 'string' ? userInfo.email : undefined;
+    }
 
     return {
       accessToken: tokenSet.access_token ?? '',
       refreshToken: tokenSet.refresh_token,
       idToken: tokenSet.id_token,
       sub: claims.sub,
-      email: typeof claims.email === 'string' ? claims.email : undefined,
+      email,
+      oidcSessionId: typeof claims.sid === 'string' ? claims.sid : undefined,
       accessTokenExpiresAt: tokenSet.expires_at,
     };
   }
@@ -141,7 +203,9 @@ export class OidcService implements OnModuleInit {
   }> {
     this.assertClientReady();
 
-    const tokenSet = await this.client.refresh(refreshToken);
+    const tokenSet = await this.client.refresh(refreshToken, {
+      clientAssertionPayload: this.clientAssertionPayload(),
+    });
 
     return {
       accessToken: tokenSet.access_token ?? '',
@@ -185,20 +249,75 @@ export class OidcService implements OnModuleInit {
   async validateLogoutToken(logoutToken: string): Promise<LogoutToken> {
     this.assertClientReady();
 
-    // `openid-client` v5 exposes `validateLogoutToken` on the Client instance at runtime, but the
-    // @types/openid-client declaration file types every non-enumerated property on BaseClient as
-    // `unknown` (via `[key: string]: unknown`). We access it via bracket notation and narrow the
-    // type manually to avoid an `unknown`-typed call.
-    const validateFn = this.client['validateLogoutToken'] as (
-      token: string,
-    ) => Promise<TokenSet>;
-    if (typeof validateFn !== 'function') {
+    if (!this.issuerUrl || !this.logoutJwksUri) {
       throw new InternalServerErrorException(
-        'openid-client Client.validateLogoutToken is not available -- check library version.',
+        'OIDC logout-token validation is not configured.',
       );
     }
-    const tokenSet = await validateFn.call(this.client, logoutToken);
-    const claims = tokenSet.claims();
+
+    const [encodedHeader, encodedPayload, encodedSignature] =
+      logoutToken.split('.');
+    if (!encodedHeader || !encodedPayload || !encodedSignature) {
+      throw new Error('Malformed logout token.');
+    }
+
+    const header = JSON.parse(
+      Buffer.from(encodedHeader, 'base64url').toString('utf8'),
+    ) as { alg?: string; kid?: string };
+    if (header.alg !== 'RS256' || !header.kid) {
+      throw new Error('Unsupported logout token signature.');
+    }
+
+    const jwksResponse = await fetch(this.logoutJwksUri);
+    if (!jwksResponse.ok) {
+      throw new Error('OIDC JWKS request failed.');
+    }
+    const jwks = (await jwksResponse.json()) as {
+      keys?: Array<Record<string, unknown>>;
+    };
+    const jwk = jwks.keys?.find((key) => key.kid === header.kid);
+    if (!jwk) {
+      throw new Error('Logout token signing key was not found.');
+    }
+
+    const signingInput = `${encodedHeader}.${encodedPayload}`;
+    const isValidSignature = verify(
+      'RSA-SHA256',
+      Buffer.from(signingInput),
+      createPublicKey({ key: jwk, format: 'jwk' }),
+      Buffer.from(encodedSignature, 'base64url'),
+    );
+    if (!isValidSignature) {
+      throw new Error('Invalid logout token signature.');
+    }
+
+    const claims = JSON.parse(
+      Buffer.from(encodedPayload, 'base64url').toString('utf8'),
+    ) as {
+      iss?: string;
+      aud?: string | string[];
+      events?: Record<string, unknown>;
+      nonce?: unknown;
+      sub?: unknown;
+      sid?: unknown;
+      exp?: unknown;
+      iat?: unknown;
+    };
+    const now = Math.floor(Date.now() / 1000);
+    const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+    if (
+      claims.iss !== this.issuerUrl ||
+      !audiences.includes(BFF_CLIENT_ID) ||
+      !claims.events?.[BACKCHANNEL_LOGOUT_EVENT] ||
+      claims.nonce !== undefined ||
+      typeof claims.sub !== 'string' ||
+      typeof claims.exp !== 'number' ||
+      claims.exp <= now ||
+      typeof claims.iat !== 'number' ||
+      claims.iat > now + 60
+    ) {
+      throw new Error('Invalid logout token claims.');
+    }
 
     return {
       sub: claims.sub,
@@ -206,9 +325,123 @@ export class OidcService implements OnModuleInit {
     };
   }
 
+  async exchangeForAudience(
+    subjectToken: string,
+    audience: BackendAudience,
+  ): Promise<string> {
+    if (!BACKEND_AUDIENCES.includes(audience)) {
+      throw new ServiceUnavailableException(
+        'Requested token audience is not allowed.',
+      );
+    }
+
+    try {
+      this.assertClientReady();
+      const tokenSet = await this.client.grant(
+        {
+          grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+          subject_token: subjectToken,
+          subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+          requested_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+          audience,
+          scope: BACKEND_AUDIENCE_SCOPES[audience],
+        },
+        { clientAssertionPayload: this.clientAssertionPayload() },
+      );
+
+      if (
+        !tokenSet.access_token ||
+        !tokenSet.expires_at ||
+        tokenSet.expires_at <= Math.floor(Date.now() / 1000)
+      ) {
+        throw new Error(
+          'Keycloak returned no valid short-lived exchanged access token.',
+        );
+      }
+
+      return tokenSet.access_token;
+    } catch (err) {
+      this.logger.warn('Keycloak token exchange failed', err);
+      throw new ServiceUnavailableException(
+        'Token exchange service is unavailable.',
+      );
+    }
+  }
+
+  getPublicJwks(): { keys: Record<string, unknown>[] } {
+    if (!this.publicJwk) {
+      throw new ServiceUnavailableException(
+        'Private signing key is unavailable.',
+      );
+    }
+
+    return { keys: [this.publicJwk] };
+  }
+
+  async resolveAuthorization(
+    session: BffSession | undefined,
+    incomingAuthorization: string | undefined,
+    audience: BackendAudience,
+  ): Promise<string | undefined> {
+    if (!session?.userId) {
+      if (!incomingAuthorization) {
+        return undefined;
+      }
+      const subjectToken = incomingAuthorization
+        .replace(/^Bearer\s+/i, '')
+        .trim();
+      if (!subjectToken) {
+        throw new ServiceUnavailableException(
+          'Authenticated request has no usable access token.',
+        );
+      }
+      const exchangedToken = await this.exchangeForAudience(
+        subjectToken,
+        audience,
+      );
+      return `Bearer ${exchangedToken}`;
+    }
+
+    if (!session.accessToken) {
+      throw new ServiceUnavailableException(
+        'Authenticated session has no access token.',
+      );
+    }
+
+    const exchangedToken = await this.exchangeForAudience(
+      session.accessToken,
+      audience,
+    );
+    return `Bearer ${exchangedToken}`;
+  }
+
+  private clientAssertionPayload(): {
+    aud: string;
+    exp: number;
+    iat: number;
+    jti: string;
+  } {
+    this.assertClientReady();
+
+    const tokenEndpoint = this.client.issuer.metadata.token_endpoint;
+    if (!tokenEndpoint) {
+      throw new ServiceUnavailableException(
+        'Keycloak token endpoint is unavailable.',
+      );
+    }
+
+    const iat = Math.floor(Date.now() / 1000);
+    return {
+      aud: tokenEndpoint,
+      exp: iat + 60,
+      iat,
+      jti: generators.random(),
+    };
+  }
+
   private assertClientReady(): void {
     if (!this.client) {
-      throw new InternalServerErrorException(
+      throw new ServiceUnavailableException(
         'OIDC client is not initialised -- discovery may have failed at startup. Check logs.',
       );
     }
