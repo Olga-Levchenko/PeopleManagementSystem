@@ -12,6 +12,16 @@ Install:
 - Node.js 22
 - .NET SDK 8.0.x
 - Git
+- Python 3.11+ and [uv](https://docs.astral.sh/uv/getting-started/installation/) (required for BMAD skill
+  workflows such as `bmad-build`, `bmad-advanced-elicitation`, and planning audits)
+
+On Windows, install uv with:
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Restart your terminal (or Cursor) after installing so `uv` is on `PATH`.
 
 ### 2. Open the project
 
