@@ -289,6 +289,50 @@ describe('Profile (e2e)', () => {
     expect(s16Names).not.toContain('Deprecated Field');
   });
 
+  it('Full-profile-access holder: profile API returns S1/S2/S10/S11/S16 with management fields', async () => {
+    const { subject } = await seedSubject();
+    currentViewerId = 'viewer-full-profile-access';
+    resolveMock.mockResolvedValue({
+      reportingLine: false,
+      projectLine: false,
+      peoplePartnerLine: false,
+      fullProfileAccessLine: true,
+      managerSectionAccess: null,
+      peoplePartnerSectionAccess: null,
+      fullProfileAccessSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'ReadWrite' },
+        s10: { level: 'ReadWrite' },
+        s11: { level: 'ReadWrite' },
+        s16: { level: 'ReadWrite' },
+      },
+    });
+
+    const res = await request(app.getHttpServer())
+      .get(`/people/${subject.id}/profile`)
+      .expect(200);
+
+    expect(Object.keys(res.body as object).sort()).toEqual([
+      's1',
+      's10',
+      's11',
+      's16',
+      's2',
+    ]);
+    const body = res.body as {
+      s2: Record<string, unknown>;
+      s10: Array<Record<string, unknown>>;
+      s11: Array<Record<string, unknown>>;
+      s16: Array<{ name: string }>;
+    };
+    expect(body.s2).toHaveProperty('personalEmail');
+    expect(body.s10[0]).toHaveProperty('leaveType', 'vacation');
+    expect(body.s11[0]).toHaveProperty('role', 'Developer');
+    expect(body.s16.map((field) => field.name)).toEqual(
+      expect.arrayContaining(['Internal Grade', 'Bio', 'Office Location']),
+    );
+  });
+
   it('Reporting line: ReadWrite s1 / Read s2 / Read s10/s11 -> all four sections + s16 present; both management and colleague fields visible', async () => {
     const { subject } = await seedSubject();
     currentViewerId = 'viewer-reporting-line';
