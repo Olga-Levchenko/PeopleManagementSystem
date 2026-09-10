@@ -100,4 +100,58 @@ describe('EmployeesService', () => {
       `${peopleServiceUrl}/api/v1/employees?page=1&pageSize=50&yearsWithCompanyMin=2&yearsWithCompanyMax=5&custom%3Acf-desk=Standing`,
     );
   });
+
+  it('routes export query params to people-service and preserves binary headers', async () => {
+    fetchMock.mockResolvedValue({
+      status: 200,
+      ok: true,
+      headers: new Headers({
+        'content-type':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'content-disposition': 'attachment; filename="employees-export.xlsx"',
+      }),
+      arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(8)),
+    } as unknown as Response);
+
+    const result = await service.exportEmployees(
+      { columns: 'fullName,position', countryCity: 'Kyiv' },
+      context,
+    );
+
+    const call = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(call[0]).toBe(
+      `${peopleServiceUrl}/api/v1/employees/export?columns=fullName%2Cposition&countryCity=Kyiv`,
+    );
+    expect(result.headers['content-disposition']).toContain(
+      'employees-export.xlsx',
+    );
+    expect(result.body).toBeInstanceOf(Buffer);
+  });
+
+  it('passes through upstream JSON validation errors from export', async () => {
+    const upstreamError = {
+      statusCode: 400,
+      message: "Column key 'not-in-catalog' is not in the viewer catalog.",
+    };
+    const payload = Buffer.from(JSON.stringify(upstreamError));
+    fetchMock.mockResolvedValue({
+      status: 400,
+      ok: false,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      arrayBuffer: jest
+        .fn()
+        .mockResolvedValue(
+          payload.buffer.slice(
+            payload.byteOffset,
+            payload.byteOffset + payload.byteLength,
+          ),
+        ),
+    } as unknown as Response);
+
+    await expect(
+      service.exportEmployees({ columns: 'not-in-catalog' }, context),
+    ).rejects.toMatchObject({
+      response: upstreamError,
+    });
+  });
 });

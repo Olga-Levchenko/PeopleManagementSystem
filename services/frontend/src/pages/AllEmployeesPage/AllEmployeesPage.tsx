@@ -43,6 +43,8 @@ export const AllEmployeesPage = () => {
     createSavedViewMutation,
     updateSavedViewMutation,
     deleteSavedViewMutation,
+    exportCurrentView,
+    exportEmployeesMutation,
   } = useAllEmployeesPage()
 
   const promptForName = (message: string) => {
@@ -199,6 +201,17 @@ export const AllEmployeesPage = () => {
           </label>
         ))}
         <Button type="button" onClick={applyFilters}>{t('allEmployees.filters.apply')}</Button>
+        {showSavedViews && (
+          <Button
+            type="button"
+            variant="outline"
+            data-testid="export-xlsx"
+            disabled={exportEmployeesMutation.isPending}
+            onClick={() => void exportCurrentView()}
+          >
+            {t('allEmployees.export.button')}
+          </Button>
+        )}
         <div className="relative ml-auto">
           <Button type="button" variant="outline" onClick={() => setPickerOpen(open => !open)}>
             {t('allEmployees.columns.manage')}

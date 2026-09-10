@@ -10,7 +10,7 @@ Managers and people partners browse, filter, configure columns, edit inline, sav
 
 - Story 2.1: Universal filter/column engine over profile fields — **done**
 - Story 2.2: Inline editing writes through to the profile, subject to access — **done**
-- Story 2.3: Saved views
+- Story 2.3: Saved views — **done**
 - Story 2.4: Export respects the exporter's access
 - Story 2.5: Colleague mode on All Employees
 - Story 2.6: Self-managed personal data
@@ -32,6 +32,7 @@ Managers and people partners browse, filter, configure columns, edit inline, sav
 - Custom-field visibility uses `canSeeCustomField()` (Story 1.10); catalog/list must respect visibility for filters, columns, and values.
 - Profile read is `GET /people/:subjectPersonId/profile`; single-field writes are `PATCH /people/:subjectPersonId/profile/fields` (Story 2.2).
 - Saved views persist filter+column+pageSize in `people-service`; they are configuration only, not access grants.
+- Export (Story 2.4) reuses the list filter/column configuration and entitlement projection; server walks all matching pages (ADR-004 Decision 3).
 
 ## UX & Interaction Patterns
 

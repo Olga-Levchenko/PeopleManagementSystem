@@ -2,12 +2,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createSavedViewApiCall,
   deleteSavedViewApiCall,
+  exportEmployeesApiCall,
   getFieldCatalogApiCall,
   listEmployeesApiCall,
   listSavedViewsApiCall,
   patchEmployeeFieldApiCall,
   updateSavedViewApiCall,
   type CreateSavedViewRequest,
+  type ExportEmployeesParams,
   type ListEmployeesParams,
   type PatchEmployeeFieldRequest,
   type UpdateSavedViewRequest,
@@ -87,3 +89,8 @@ export const useDeleteSavedView = () => {
     },
   })
 }
+
+export const useExportEmployees = () =>
+  useMutation({
+    mutationFn: (params: ExportEmployeesParams) => exportEmployeesApiCall(params),
+  })

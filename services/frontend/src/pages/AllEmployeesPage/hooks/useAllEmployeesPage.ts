@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { EmployeeFieldCatalogEntry, EmployeeSavedView } from '@/api/employees'
 import {
   useCreateSavedView,
   useDeleteSavedView,
   useEmployeeFieldCatalog,
   useEmployeesList,
+  useExportEmployees,
   usePatchEmployeeField,
   useSavedViews,
   useUpdateSavedView,
@@ -39,6 +41,7 @@ const parseOptionalInt = (value: string): number | undefined => {
 }
 
 export const useAllEmployeesPage = () => {
+  const { t } = useTranslation()
   const [page, setPage] = useState(1)
   const [uiState, setUiState] = useState<AllEmployeesUiState>(createDefaultUiState)
   const [activeTabId, setActiveTabId] = useState<'all' | string>('all')
@@ -64,6 +67,7 @@ export const useAllEmployeesPage = () => {
   const createSavedViewMutation = useCreateSavedView()
   const updateSavedViewMutation = useUpdateSavedView()
   const deleteSavedViewMutation = useDeleteSavedView()
+  const exportEmployeesMutation = useExportEmployees()
   const [liveMessage, setLiveMessage] = useState('')
 
   const activeSavedView = useMemo(
@@ -288,6 +292,38 @@ export const useAllEmployeesPage = () => {
     }
   }
 
+  const exportCurrentView = async () => {
+    if (uiState.visibleColumnKeys.length === 0) {
+      setLiveMessage(t('allEmployees.export.noColumns'))
+      return
+    }
+
+    try {
+      const response = await exportEmployeesMutation.mutateAsync({
+        countryCity: uiState.countryCity.trim() || undefined,
+        departmentId: uiState.departmentId.trim() || undefined,
+        yearsWithCompanyMin: parseOptionalInt(uiState.yearsMin),
+        yearsWithCompanyMax: parseOptionalInt(uiState.yearsMax),
+        customFieldFilters: uiState.customFieldFilters,
+        columnKeys: uiState.visibleColumnKeys,
+      })
+
+      const blob = response.data
+      const disposition = String(response.headers['content-disposition'] ?? '')
+      const filenameMatch = /filename="([^"]+)"/.exec(disposition)
+      const filename = filenameMatch?.[1] ?? 'employees-export.xlsx'
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = filename
+      anchor.click()
+      URL.revokeObjectURL(url)
+      setLiveMessage(t('allEmployees.export.downloaded'))
+    } catch {
+      setLiveMessage(t('allEmployees.export.failed'))
+    }
+  }
+
   return {
     catalogQuery,
     listQuery,
@@ -296,6 +332,8 @@ export const useAllEmployeesPage = () => {
     createSavedViewMutation,
     updateSavedViewMutation,
     deleteSavedViewMutation,
+    exportCurrentView,
+    exportEmployeesMutation,
     liveMessage,
     saveField,
     page,
