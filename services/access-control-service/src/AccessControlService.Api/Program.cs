@@ -24,11 +24,36 @@ using System.Security.Cryptography;
 // environment, so CI/test-injected env vars always win, and a missing '.env' file is a no-op
 // rather than a startup failure. Must run BEFORE WebApplication.CreateBuilder: the environment
 // variables configuration provider it adds internally snapshots process env vars at that point,
-// so loading '.env' afterward would be invisible to IConfiguration. Only reads '.env' from the
-// process's own working directory -- no upward directory traversal -- matching the Node services'
-// convention (NestJS's ConfigModule.forRoot()) rather than risking an unrelated ancestor '.env'
-// (e.g. from the repo root or 'infra/') depending on where 'dotnet run'/'dotnet test' is invoked from.
-DotNetEnv.Env.NoClobber().Load();
+// so loading '.env' afterward would be invisible to IConfiguration. Load only the service-root
+// '.env' (the directory that contains AccessControlService.sln), whether the process was started
+// from the service root, the Api project folder, or bin/Debug. Do not walk into repo-root or
+// infra/.env files -- those are unrelated compose secrets.
+LoadServiceRootDotEnv();
+
+static void LoadServiceRootDotEnv()
+{
+    foreach (string start in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+    {
+        DirectoryInfo? dir = new(start);
+        while (dir is not null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "AccessControlService.sln")))
+            {
+                string envPath = Path.Combine(dir.FullName, ".env");
+                if (File.Exists(envPath))
+                {
+                    DotNetEnv.Env.NoClobber().Load(envPath);
+                }
+
+                return;
+            }
+
+            dir = dir.Parent;
+        }
+    }
+
+    DotNetEnv.Env.NoClobber().Load();
+}
 
 var builder = WebApplication.CreateBuilder(args);
 

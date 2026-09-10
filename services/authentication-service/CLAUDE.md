@@ -122,6 +122,12 @@ BFF-initiated), BFF JWT validation, and downstream identity propagation are late
   (`keycloak/realm-export.json`'s `realm` field, and whatever `KEYCLOAK_BASE_URL`/
   `KEYCLOAK_REALM` are set to at deploy time) — not because this endpoint queries Keycloak
   directly. Only the `keycloak` health check makes a real network call.
+- **Seeded Keycloak user `id`s are pinned** in `keycloak/realm-export.json` so they match
+  `infra/seed/01-people-service.sql` identity-link `opaqueSubject` values. Administration for
+  `tt.site-admin@altexsoft.com` depends on that match; omitting a user `id` makes Keycloak mint a
+  new `sub` on every import, and Access Control will not see the seeded `hr-admin` assignment.
+  New machines should run `infra/bootstrap-local.ps1` (or `.sh`) so those SQL seeds are actually
+  applied after People and Access Control migrations.
 - **`KeycloakIntegrationTests` shares one container across its `[Fact]`s** via `KeycloakFixture`
   (an `ICollectionFixture<KeycloakFixture>` registered on the `HealthEndpointTests` collection
   definition in `HealthEndpointTests.cs`) — starting a fresh Keycloak container per fact would

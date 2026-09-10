@@ -69,7 +69,9 @@ matching files.
 - App port **3002**; CORS is open for `http://localhost:4200` (the React frontend, via the BFF in
   practice — this service is not meant to be called directly from the browser)
 - `.env` is gitignored; `.env.example` is the committed template
-- Local Postgres comes from the shared `infra/docker-compose.yml`, not a per-service compose file
+- Local Postgres comes from the shared `infra/docker-compose.yml`, not a per-service compose file.
+  New-machine identity links and Site Administrator's Keycloak `sub` are applied by
+  `infra/bootstrap-local.ps1` (or `.sh`) after `npm run db:deploy`.
 - Required at startup, fail-fast if missing (no Joi `.default(...)` — a real deployment must not
   silently fall back to a localhost value that can never match a real Keycloak issuer):
   `KEYCLOAK_BASE_URL`, `KEYCLOAK_REALM` (letters/digits/`-`/`_` only) — the same two values the
