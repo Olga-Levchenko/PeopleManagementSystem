@@ -2,7 +2,7 @@
 title: "Story 2.4: Export respects the exporter's access"
 type: 'feature'
 created: '2026-09-10'
-status: 'review'
+status: 'done'
 review_loop_iteration: 1
 baseline_commit: 'd1ddb4b'
 context:
@@ -130,7 +130,7 @@ Response `Content-Type: application/vnd.openxmlformats-officedocument.spreadshee
 
 ## Spec Change Log
 
-- **2026-09-11 (code review):** Applied review decision B (accept stale-filter export/list divergence until list aligns); fixed PER_ROW/parity/colleague export tests, BFF JSON error passthrough, export i18n messages.
+- **2026-09-11 (done):** PR #72 merged to `main` (`938480b`); CI green; sprint/spec status → `done`.
 - **2026-09-11 (review loop 1):** Advanced-elicitation critical review — resolved catalog vs row entitlement contradiction; documented single-pass custom-field-filter export path; added stale-filter parity, client page ignore, duplicate column rejection, row-set parity ACs, and expanded test/code-map expectations.
 - **2026-09-10 (draft):** Initial spec from `bmad-build` kickoff on `feature/2-4-export-respects-the-exporter-s-access`; Jira O4-38 → In Progress.
 
