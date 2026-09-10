@@ -200,6 +200,7 @@ public class KeycloakIntegrationTests : IDisposable
 
         var payload = DecodeJwtPart(parts[1]);
         Assert.Equal($"{_fixture.BaseAddress}/realms/{Realm}", payload.GetProperty("iss").GetString());
+        Assert.Equal("7e5b85fe-1f88-4400-9cb9-bfca4530eb85", payload.GetProperty("sub").GetString());
         var exp = payload.GetProperty("exp").GetInt64();
         Assert.True(exp > DateTimeOffset.UtcNow.ToUnixTimeSeconds());
     }

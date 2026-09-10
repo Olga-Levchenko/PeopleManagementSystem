@@ -16,7 +16,39 @@ React frontend + NestJS microservices (BFF + domain services) + a .NET auth serv
 
 ## Getting started
 
-Setup instructions land here once the first service is scaffolded. See each `services/<name>/CLAUDE.md` for service-specific commands once populated.
+See the complete [local development guide](docs/local-development.md) for prerequisites,
+first-time bootstrap, service startup commands, local login, and seeded functional roles.
+
+Prerequisites: Docker Desktop, Node.js 22 (see `.nvmrc`), .NET SDK 8.0.x.
+
+Compose runs **Postgres, Keycloak, and RabbitMQ**. Application services run on the host.
+The bootstrap script prepares the complete local setup:
+
+```powershell
+powershell -File infra/bootstrap-local.ps1
+```
+
+```bash
+bash infra/bootstrap-local.sh
+```
+
+That copies `.env` files, generates gitignored RSA keys, starts infra, installs dependencies, runs
+all service migrations, and applies `infra/seed/*.sql`.
+
+Then start all application services with one command:
+
+```powershell
+powershell -File infra/start-all-local.ps1
+```
+
+On macOS/Linux:
+
+```bash
+bash infra/start-all-local.sh
+```
+
+Open http://localhost:4200. Sign in as `tt.site-admin@altexsoft.com` / `DevPassword1!`.
+The account has the `hr-admin` functional role in Access Control, not in Keycloak.
 
 ## Process
 

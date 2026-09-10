@@ -15,6 +15,9 @@ services:
       # PG18 image: mount at /var/lib/postgresql (PGDATA is version-specific inside)
       - pgdata:/var/lib/postgresql
       - ./postgres-init:/docker-entrypoint-initdb.d:ro
+      # Seed SQL is not applied by initdb: service schemas exist only after People/ACS
+      # migrations. `infra/bootstrap-local.ps1` (or `.sh`) applies these after migrate.
+      - ./seed:/seed:ro
     healthcheck:
       # -h 127.0.0.1 forces TCP: socket-based check can report healthy too early
       test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U $${POSTGRES_USER}']
@@ -30,13 +33,15 @@ services:
     # exercises this exact tag against services/authentication-service/keycloak/realm-export.json).
     image: quay.io/keycloak/keycloak:26.2.5
     restart: unless-stopped
-    # --import-realm provisions the realm/client/test user from realm-export.json — no manual
-    # Admin Console step needed. Note: Keycloak's dir import uses an "ignore existing" strategy by
-    # default, so it will NOT re-import over an already-existing realm on a plain container restart
-    # that keeps the same storage; this container has no persistent volume, so in practice every
-    # `docker compose down`/`up` (or any recreate) starts from empty storage and re-imports for
-    # real. If a realm-export.json edit doesn't seem to take effect, the container was restarted
-    # rather than recreated — recreate it (or otherwise clear its storage) to force a fresh import.
+    # --import-realm provisions the realm/client/test users from realm-export.json — no manual
+    # Admin Console step needed. User `id` values are pinned so they match
+    # infra/seed/01-people-service.sql identity-link opaqueSubject values. Note: Keycloak's dir
+    # import uses an "ignore existing" strategy by default, so it will NOT re-import over an
+    # already-existing realm on a plain container restart that keeps the same storage; this
+    # container has no persistent volume, so in practice every `docker compose down`/`up` (or any
+    # recreate) starts from empty storage and re-imports for real. If a realm-export.json edit
+    # doesn't seem to take effect, the container was restarted rather than recreated — recreate it
+    # (or otherwise clear its storage) to force a fresh import.
     command: start-dev --import-realm
     environment:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}

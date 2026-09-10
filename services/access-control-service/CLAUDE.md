@@ -206,8 +206,13 @@ section matrix's PP column, corrected during that spec's review.
 - App port **3007** (`PORT`); CORS is open for `http://localhost:4200` (the React frontend, via
   the BFF in practice — this service is not meant to be called directly from the browser)
 - `.env` is gitignored; `.env.example` is the committed template — loaded via `DotNetEnv` at
-  startup, but never overrides a variable already set in the process environment (CI/test-injected
-  env vars always win, and a missing `.env` file is a no-op, not a startup failure)
+  startup from the service root (the directory that contains `AccessControlService.sln`), even when
+  the process is started from the Api project folder or `bin/Debug`. It never overrides a variable
+  already set in the process environment (CI/test-injected env vars always win, and a missing `.env`
+  file is a no-op, not a startup failure). If `SERVICE_AUTH_PRIVATE_KEY_PATH` is unset,
+  Administration JWKS is 503 and the frontend hides the Administration tab. New machines should
+  run `infra/bootstrap-local.ps1` (or `.sh`) so that key is generated, migrations are applied, and
+  Site Administrator is assigned `hr-admin`.
 - Local Postgres and RabbitMQ both come from the shared `infra/docker-compose.yml`, not a
   per-service compose file
 - Required at startup, fail-fast if missing/blank: `PORT`, `CORS_ORIGIN`,

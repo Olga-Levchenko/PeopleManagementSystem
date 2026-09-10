@@ -37,5 +37,7 @@ export const envValidationSchema = Joi.object({
   // Optional PostgreSQL connection string for the persistent session store (connect-pg-simple).
   // When absent the BFF falls back to MemoryStore with a startup warning -- acceptable for
   // zero-infra local dev, not for production. See main.ts for the conditional store initialization.
-  DATABASE_URL: Joi.string().uri().optional(),
+  // An empty value is allowed as well as an absent key: .env.example ships `DATABASE_URL=` blank
+  // for the local-dev MemoryStore path, and Joi rejects '' for a plain string otherwise.
+  DATABASE_URL: Joi.string().uri().allow('').optional(),
 });
