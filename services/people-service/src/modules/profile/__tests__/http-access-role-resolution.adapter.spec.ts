@@ -157,4 +157,56 @@ describe('HttpAccessRoleResolutionAdapter', () => {
       fullProfileAccessSectionAccess: null,
     });
   });
+
+  it('resolveBatch: POSTs to resolve-batch and maps per-subject results', async () => {
+    const subjectB = '33333333-3333-4333-8333-333333333333';
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({
+        results: [
+          {
+            subjectPersonId: SUBJECT_ID,
+            reportingLine: true,
+            projectLine: false,
+            peoplePartnerLine: false,
+            fullProfileAccessLine: false,
+            managerSectionAccess: { s1: { level: 'ReadWrite' } },
+            peoplePartnerSectionAccess: null,
+            fullProfileAccessSectionAccess: null,
+          },
+        ],
+      }),
+    });
+    const adapter = createAdapter();
+
+    const results = await adapter.resolveBatch(VIEWER_ID, [
+      SUBJECT_ID,
+      subjectB,
+    ]);
+
+    const [calledUrl, calledInit] = fetchMock.mock.calls[0] as [
+      URL,
+      RequestInit,
+    ];
+    expect(calledUrl.toString()).toBe(
+      `${BASE_URL}/api/v1/access-roles/resolve-batch`,
+    );
+    expect(calledInit.method).toBe('POST');
+    expect(JSON.parse(calledInit.body as string)).toEqual({
+      viewerPersonId: VIEWER_ID,
+      subjectPersonIds: [SUBJECT_ID, subjectB],
+    });
+    expect(results.get(SUBJECT_ID)?.reportingLine).toBe(true);
+    expect(results.get(subjectB)?.reportingLine).toBe(false);
+  });
+
+  it('resolveBatch: empty subject list returns empty map without calling fetch', async () => {
+    const adapter = createAdapter();
+
+    const results = await adapter.resolveBatch(VIEWER_ID, []);
+
+    expect(results.size).toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

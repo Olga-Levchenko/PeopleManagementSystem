@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Home, Network, Settings } from 'lucide-react'
+import { Home, Network, Settings, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getFunctionalRoles } from '@/api/functionalRoles'
 import { useLayout } from '@/contexts/LayoutContext'
@@ -58,6 +58,14 @@ export const SideMenu = ({ collapsible = true, expanded }: SideMenuProps) => {
             label={t('sidebar.home')}
             path="/"
             hint={t('sidebar.home')}
+            expanded={showLabels}
+            onNavigate={closeMobileSidebar}
+          />
+          <SideMenuItem
+            icon={Users}
+            label={t('sidebar.allEmployees')}
+            path="/all-employees"
+            hint={t('sidebar.allEmployees')}
             expanded={showLabels}
             onNavigate={closeMobileSidebar}
           />

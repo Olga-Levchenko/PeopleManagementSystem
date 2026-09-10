@@ -13,7 +13,10 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { JwtAuthGuard } from '../src/modules/auth/jwt-auth.guard';
-import type { AccessRoleResolutionPort } from '../src/modules/profile/profile.ports';
+import type {
+  AccessRoleResolution,
+  AccessRoleResolutionPort,
+} from '../src/modules/profile/profile.ports';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 /**
@@ -77,8 +80,21 @@ describe('Profile (e2e)', () => {
     };
 
     resolveMock = jest.fn();
+    const resolveBatchMock = jest.fn(
+      async (viewerPersonId: string, subjectPersonIds: readonly string[]) => {
+        const results = new Map<string, AccessRoleResolution>();
+        for (const subjectPersonId of subjectPersonIds) {
+          results.set(
+            subjectPersonId,
+            await resolveMock(viewerPersonId, subjectPersonId),
+          );
+        }
+        return results;
+      },
+    );
     const fakeAccessRoleResolution: AccessRoleResolutionPort = {
       resolve: resolveMock,
+      resolveBatch: resolveBatchMock,
     };
 
     jest

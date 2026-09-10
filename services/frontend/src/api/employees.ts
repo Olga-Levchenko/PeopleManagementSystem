@@ -1,0 +1,85 @@
+import axios from 'axios'
+import { apiClient } from '@/api/client'
+
+export type EmployeeFieldDataType = 'string' | 'number' | 'date'
+
+export interface EmployeeFieldCatalogEntry {
+  key: string
+  label: string
+  kind: 'stored' | 'derived' | 'custom'
+  dataType: EmployeeFieldDataType
+  filterable: boolean
+  columnable: boolean
+}
+
+export interface EmployeeFieldCatalogResponse {
+  fields: EmployeeFieldCatalogEntry[]
+}
+
+export interface EmployeeListRow {
+  personId: string
+  values: Record<string, string | number | null>
+}
+
+export interface EmployeeListResponse {
+  items: EmployeeListRow[]
+  page: number
+  pageSize: number
+  totalCount: number
+}
+
+export interface ListEmployeesParams {
+  page?: number
+  pageSize?: number
+  departmentId?: string
+  countryCity?: string
+  yearsWithCompanyMin?: number
+  yearsWithCompanyMax?: number
+  customFieldFilters?: Record<string, string>
+}
+
+export type EmployeesError =
+  | 'validation'
+  | 'unauthorized'
+  | 'permission'
+  | 'unavailable'
+  | 'unknown'
+
+export const getEmployeesError = (error: unknown): EmployeesError => {
+  if (!axios.isAxiosError(error)) {
+    return 'unknown'
+  }
+
+  if (!error.response) {
+    return 'unavailable'
+  }
+
+  switch (error.response.status) {
+    case 400:
+      return 'validation'
+    case 401:
+      return 'unauthorized'
+    case 403:
+      return 'permission'
+    case 503:
+      return 'unavailable'
+    default:
+      return 'unknown'
+  }
+}
+
+export const getFieldCatalogApiCall = (signal?: AbortSignal) =>
+  apiClient.get<EmployeeFieldCatalogResponse>('/api/v1/employees/field-catalog', {
+    signal,
+  })
+
+export const listEmployeesApiCall = (params: ListEmployeesParams, signal?: AbortSignal) => {
+  const { customFieldFilters, ...rest } = params
+  return apiClient.get<EmployeeListResponse>('/api/v1/employees', {
+    signal,
+    params: {
+      ...rest,
+      ...customFieldFilters,
+    },
+  })
+}

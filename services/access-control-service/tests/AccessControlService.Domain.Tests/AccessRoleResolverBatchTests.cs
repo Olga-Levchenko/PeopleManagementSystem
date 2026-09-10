@@ -346,4 +346,20 @@ public class AccessRoleResolverBatchTests
         // ResolveBatchAsync must never call GetManagerIdAsync (the hop-by-hop single-resolve method).
         Assert.Equal(0, repository.ManagerLookupCount);
     }
+
+    [Fact]
+    public async Task ResolveBatchAsync_FullProfileAccessHolder_AllSubjectsGetFullProfileAccessLine()
+    {
+        var viewer = Guid.NewGuid();
+        var subject = Guid.NewGuid();
+        var repository = new FakeRelationshipRepository();
+        var fpaRepository = new FakeFullProfileAccessRepository().AddHolder(viewer);
+        var resolver = new AccessRoleResolver(repository, fpaRepository, NullLogger<AccessRoleResolver>.Instance);
+
+        var results = await resolver.ResolveBatchAsync(viewer, new[] { subject, viewer });
+
+        Assert.True(results[subject].FullProfileAccessLine);
+        Assert.True(results[viewer].FullProfileAccessLine);
+        Assert.False(results[subject].ReportingLine);
+    }
 }

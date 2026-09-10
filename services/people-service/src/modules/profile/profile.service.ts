@@ -1,5 +1,9 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  deriveAudienceFromResolution,
+  type CustomFieldAudienceLevel,
+} from './profile-audience.util';
 import type {
   AccessRoleResolutionPort,
   S16CustomField,
@@ -87,8 +91,6 @@ type ProjectAssignmentRow = {
  * Manager/PP → `'management'` (sees all visibility tiers).
  * Colleague → `'colleague'` (sees only colleague-visibility fields).
  */
-type CustomFieldAudienceLevel = 'colleague' | 'employee' | 'management';
-
 type CustomFieldValueRow = {
   value: string;
   definition: {
@@ -288,92 +290,11 @@ export class ProfileService {
       subjectPersonId,
     );
 
-    // Full-profile-access is the maximum possible access -- takes precedence over all other lines,
-    // including self-view. Checked before the self-view short-circuit because FullProfileAccessLine
-    // is viewer-only (spec §2.4): an FPA holder viewing their own profile gets 'management'
-    // customFieldAudienceLevel, not the 'employee' the self-view short-circuit would produce.
-    const fullAccess =
-      resolution.fullProfileAccessLine &&
-      resolution.fullProfileAccessSectionAccess != null
-        ? resolution.fullProfileAccessSectionAccess
-        : null;
-    if (fullAccess) {
-      return {
-        s1: this.mostPermissive(fullAccess.s1?.level),
-        s2: this.mostPermissive(fullAccess.s2?.level),
-        s10: this.mostPermissive(fullAccess.s10?.level),
-        s11: this.mostPermissive(fullAccess.s11?.level),
-        isColleague: false,
-        customFieldAudienceLevel: 'management',
-      };
-    }
-
-    // Non-FPA self-view: the resolver's relationship-derived flags are all false for self-view
-    // (a person is never their own manager/PP), so short-circuit here rather than falling through
-    // to the colleague branch. Self sees employee + colleague fields; management fields are not
-    // for the subject about themselves per the S16 section-matrix row.
-    if (viewerPersonId === subjectPersonId) {
-      return {
-        s1: 'ReadWrite',
-        s2: 'ReadWrite',
-        s10: 'ReadWrite',
-        s11: 'ReadWrite',
-        isColleague: false,
-        customFieldAudienceLevel: 'employee',
-      };
-    }
-
-    const managerAccess =
-      resolution.reportingLine || resolution.projectLine
-        ? resolution.managerSectionAccess
-        : null;
-    const ppAccess = resolution.peoplePartnerLine
-      ? resolution.peoplePartnerSectionAccess
-      : null;
-
-    if (!managerAccess && !ppAccess) {
-      // Colleague whitelist: S10 and S11 are readable but with field restrictions applied
-      // by the isColleague flag -- `leaveType` stripped from S10, `role`/dates stripped from S11.
-      return {
-        s1: 'Read',
-        s2: 'None',
-        s10: 'Read',
-        s11: 'Read',
-        isColleague: true,
-        customFieldAudienceLevel: 'colleague',
-      };
-    }
-
-    return {
-      s1: this.mostPermissive(managerAccess?.s1?.level, ppAccess?.s1?.level),
-      s2: this.mostPermissive(managerAccess?.s2?.level, ppAccess?.s2?.level),
-      s10: this.mostPermissive(managerAccess?.s10?.level, ppAccess?.s10?.level),
-      s11: this.mostPermissive(managerAccess?.s11?.level, ppAccess?.s11?.level),
-      isColleague: false,
-      customFieldAudienceLevel: 'management',
-    };
-  }
-
-  /**
-   * Most-permissive-wins across independently-qualifying lines. An `undefined` input (line
-   * didn't qualify, or its section object was malformed/missing a `level`) is treated as `None`,
-   * never dereferenced further -- allowlist ranking, not a denylist, so an unrecognized level
-   * string also loses (falls through to the `?? 0` default) rather than winning by accident.
-   */
-  private mostPermissive(
-    ...levels: (SectionAccessLevel | undefined)[]
-  ): SectionAccessLevel {
-    const rank: Record<SectionAccessLevel, number> = {
-      None: 0,
-      Read: 1,
-      ReadWrite: 2,
-    };
-    return levels.reduce<SectionAccessLevel>((best, level) => {
-      const candidateRank = level ? rank[level] : undefined;
-      return candidateRank !== undefined && candidateRank > rank[best]
-        ? level!
-        : best;
-    }, 'None');
+    return deriveAudienceFromResolution(
+      resolution,
+      viewerPersonId,
+      subjectPersonId,
+    );
   }
 
   /** Assembles the S16 array: always present, filtered by per-field visibility and isActive. */

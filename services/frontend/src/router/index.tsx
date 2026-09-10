@@ -10,6 +10,7 @@ import { ErrorPage } from '@/pages/ErrorPage/ErrorPage'
 import { LoginPage } from '@/pages/LoginPage/LoginPage'
 import { OrganisationalRelationshipsPage } from '@/pages/OrganisationalRelationshipsPage/OrganisationalRelationshipsPage'
 import { AdministrationPage } from '@/pages/AdministrationPage/AdministrationPage'
+import { AllEmployeesPage } from '@/pages/AllEmployeesPage/AllEmployeesPage'
 
 const router = createBrowserRouter([
   // Standalone error page (rendered outside the main layout)
@@ -36,6 +37,10 @@ const router = createBrowserRouter([
           {
             index: true,
             element: <HomePage />,
+          },
+          {
+            path: 'all-employees',
+            element: <AllEmployeesPage />,
           },
           {
             path: 'organisational-relationships',
