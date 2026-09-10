@@ -20,6 +20,7 @@ export const AllEmployeesPage = () => {
     switchTab,
     saveCurrentOwnedView,
     renameCurrentOwnedView,
+    deleteCurrentOwnedView,
     createViewFromCurrentState,
     countryCity,
     setCountryCity,
@@ -41,6 +42,7 @@ export const AllEmployeesPage = () => {
     patchMutation,
     createSavedViewMutation,
     updateSavedViewMutation,
+    deleteSavedViewMutation,
   } = useAllEmployeesPage()
 
   const promptForName = (message: string) => {
@@ -126,6 +128,26 @@ export const AllEmployeesPage = () => {
                 }}
               >
                 {t('allEmployees.views.rename')}
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                disabled={deleteSavedViewMutation.isPending}
+                onClick={() => {
+                  if (
+                    activeSavedView &&
+                    window.confirm(
+                      t('allEmployees.views.deleteConfirm', {
+                        name: activeSavedView.name,
+                      }),
+                    )
+                  ) {
+                    void deleteCurrentOwnedView()
+                  }
+                }}
+              >
+                {t('allEmployees.views.delete')}
               </Button>
             </>
           )}

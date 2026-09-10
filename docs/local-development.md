@@ -115,6 +115,44 @@ functional role and still have relationship-derived access.
 If the database was deleted or reset, run the bootstrap script again. The seed scripts are safe to
 run more than once.
 
+## After pulling new code
+
+Bootstrap runs database migrations only on first setup (when core tables are still missing). After
+you pull changes that add migrations — for example All Employees **saved views** (Story 2.3, stored
+in **People Service**, not a separate app) — apply pending migrations yourself:
+
+Windows PowerShell:
+
+```powershell
+cd services/people-service
+npm run db:deploy
+```
+
+macOS/Linux:
+
+```bash
+cd services/people-service
+npm run db:deploy
+```
+
+Repeat `npm run db:deploy` in any other service folder whose `prisma/migrations/` directory changed
+(`resourcing-service`, `work-management-service`, and so on). Then restart the affected service
+windows if they were already running.
+
+### Saved views return 503 or 500
+
+All Employees saved views are served by **People Service** (port 3002) and proxied through the **BFF**
+(port 3001). The frontend calls `POST /api/v1/employees/saved-views` on the BFF only.
+
+If creating a view fails with **503 Service Unavailable** or an **Axios 500** after you enter a name:
+
+1. Confirm People Service is running (one of the windows started by `start-all-local.ps1`).
+2. Apply pending People Service migrations (command above). A missing
+   `employee_list_saved_views` table causes People Service to error; the BFF may surface that as 503
+   on list requests or pass through 500 on create.
+
+You do not need a new service or port for saved views.
+
 ## Services started by the all-services script
 
 The script starts the complete local platform:
