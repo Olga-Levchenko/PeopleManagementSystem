@@ -9,9 +9,18 @@ export const AllEmployeesPage = () => {
   const {
     catalogQuery,
     listQuery,
+    savedViewsQuery,
     page,
     setPage,
     totalPages,
+    showSavedViews,
+    activeTabId,
+    activeSavedView,
+    isOwnedTabDirty,
+    switchTab,
+    saveCurrentOwnedView,
+    renameCurrentOwnedView,
+    createViewFromCurrentState,
     countryCity,
     setCountryCity,
     yearsMin,
@@ -30,7 +39,14 @@ export const AllEmployeesPage = () => {
     liveMessage,
     saveField,
     patchMutation,
+    createSavedViewMutation,
+    updateSavedViewMutation,
   } = useAllEmployeesPage()
+
+  const promptForName = (message: string) => {
+    const value = window.prompt(message)
+    return value?.trim() ?? ''
+  }
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -43,6 +59,83 @@ export const AllEmployeesPage = () => {
       </div>
 
       <div aria-live="polite" className="sr-only">{liveMessage}</div>
+
+      {showSavedViews && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-border pb-2">
+          <button
+            type="button"
+            className={`rounded-t-md px-3 py-2 text-sm ${
+              activeTabId === 'all'
+                ? 'border border-b-0 border-border bg-secondary font-semibold text-foreground'
+                : 'text-muted-foreground'
+            }`}
+            onClick={() => switchTab('all')}
+          >
+            {t('allEmployees.views.all')}
+          </button>
+          {(savedViewsQuery.data ?? []).map(view => (
+            <button
+              key={view.id}
+              type="button"
+              className={`rounded-t-md px-3 py-2 text-sm ${
+                activeTabId === view.id
+                  ? 'border border-b-0 border-border bg-secondary font-semibold text-foreground'
+                  : 'text-muted-foreground'
+              }`}
+              onClick={() => switchTab(view.id)}
+            >
+              {view.name}
+              {!view.isOwner ? ` (${t('allEmployees.views.shared')})` : ''}
+            </button>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={createSavedViewMutation.isPending}
+            onClick={() => {
+              const name = promptForName(t('allEmployees.views.newPrompt'))
+              if (name) {
+                void createViewFromCurrentState(name)
+              }
+            }}
+          >
+            {t('allEmployees.views.new')}
+          </Button>
+          {activeSavedView?.isOwner && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!isOwnedTabDirty || updateSavedViewMutation.isPending}
+                onClick={() => void saveCurrentOwnedView()}
+              >
+                {t('allEmployees.views.saveChanges')}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={updateSavedViewMutation.isPending}
+                onClick={() => {
+                  const name = promptForName(t('allEmployees.views.renamePrompt'))
+                  if (name) {
+                    void renameCurrentOwnedView(name)
+                  }
+                }}
+              >
+                {t('allEmployees.views.rename')}
+              </Button>
+            </>
+          )}
+          {activeSavedView && !activeSavedView.isOwner && (
+            <span className="text-xs text-muted-foreground">
+              {t('allEmployees.views.readOnly')}
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card p-4">
         <label className="flex flex-col gap-1 text-sm">

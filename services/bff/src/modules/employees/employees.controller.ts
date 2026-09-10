@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
+  Post,
   Query,
   Req,
   Res,
@@ -21,6 +23,84 @@ export class EmployeesController {
     private readonly service: EmployeesService,
     private readonly oidc: OidcService,
   ) {}
+
+  @Get('saved-views')
+  async listSavedViews(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return this.forward(
+      response,
+      this.service.listSavedViews(await this.context(request)),
+    );
+  }
+
+  @Post('saved-views')
+  async createSavedView(
+    @Body() body: unknown,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return this.forward(
+      response,
+      this.service.createSavedView(body, await this.context(request)),
+    );
+  }
+
+  @Patch('saved-views/:viewId')
+  async updateSavedView(
+    @Param('viewId') viewId: string,
+    @Body() body: unknown,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return this.forward(
+      response,
+      this.service.updateSavedView(viewId, body, await this.context(request)),
+    );
+  }
+
+  @Delete('saved-views/:viewId')
+  async deleteSavedView(
+    @Param('viewId') viewId: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return this.forward(
+      response,
+      this.service.deleteSavedView(viewId, await this.context(request)),
+    );
+  }
+
+  @Post('saved-views/:viewId/shares')
+  async shareSavedView(
+    @Param('viewId') viewId: string,
+    @Body() body: unknown,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return this.forward(
+      response,
+      this.service.shareSavedView(viewId, body, await this.context(request)),
+    );
+  }
+
+  @Delete('saved-views/:viewId/shares/:recipientPersonId')
+  async revokeSavedViewShare(
+    @Param('viewId') viewId: string,
+    @Param('recipientPersonId') recipientPersonId: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return this.forward(
+      response,
+      this.service.revokeSavedViewShare(
+        viewId,
+        recipientPersonId,
+        await this.context(request),
+      ),
+    );
+  }
 
   @Get('field-catalog')
   async fieldCatalog(

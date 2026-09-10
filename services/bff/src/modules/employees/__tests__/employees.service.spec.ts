@@ -28,6 +28,14 @@ describe('EmployeesService', () => {
     jest.restoreAllMocks();
   });
 
+  it('routes saved views list to people-service', async () => {
+    await service.listSavedViews(context);
+
+    const call = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(call[0]).toBe(`${peopleServiceUrl}/api/v1/employees/saved-views`);
+    expect(call[1].method).toBe('GET');
+  });
+
   it('routes field catalog to people-service', async () => {
     await service.fieldCatalog(context);
 

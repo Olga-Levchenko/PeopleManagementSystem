@@ -1,12 +1,32 @@
-import { useMemo, useState } from 'react'
-import type { EmployeeFieldCatalogEntry } from '@/api/employees'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { EmployeeFieldCatalogEntry, EmployeeSavedView } from '@/api/employees'
 import {
+  useCreateSavedView,
   useEmployeeFieldCatalog,
   useEmployeesList,
   usePatchEmployeeField,
+  useSavedViews,
+  useUpdateSavedView,
 } from '@/api/hooks/useEmployees'
+import {
+  applyConfigurationToUiState,
+  buildConfigurationFromUiState,
+  isDirtyAgainstBaseline,
+  type AllEmployeesUiState,
+} from '../savedViewState'
 
 const DEFAULT_COLUMNS = ['fullName', 'position', 'departmentName', 'countryCity']
+const DEFAULT_PAGE_SIZE = 50
+
+const createDefaultUiState = (): AllEmployeesUiState => ({
+  countryCity: '',
+  departmentId: '',
+  yearsMin: '',
+  yearsMax: '',
+  visibleColumnKeys: DEFAULT_COLUMNS,
+  customFieldFilters: {},
+  pageSize: DEFAULT_PAGE_SIZE,
+})
 
 const parseOptionalInt = (value: string): number | undefined => {
   const trimmed = value.trim()
@@ -19,27 +39,48 @@ const parseOptionalInt = (value: string): number | undefined => {
 
 export const useAllEmployeesPage = () => {
   const [page, setPage] = useState(1)
-  const [pageSize] = useState(50)
-  const [countryCity, setCountryCity] = useState('')
-  const [yearsMin, setYearsMin] = useState('')
-  const [yearsMax, setYearsMax] = useState('')
-  const [visibleColumnKeys, setVisibleColumnKeys] = useState<string[]>(DEFAULT_COLUMNS)
+  const [uiState, setUiState] = useState<AllEmployeesUiState>(createDefaultUiState)
+  const [activeTabId, setActiveTabId] = useState<'all' | string>('all')
+  const [ownedBaselines, setOwnedBaselines] = useState<Record<string, AllEmployeesUiState>>({})
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [customFieldFilters, setCustomFieldFilters] = useState<Record<string, string>>({})
 
   const catalogQuery = useEmployeeFieldCatalog()
+  const showSavedViews = catalogQuery.data?.listAudienceLevel !== 'colleague'
+  const savedViewsQuery = useSavedViews(showSavedViews)
+
   const listParams = {
     page,
-    pageSize,
-    countryCity: countryCity.trim() || undefined,
-    yearsWithCompanyMin: parseOptionalInt(yearsMin),
-    yearsWithCompanyMax: parseOptionalInt(yearsMax),
-    customFieldFilters,
+    pageSize: uiState.pageSize,
+    countryCity: uiState.countryCity.trim() || undefined,
+    departmentId: uiState.departmentId.trim() || undefined,
+    yearsWithCompanyMin: parseOptionalInt(uiState.yearsMin),
+    yearsWithCompanyMax: parseOptionalInt(uiState.yearsMax),
+    customFieldFilters: uiState.customFieldFilters,
   }
 
   const listQuery = useEmployeesList(listParams)
   const patchMutation = usePatchEmployeeField(listParams)
+  const createSavedViewMutation = useCreateSavedView()
+  const updateSavedViewMutation = useUpdateSavedView()
   const [liveMessage, setLiveMessage] = useState('')
+
+  const activeSavedView = useMemo(
+    () =>
+      savedViewsQuery.data?.find((view: EmployeeSavedView) => view.id === activeTabId) ??
+      null,
+    [activeTabId, savedViewsQuery.data],
+  )
+
+  const isOwnedTabDirty = useMemo(() => {
+    if (!activeSavedView?.isOwner) {
+      return false
+    }
+    const baseline = ownedBaselines[activeSavedView.id]
+    if (!baseline) {
+      return false
+    }
+    return isDirtyAgainstBaseline(uiState, baseline)
+  }, [activeSavedView, ownedBaselines, uiState])
 
   const filterableCustomFields = useMemo(
     () =>
@@ -61,20 +102,147 @@ export const useAllEmployeesPage = () => {
   const visibleColumns = useMemo(
     () =>
       columnableFields.filter((field: EmployeeFieldCatalogEntry) =>
-        visibleColumnKeys.includes(field.key),
+        uiState.visibleColumnKeys.includes(field.key),
       ),
-    [columnableFields, visibleColumnKeys],
+    [columnableFields, uiState.visibleColumnKeys],
+  )
+
+  const applyUiState = useCallback((next: AllEmployeesUiState) => {
+    setUiState(next)
+    setPage(1)
+  }, [])
+
+  useEffect(() => {
+    if (activeTabId === 'all' || !savedViewsQuery.data) {
+      return
+    }
+    const stillExists = savedViewsQuery.data.some(
+      (view: EmployeeSavedView) => view.id === activeTabId,
+    )
+    if (!stillExists) {
+      // Sync local tab state when revoke/delete removes the active view from the server list.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- external query refetch
+      setActiveTabId('all')
+      applyUiState(createDefaultUiState())
+    }
+  }, [activeTabId, savedViewsQuery.data, applyUiState])
+
+  const switchTab = useCallback(
+    (nextTabId: 'all' | string) => {
+      if (nextTabId === activeTabId) {
+        return true
+      }
+      if (
+        activeTabId !== 'all' &&
+        activeSavedView?.isOwner &&
+        isOwnedTabDirty &&
+        !window.confirm('Discard unsaved changes on this view?')
+      ) {
+        return false
+      }
+
+      if (nextTabId === 'all') {
+        applyUiState(createDefaultUiState())
+        setActiveTabId('all')
+        return true
+      }
+
+      const view = savedViewsQuery.data?.find(
+        (item: EmployeeSavedView) => item.id === nextTabId,
+      )
+      if (!view) {
+        setActiveTabId('all')
+        applyUiState(createDefaultUiState())
+        return true
+      }
+
+      const nextState = applyConfigurationToUiState(
+        view.applicableConfiguration,
+        view.pageSize,
+      )
+      applyUiState(nextState)
+      setActiveTabId(view.id)
+      if (view.isOwner) {
+        setOwnedBaselines(current => ({
+          ...current,
+          [view.id]: nextState,
+        }))
+      }
+      return true
+    },
+    [
+      activeSavedView?.isOwner,
+      activeTabId,
+      applyUiState,
+      isOwnedTabDirty,
+      savedViewsQuery.data,
+    ],
   )
 
   const toggleColumn = (key: string) => {
-    setVisibleColumnKeys(current =>
-      current.includes(key) ? current.filter(item => item !== key) : [...current, key],
-    )
+    setUiState(current => ({
+      ...current,
+      visibleColumnKeys: current.visibleColumnKeys.includes(key)
+        ? current.visibleColumnKeys.filter(item => item !== key)
+        : [...current.visibleColumnKeys, key],
+    }))
   }
 
   const applyFilters = () => {
     setPage(1)
     void listQuery.refetch()
+  }
+
+  const saveCurrentOwnedView = async () => {
+    if (!activeSavedView?.isOwner) {
+      return
+    }
+    const configuration = buildConfigurationFromUiState(uiState)
+    await updateSavedViewMutation.mutateAsync({
+      viewId: activeSavedView.id,
+      body: {
+        configuration,
+        pageSize: uiState.pageSize,
+      },
+    })
+    setOwnedBaselines(current => ({
+      ...current,
+      [activeSavedView.id]: uiState,
+    }))
+    setLiveMessage(`Saved view "${activeSavedView.name}" updated.`)
+  }
+
+  const renameCurrentOwnedView = async (name: string) => {
+    if (!activeSavedView?.isOwner || !name.trim()) {
+      return
+    }
+    await updateSavedViewMutation.mutateAsync({
+      viewId: activeSavedView.id,
+      body: { name: name.trim() },
+    })
+    setLiveMessage(`Renamed view to "${name.trim()}".`)
+  }
+
+  const createViewFromCurrentState = async (name: string) => {
+    if (!name.trim()) {
+      return
+    }
+    const configuration = buildConfigurationFromUiState(uiState)
+    const created = await createSavedViewMutation.mutateAsync({
+      name: name.trim(),
+      pageSize: uiState.pageSize,
+      configuration,
+    })
+    const baseline = applyConfigurationToUiState(
+      created.applicableConfiguration,
+      created.pageSize,
+    )
+    setOwnedBaselines(current => ({
+      ...current,
+      [created.id]: baseline,
+    }))
+    setActiveTabId(created.id)
+    setLiveMessage(`Created view "${created.name}".`)
   }
 
   const totalPages = listQuery.data
@@ -100,18 +268,32 @@ export const useAllEmployeesPage = () => {
   return {
     catalogQuery,
     listQuery,
+    savedViewsQuery,
     patchMutation,
+    createSavedViewMutation,
+    updateSavedViewMutation,
     liveMessage,
     saveField,
     page,
     setPage,
     totalPages,
-    countryCity,
-    setCountryCity,
-    yearsMin,
-    setYearsMin,
-    yearsMax,
-    setYearsMax,
+    showSavedViews,
+    activeTabId,
+    activeSavedView,
+    isOwnedTabDirty,
+    switchTab,
+    saveCurrentOwnedView,
+    renameCurrentOwnedView,
+    createViewFromCurrentState,
+    countryCity: uiState.countryCity,
+    setCountryCity: (value: string) =>
+      setUiState(current => ({ ...current, countryCity: value })),
+    yearsMin: uiState.yearsMin,
+    setYearsMin: (value: string) =>
+      setUiState(current => ({ ...current, yearsMin: value })),
+    yearsMax: uiState.yearsMax,
+    setYearsMax: (value: string) =>
+      setUiState(current => ({ ...current, yearsMax: value })),
     visibleColumns,
     columnableFields,
     toggleColumn,
@@ -119,16 +301,16 @@ export const useAllEmployeesPage = () => {
     setPickerOpen,
     applyFilters,
     filterableCustomFields,
-    customFieldFilters,
+    customFieldFilters: uiState.customFieldFilters,
     setCustomFieldFilter: (key: string, value: string) => {
-      setCustomFieldFilters(current => {
-        const next = { ...current }
+      setUiState(current => {
+        const nextFilters = { ...current.customFieldFilters }
         if (value.trim()) {
-          next[key] = value
+          nextFilters[key] = value
         } else {
-          delete next[key]
+          delete nextFilters[key]
         }
-        return next
+        return { ...current, customFieldFilters: nextFilters }
       })
     },
   }

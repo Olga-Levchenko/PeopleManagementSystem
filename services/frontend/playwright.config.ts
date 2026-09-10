@@ -22,6 +22,12 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      testDir: './e2e',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'all-employees-page',
+      testDir: './src/pages/AllEmployeesPage/__tests__',
       use: { ...devices['Desktop Chrome'] },
     },
   ],

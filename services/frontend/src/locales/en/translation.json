@@ -41,6 +41,16 @@
       "summary": "Page {{page}} — {{total}} employees",
       "previous": "Previous",
       "next": "Next"
+    },
+    "views": {
+      "all": "All",
+      "shared": "shared",
+      "new": "+ New view",
+      "newPrompt": "Name for the new saved view",
+      "saveChanges": "Save changes",
+      "rename": "Rename",
+      "renamePrompt": "New name for this saved view",
+      "readOnly": "Read-only shared view"
     }
   },
   "administration": {
