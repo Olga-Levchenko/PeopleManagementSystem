@@ -1,10 +1,25 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   deriveAudienceFromResolution,
+  grantsSectionWriteAccess,
+  resolveS16WriteAccess,
   type CustomFieldAudienceLevel,
 } from './profile-audience.util';
+import {
+  DERIVED_FIELD_KEYS,
+  EDITABLE_S1_FIELD_KEYS,
+  ORG_RELATIONSHIP_FIELD_KEYS,
+  parseCustomFieldKey,
+} from './profile-field-keys.util';
 import type {
+  AccessRoleResolution,
   AccessRoleResolutionPort,
   S16CustomField,
   SectionAccessLevel,
@@ -69,6 +84,11 @@ export interface ProfileResponse {
   s10?: S10Leave[];
   s11?: S11ProjectEntry[];
   s16: S16CustomField[];
+}
+
+export interface PatchProfileFieldResponse {
+  fieldKey: string;
+  value: string | number | boolean | null;
 }
 
 type LeaveRow = {
@@ -241,6 +261,270 @@ export class ProfileService {
       audience.customFieldAudienceLevel,
     );
     return response;
+  }
+
+  async patchProfileField(
+    viewerPersonId: string,
+    subjectPersonId: string,
+    fieldKey: string,
+    value: unknown,
+  ): Promise<PatchProfileFieldResponse> {
+    if (viewerPersonId === subjectPersonId) {
+      throw new ForbiddenException(
+        'Self-edit is not permitted on All Employees.',
+      );
+    }
+
+    const person = await this.prisma.person.findUnique({
+      where: { id: subjectPersonId },
+      select: { id: true },
+    });
+    if (!person) {
+      throw new NotFoundException('Person not found');
+    }
+
+    if (!fieldKey || typeof fieldKey !== 'string' || fieldKey.trim() === '') {
+      throw new BadRequestException('fieldKey is required.');
+    }
+
+    if (DERIVED_FIELD_KEYS.has(fieldKey)) {
+      throw new BadRequestException(`Field '${fieldKey}' is not writable.`);
+    }
+
+    if (ORG_RELATIONSHIP_FIELD_KEYS.has(fieldKey)) {
+      throw new ForbiddenException({
+        message:
+          'Organisational relationship fields cannot be edited through this endpoint.',
+        error: 'ORG_RELATIONSHIP_FIELD_NOT_EDITABLE',
+      });
+    }
+
+    const customDefinitionId = parseCustomFieldKey(fieldKey);
+    if (fieldKey.startsWith('custom:') && customDefinitionId === null) {
+      throw new BadRequestException(`Malformed field key '${fieldKey}'.`);
+    }
+
+    const resolution = await this.accessRoleResolution.resolve(
+      viewerPersonId,
+      subjectPersonId,
+    );
+    const audience = deriveAudienceFromResolution(
+      resolution,
+      viewerPersonId,
+      subjectPersonId,
+    );
+
+    if (customDefinitionId) {
+      return this.patchCustomFieldValue(
+        subjectPersonId,
+        fieldKey,
+        customDefinitionId,
+        value,
+        resolution,
+        audience.customFieldAudienceLevel,
+      );
+    }
+
+    if (!EDITABLE_S1_FIELD_KEYS.has(fieldKey)) {
+      throw new ForbiddenException();
+    }
+
+    if (!grantsSectionWriteAccess(audience.s1)) {
+      throw new ForbiddenException();
+    }
+
+    const persisted = await this.patchStoredS1Field(
+      subjectPersonId,
+      fieldKey,
+      value,
+    );
+    return { fieldKey, value: persisted };
+  }
+
+  private async patchStoredS1Field(
+    subjectPersonId: string,
+    fieldKey: string,
+    value: unknown,
+  ): Promise<string | null> {
+    switch (fieldKey) {
+      case 'fullName': {
+        if (typeof value !== 'string') {
+          throw new BadRequestException(
+            `Invalid value for field '${fieldKey}'.`,
+          );
+        }
+        const trimmed = value.trim();
+        if (!trimmed) {
+          throw new BadRequestException(`Field '${fieldKey}' cannot be empty.`);
+        }
+        await this.prisma.person.update({
+          where: { id: subjectPersonId },
+          data: { fullName: trimmed },
+        });
+        return trimmed;
+      }
+      case 'position':
+      case 'countryCity': {
+        if (value === null) {
+          await this.prisma.person.update({
+            where: { id: subjectPersonId },
+            data: { [fieldKey]: null },
+          });
+          return null;
+        }
+        if (typeof value !== 'string') {
+          throw new BadRequestException(
+            `Invalid value for field '${fieldKey}'.`,
+          );
+        }
+        await this.prisma.person.update({
+          where: { id: subjectPersonId },
+          data: { [fieldKey]: value },
+        });
+        return value;
+      }
+      case 'startDate': {
+        const parsed = this.parseIsoDateOrNull(value, fieldKey);
+        await this.prisma.person.update({
+          where: { id: subjectPersonId },
+          data: { startDate: parsed },
+        });
+        return parsed ? parsed.toISOString().slice(0, 10) : null;
+      }
+      default:
+        throw new ForbiddenException();
+    }
+  }
+
+  private async patchCustomFieldValue(
+    subjectPersonId: string,
+    fieldKey: string,
+    definitionId: string,
+    value: unknown,
+    resolution: AccessRoleResolution,
+    audienceLevel: CustomFieldAudienceLevel,
+  ): Promise<PatchProfileFieldResponse> {
+    const s16Write = resolveS16WriteAccess(resolution);
+    if (!grantsSectionWriteAccess(s16Write)) {
+      throw new ForbiddenException();
+    }
+
+    const definition = await this.prisma.customFieldDefinition.findUnique({
+      where: { id: definitionId },
+      select: { id: true, visibility: true, dataType: true, isActive: true },
+    });
+    if (!definition || !definition.isActive) {
+      throw new BadRequestException(
+        `Custom field definition for '${fieldKey}' is not active.`,
+      );
+    }
+    if (!canSeeCustomField(definition.visibility, audienceLevel)) {
+      throw new ForbiddenException();
+    }
+
+    const storedValue = this.validateCustomFieldValue(
+      fieldKey,
+      definition.dataType,
+      value,
+    );
+
+    await this.prisma.customFieldValue.upsert({
+      where: {
+        definitionId_personId: {
+          definitionId,
+          personId: subjectPersonId,
+        },
+      },
+      create: {
+        definitionId,
+        personId: subjectPersonId,
+        value: storedValue,
+      },
+      update: { value: storedValue },
+    });
+
+    return {
+      fieldKey,
+      value: this.deserializeCustomFieldResponseValue(
+        definition.dataType,
+        storedValue,
+      ),
+    };
+  }
+
+  private validateCustomFieldValue(
+    fieldKey: string,
+    dataType: string,
+    value: unknown,
+  ): string {
+    switch (dataType) {
+      case 'TEXT': {
+        if (typeof value !== 'string') {
+          throw new BadRequestException(
+            `Invalid value for field '${fieldKey}'.`,
+          );
+        }
+        return value.trim();
+      }
+      case 'NUMBER': {
+        const numeric =
+          typeof value === 'number'
+            ? value
+            : typeof value === 'string'
+              ? Number(value)
+              : NaN;
+        if (!Number.isFinite(numeric)) {
+          throw new BadRequestException(
+            `Invalid value for field '${fieldKey}'.`,
+          );
+        }
+        return String(numeric);
+      }
+      case 'DATE': {
+        const parsed = this.parseIsoDateOrNull(value, fieldKey);
+        return parsed ? parsed.toISOString().slice(0, 10) : '';
+      }
+      case 'BOOLEAN': {
+        if (value !== true && value !== false) {
+          throw new BadRequestException(
+            `Invalid value for field '${fieldKey}'.`,
+          );
+        }
+        return value ? 'true' : 'false';
+      }
+      default:
+        throw new BadRequestException(`Invalid value for field '${fieldKey}'.`);
+    }
+  }
+
+  private deserializeCustomFieldResponseValue(
+    dataType: string,
+    storedValue: string,
+  ): string | number | boolean | null {
+    switch (dataType) {
+      case 'NUMBER':
+        return storedValue === '' ? null : Number(storedValue);
+      case 'BOOLEAN':
+        return storedValue === 'true';
+      case 'DATE':
+        return storedValue === '' ? null : storedValue;
+      default:
+        return storedValue;
+    }
+  }
+
+  private parseIsoDateOrNull(value: unknown, fieldKey: string): Date | null {
+    if (value === null) {
+      return null;
+    }
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      throw new BadRequestException(`Invalid value for field '${fieldKey}'.`);
+    }
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new BadRequestException(`Invalid value for field '${fieldKey}'.`);
+    }
+    return parsed;
   }
 
   /**

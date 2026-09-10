@@ -636,4 +636,123 @@ describe('Profile (e2e)', () => {
 
     expect(resolveMock).not.toHaveBeenCalled();
   });
+
+  it('PATCH profile field rejects viewer-is-subject with 403', async () => {
+    const viewer = await prisma.person.create({
+      data: { fullName: 'Self Viewer', countryCity: 'Kyiv' },
+    });
+    currentViewerId = viewer.id;
+
+    await request(app.getHttpServer())
+      .patch(`/people/${viewer.id}/profile/fields`)
+      .send({ fieldKey: 'countryCity', value: 'Lviv' })
+      .expect(403);
+
+    expect(resolveMock).not.toHaveBeenCalled();
+  });
+
+  it('PATCH profile field rejects R-only editor with 403', async () => {
+    const viewer = await prisma.person.create({
+      data: { fullName: 'Read-only Viewer' },
+    });
+    const subject = await prisma.person.create({
+      data: {
+        fullName: 'Patch Subject',
+        countryCity: 'Kyiv',
+        managerId: viewer.id,
+      },
+    });
+    currentViewerId = viewer.id;
+    resolveMock.mockResolvedValue({
+      reportingLine: true,
+      projectLine: false,
+      peoplePartnerLine: false,
+      fullProfileAccessLine: false,
+      managerSectionAccess: {
+        s1: { level: 'Read' },
+        s2: { level: 'Read' },
+        s10: { level: 'Read' },
+        s11: { level: 'Read' },
+        s16: { level: 'Read' },
+      },
+      peoplePartnerSectionAccess: null,
+      fullProfileAccessSectionAccess: null,
+    });
+
+    await request(app.getHttpServer())
+      .patch(`/people/${subject.id}/profile/fields`)
+      .send({ fieldKey: 'countryCity', value: 'Lviv' })
+      .expect(403);
+  });
+
+  it('PATCH profile field rejects colleague-tier editor with 403', async () => {
+    const viewer = await prisma.person.create({
+      data: { fullName: 'Colleague Viewer' },
+    });
+    const subject = await prisma.person.create({
+      data: { fullName: 'Patch Subject', countryCity: 'Kyiv' },
+    });
+    currentViewerId = viewer.id;
+    resolveMock.mockResolvedValue({
+      reportingLine: false,
+      projectLine: false,
+      peoplePartnerLine: false,
+      fullProfileAccessLine: false,
+      managerSectionAccess: null,
+      peoplePartnerSectionAccess: null,
+      fullProfileAccessSectionAccess: null,
+    });
+
+    await request(app.getHttpServer())
+      .patch(`/people/${subject.id}/profile/fields`)
+      .send({ fieldKey: 'countryCity', value: 'Lviv' })
+      .expect(403);
+
+    const unchanged = await prisma.person.findUnique({
+      where: { id: subject.id },
+      select: { countryCity: true },
+    });
+    expect(unchanged?.countryCity).toBe('Kyiv');
+  });
+
+  it('PATCH profile field persists RW stored field', async () => {
+    const viewer = await prisma.person.create({
+      data: { fullName: 'RW Viewer' },
+    });
+    const subject = await prisma.person.create({
+      data: {
+        fullName: 'Patch Subject',
+        countryCity: 'Kyiv',
+        managerId: viewer.id,
+      },
+    });
+    currentViewerId = viewer.id;
+    resolveMock.mockResolvedValue({
+      reportingLine: true,
+      projectLine: false,
+      peoplePartnerLine: false,
+      fullProfileAccessLine: false,
+      managerSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'ReadWrite' },
+        s10: { level: 'Read' },
+        s11: { level: 'Read' },
+        s16: { level: 'ReadWrite' },
+      },
+      peoplePartnerSectionAccess: null,
+      fullProfileAccessSectionAccess: null,
+    });
+
+    const response = await request(app.getHttpServer())
+      .patch(`/people/${subject.id}/profile/fields`)
+      .send({ fieldKey: 'countryCity', value: 'Lviv' })
+      .expect(200);
+
+    expect(response.body).toEqual({ fieldKey: 'countryCity', value: 'Lviv' });
+    const updated = await prisma.person.findUnique({
+      where: { id: subject.id },
+      select: { countryCity: true },
+    });
+    expect(updated?.countryCity).toBe('Lviv');
+  });
 });

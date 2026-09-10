@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { apiClient } from '@/api/client'
 
-export type EmployeeFieldDataType = 'string' | 'number' | 'date'
+export type EmployeeFieldDataType = 'string' | 'number' | 'date' | 'boolean'
 
 export interface EmployeeFieldCatalogEntry {
   key: string
@@ -19,6 +19,17 @@ export interface EmployeeFieldCatalogResponse {
 export interface EmployeeListRow {
   personId: string
   values: Record<string, string | number | null>
+  editableFields: string[]
+}
+
+export interface PatchEmployeeFieldRequest {
+  fieldKey: string
+  value: unknown
+}
+
+export interface PatchEmployeeFieldResponse {
+  fieldKey: string
+  value: string | number | boolean | null
 }
 
 export interface EmployeeListResponse {
@@ -72,6 +83,15 @@ export const getFieldCatalogApiCall = (signal?: AbortSignal) =>
   apiClient.get<EmployeeFieldCatalogResponse>('/api/v1/employees/field-catalog', {
     signal,
   })
+
+export const patchEmployeeFieldApiCall = (
+  subjectPersonId: string,
+  body: PatchEmployeeFieldRequest,
+) =>
+  apiClient.patch<PatchEmployeeFieldResponse>(
+    `/api/v1/employees/${subjectPersonId}/fields`,
+    body,
+  )
 
 export const listEmployeesApiCall = (params: ListEmployeesParams, signal?: AbortSignal) => {
   const { customFieldFilters, ...rest } = params

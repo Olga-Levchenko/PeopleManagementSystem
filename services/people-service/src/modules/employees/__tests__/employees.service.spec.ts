@@ -195,6 +195,144 @@ describe('EmployeesService', () => {
     expect(result.totalCount).toBe(1);
     expect(result.items[0]?.values.fullName).toBe('Subject Person');
     expect(result.items[0]?.values.yearsWithCompany).not.toBeNull();
+    expect(result.items[0]?.editableFields).toEqual([]);
+  });
+
+  it('listEmployees includes editableFields for RW manager audience on other subjects', async () => {
+    prisma.person.count.mockResolvedValue(1);
+    prisma.person.findMany.mockResolvedValue([
+      {
+        id: subjectId,
+        fullName: 'Subject Person',
+        position: 'Engineer',
+        countryCity: 'Kyiv',
+        startDate: new Date('2020-01-01T00:00:00.000Z'),
+        department: { name: 'Platform' },
+        customFieldValues: [],
+      },
+    ]);
+    prisma.$transaction.mockImplementation(async (operations) =>
+      Promise.all(operations as Array<Promise<unknown>>),
+    );
+    resolveBatch.mockResolvedValue(
+      new Map([
+        [
+          subjectId,
+          {
+            ...NEITHER_LINE_RESOLUTION,
+            reportingLine: true,
+            managerSectionAccess: {
+              s1: { level: 'ReadWrite' },
+              s2: { level: 'ReadWrite' },
+              s10: { level: 'Read' },
+              s11: { level: 'Read' },
+              s16: { level: 'ReadWrite' },
+            },
+          },
+        ],
+      ]),
+    );
+
+    const result = await service.listEmployees(viewerId, {
+      page: 1,
+      pageSize: 50,
+    });
+
+    expect(result.items[0]?.editableFields).toEqual(
+      expect.arrayContaining([
+        'fullName',
+        'position',
+        'countryCity',
+        'startDate',
+      ]),
+    );
+  });
+
+  it('listEmployees omits editableFields for R-only manager audience', async () => {
+    prisma.person.count.mockResolvedValue(1);
+    prisma.person.findMany.mockResolvedValue([
+      {
+        id: subjectId,
+        fullName: 'Subject Person',
+        position: 'Engineer',
+        countryCity: 'Kyiv',
+        startDate: new Date('2020-01-01T00:00:00.000Z'),
+        department: { name: 'Platform' },
+        customFieldValues: [],
+      },
+    ]);
+    prisma.$transaction.mockImplementation(async (operations) =>
+      Promise.all(operations as Array<Promise<unknown>>),
+    );
+    resolveBatch.mockResolvedValue(
+      new Map([
+        [
+          subjectId,
+          {
+            ...NEITHER_LINE_RESOLUTION,
+            reportingLine: true,
+            managerSectionAccess: {
+              s1: { level: 'Read' },
+              s2: { level: 'Read' },
+              s10: { level: 'Read' },
+              s11: { level: 'Read' },
+              s16: { level: 'Read' },
+            },
+          },
+        ],
+      ]),
+    );
+
+    const result = await service.listEmployees(viewerId, {
+      page: 1,
+      pageSize: 50,
+    });
+
+    expect(result.items[0]?.editableFields).toEqual([]);
+  });
+
+  it('listEmployees returns empty editableFields for viewer own row', async () => {
+    prisma.person.count.mockResolvedValue(1);
+    prisma.person.findMany.mockResolvedValue([
+      {
+        id: viewerId,
+        fullName: 'Viewer Person',
+        position: 'Lead',
+        countryCity: 'Kyiv',
+        startDate: new Date('2020-01-01T00:00:00.000Z'),
+        department: { name: 'Platform' },
+        customFieldValues: [],
+      },
+    ]);
+    prisma.$transaction.mockImplementation(async (operations) =>
+      Promise.all(operations as Array<Promise<unknown>>),
+    );
+    resolveBatch.mockResolvedValue(
+      new Map([
+        [
+          viewerId,
+          {
+            ...NEITHER_LINE_RESOLUTION,
+            reportingLine: true,
+            managerSectionAccess: {
+              s1: { level: 'ReadWrite' },
+              s2: { level: 'ReadWrite' },
+              s10: { level: 'Read' },
+              s11: { level: 'Read' },
+              s16: { level: 'ReadWrite' },
+            },
+          },
+        ],
+      ]),
+    );
+
+    const result = await service.listEmployees(viewerId, {
+      page: 1,
+      pageSize: 50,
+    });
+
+    expect(result.items[0]?.values.fullName).toBe('Viewer Person');
+    expect(result.items[0]?.editableFields).toEqual([]);
   });
 
   it('listEmployees omits management custom fields for colleague-tier audience', async () => {

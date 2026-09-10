@@ -17,6 +17,20 @@ export class EmployeesService {
     return this.request('/employees/field-catalog', 'GET', undefined, context);
   }
 
+  patchField(
+    subjectPersonId: string,
+    body: unknown,
+    context: ProxyContext,
+  ): Promise<UpstreamResponse> {
+    return this.request(
+      `/people/${encodeURIComponent(subjectPersonId)}/profile/fields`,
+      'PATCH',
+      body,
+      context,
+      true,
+    );
+  }
+
   list(
     query: Record<string, string | undefined>,
     context: ProxyContext,
@@ -36,6 +50,7 @@ export class EmployeesService {
     method: string,
     body: unknown,
     context: ProxyContext,
+    passthroughErrors = false,
   ): Promise<UpstreamResponse> {
     const headers: Record<string, string> = {
       accept: 'application/json',
@@ -62,7 +77,9 @@ export class EmployeesService {
       throw new ServiceUnavailableException('People service is unavailable.');
     }
 
-    if (!response.ok) {
+    const responseBody = await this.readBody(response);
+
+    if (!response.ok && !passthroughErrors) {
       throw new HttpException(
         {
           statusCode: this.safeErrorStatus(response.status),
@@ -74,7 +91,7 @@ export class EmployeesService {
 
     return {
       status: response.status,
-      body: await this.readBody(response),
+      body: responseBody,
     };
   }
 
