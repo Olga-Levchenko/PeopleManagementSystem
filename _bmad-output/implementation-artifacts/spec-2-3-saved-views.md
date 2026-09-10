@@ -2,7 +2,7 @@
 title: 'Story 2.3: Saved views'
 type: 'feature'
 created: '2026-09-10'
-status: 'in-progress'
+status: 'done'
 review_loop_iteration: 3
 baseline_commit: 'e6cb547686c5e38187e56997c8ccf73b09befaa8'
 context:
@@ -140,6 +140,7 @@ context:
 ## Spec Change Log
 
 - **2026-09-10 (approval):** Human-approved spec from separate context (review loop 2); status → `in-progress`, implementation started on `feature/2-3-saved-views`.
+- **2026-09-10 (delivery):** PR [#69](https://github.com/Olga-Levchenko/PeopleManagementSystem/pull/69) merged to `main` at `299a73b`; status → `done`.
 
 ## Verification
 
