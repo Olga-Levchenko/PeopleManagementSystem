@@ -1,4 +1,5 @@
 import axios from 'axios'
+import type { AxiosResponse } from 'axios'
 import { apiClient } from '@/api/client'
 
 export type EmployeeFieldDataType = 'string' | 'number' | 'date' | 'boolean'
@@ -93,6 +94,24 @@ export type EmployeesError =
   | 'permission'
   | 'unavailable'
   | 'unknown'
+
+export interface ExportEmployeesParams extends ListEmployeesParams {
+  columnKeys: string[]
+}
+
+export const exportEmployeesApiCall = (
+  params: ExportEmployeesParams,
+): Promise<AxiosResponse<Blob>> => {
+  const { customFieldFilters, columnKeys, ...rest } = params
+  return apiClient.raw.get<Blob>('/api/v1/employees/export', {
+    params: {
+      ...rest,
+      ...customFieldFilters,
+      columns: columnKeys.join(','),
+    },
+    responseType: 'blob',
+  })
+}
 
 export const getEmployeesError = (error: unknown): EmployeesError => {
   if (!axios.isAxiosError(error)) {

@@ -16,11 +16,19 @@ import type {
 import { NEITHER_LINE_RESOLUTION } from '../profile/profile.ports';
 import { canSeeCustomField } from '../profile/profile.service';
 import {
+  assertColumnKeysInCatalog,
   assertCustomFieldFiltersInCatalog,
+  assertVisibleColumnKeys,
   assertYearsFilterRange,
   buildCatalogKeySets,
+  resolveApplicableFilters,
+  type SavedViewFilters,
 } from './employees-list-config.validator';
 import type { ListEmployeesQueryDto } from './employees.dto';
+import {
+  buildEmployeesExportWorkbook,
+  EMPLOYEES_EXPORT_FILENAME,
+} from './employees-export.util';
 
 export type EmployeeFieldDataType = 'string' | 'number' | 'date' | 'boolean';
 
@@ -107,6 +115,7 @@ const DERIVED_CATALOG_FIELDS: EmployeeFieldCatalogEntry[] = [
 
 const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000;
 const ACS_BATCH_SUBJECT_LIMIT = 500;
+const EXPORT_INTERNAL_PAGE_SIZE = 100;
 
 const PERSON_LIST_SELECT = {
   id: true,
@@ -248,6 +257,185 @@ export class EmployeesService {
     );
 
     return { items, page, pageSize, totalCount };
+  }
+
+  async exportEmployeesToXlsx(
+    viewerPersonId: string,
+    query: ListEmployeesQueryDto,
+    customFieldFilters: Record<string, string>,
+    columnKeys: string[],
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const catalog = await this.getFieldCatalog(viewerPersonId);
+    assertVisibleColumnKeys(columnKeys);
+    const { columnableKeys } = buildCatalogKeySets(catalog.fields);
+    assertColumnKeysInCatalog(columnKeys, columnableKeys);
+
+    const applicable = await this.resolveExportFilters(
+      query,
+      customFieldFilters,
+    );
+
+    await this.assertCustomFieldFiltersAllowed(
+      viewerPersonId,
+      applicable.customFieldFilters,
+    );
+    assertYearsFilterRange(
+      applicable.query.yearsWithCompanyMin,
+      applicable.query.yearsWithCompanyMax,
+    );
+
+    const rows = await this.fetchAllListRowsForExport(
+      viewerPersonId,
+      applicable.query,
+      applicable.customFieldFilters,
+    );
+
+    const buffer = await buildEmployeesExportWorkbook(
+      rows,
+      columnKeys,
+      catalog.fields,
+    );
+
+    return { buffer, filename: EMPLOYEES_EXPORT_FILENAME };
+  }
+
+  private async resolveExportFilters(
+    query: ListEmployeesQueryDto,
+    customFieldFilters: Record<string, string>,
+  ): Promise<{
+    query: ListEmployeesQueryDto;
+    customFieldFilters: Record<string, string>;
+  }> {
+    const filters: SavedViewFilters = {
+      countryCity: query.countryCity,
+      departmentId: query.departmentId,
+      yearsWithCompanyMin: query.yearsWithCompanyMin,
+      yearsWithCompanyMax: query.yearsWithCompanyMax,
+      customFieldFilters:
+        Object.keys(customFieldFilters).length > 0
+          ? customFieldFilters
+          : undefined,
+    };
+
+    const applicableFilters = await resolveApplicableFilters(
+      filters,
+      (departmentId) =>
+        this.prisma.department.findUnique({
+          where: { id: departmentId },
+          select: { id: true },
+        }),
+      (definitionId) =>
+        this.prisma.customFieldDefinition.findUnique({
+          where: { id: definitionId },
+          select: { id: true, isActive: true },
+        }),
+    );
+
+    return {
+      query: {
+        countryCity: applicableFilters.countryCity,
+        departmentId: applicableFilters.departmentId,
+        yearsWithCompanyMin: applicableFilters.yearsWithCompanyMin,
+        yearsWithCompanyMax: applicableFilters.yearsWithCompanyMax,
+      },
+      customFieldFilters: applicableFilters.customFieldFilters ?? {},
+    };
+  }
+
+  private async fetchAllListRowsForExport(
+    viewerPersonId: string,
+    query: ListEmployeesQueryDto,
+    customFieldFilters: Record<string, string>,
+  ): Promise<EmployeeListRow[]> {
+    if (Object.keys(customFieldFilters).length > 0) {
+      return this.fetchAllListRowsWithCustomFieldFilters(
+        viewerPersonId,
+        query,
+        customFieldFilters,
+      );
+    }
+
+    const where = this.buildWhereClause(query, customFieldFilters);
+    const totalCount = await this.prisma.person.count({ where });
+    const allRows: EmployeeListRow[] = [];
+
+    for (
+      let page = 1;
+      (page - 1) * EXPORT_INTERNAL_PAGE_SIZE < totalCount;
+      page++
+    ) {
+      const people = (await this.prisma.person.findMany({
+        where,
+        orderBy: { fullName: 'asc' },
+        skip: (page - 1) * EXPORT_INTERNAL_PAGE_SIZE,
+        take: EXPORT_INTERNAL_PAGE_SIZE,
+        select: PERSON_LIST_SELECT,
+      })) as PersonListRecord[];
+
+      if (people.length === 0) {
+        break;
+      }
+
+      const items = await this.projectPeopleToListRows(viewerPersonId, people);
+      allRows.push(...items);
+    }
+
+    return allRows;
+  }
+
+  private async fetchAllListRowsWithCustomFieldFilters(
+    viewerPersonId: string,
+    query: ListEmployeesQueryDto,
+    customFieldFilters: Record<string, string>,
+  ): Promise<EmployeeListRow[]> {
+    const where = this.buildWhereClause(query, customFieldFilters);
+    const filterDefinitions =
+      await this.loadCustomFieldFilterDefinitions(customFieldFilters);
+
+    const candidates = (await this.prisma.person.findMany({
+      where,
+      orderBy: { fullName: 'asc' },
+      select: PERSON_LIST_SELECT,
+    })) as PersonListRecord[];
+
+    const resolutions = await this.resolveBatchChunked(
+      viewerPersonId,
+      candidates.map((person) => person.id),
+    );
+
+    const audienceVisibleCandidates = candidates.filter((person) => {
+      const resolution = resolutions.get(person.id) ?? NEITHER_LINE_RESOLUTION;
+      const audience = deriveAudienceFromResolution(
+        resolution,
+        viewerPersonId,
+        person.id,
+      );
+      return this.subjectPassesCustomFieldFilters(
+        audience,
+        filterDefinitions,
+        customFieldFilters,
+      );
+    });
+
+    const allRows: EmployeeListRow[] = [];
+    for (
+      let index = 0;
+      index < audienceVisibleCandidates.length;
+      index += EXPORT_INTERNAL_PAGE_SIZE
+    ) {
+      const slice = audienceVisibleCandidates.slice(
+        index,
+        index + EXPORT_INTERNAL_PAGE_SIZE,
+      );
+      const items = await this.projectPeopleToListRows(
+        viewerPersonId,
+        slice,
+        resolutions,
+      );
+      allRows.push(...items);
+    }
+
+    return allRows;
   }
 
   private async listEmployeesWithCustomFieldFilters(

@@ -6,6 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type {
   ProxyContext,
+  UpstreamBinaryResponse,
   UpstreamResponse,
 } from '../custom-field-definitions/custom-field-definitions.service';
 
@@ -109,6 +110,89 @@ export class EmployeesService {
     }
     const suffix = search.size > 0 ? `?${search.toString()}` : '';
     return this.request(`/employees${suffix}`, 'GET', undefined, context);
+  }
+
+  exportEmployees(
+    query: Record<string, string | undefined>,
+    context: ProxyContext,
+  ): Promise<UpstreamBinaryResponse> {
+    const search = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== '') {
+        search.set(key, value);
+      }
+    }
+    const suffix = search.size > 0 ? `?${search.toString()}` : '';
+    return this.requestBinary(`/employees/export${suffix}`, context);
+  }
+
+  private async requestBinary(
+    path: string,
+    context: ProxyContext,
+  ): Promise<UpstreamBinaryResponse> {
+    const headers: Record<string, string> = {
+      accept:
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'x-correlation-id': context.correlationId,
+    };
+    if (context.authorization) {
+      headers.authorization = context.authorization;
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(
+        `${this.config.getOrThrow<string>('PEOPLE_SERVICE_URL')}/api/v1${path}`,
+        {
+          method: 'GET',
+          headers,
+        },
+      );
+    } catch {
+      throw new ServiceUnavailableException('People service is unavailable.');
+    }
+
+    const body = Buffer.from(await response.arrayBuffer());
+    const responseHeaders: Record<string, string> = {};
+    const contentType = response.headers.get('content-type');
+    const contentDisposition = response.headers.get('content-disposition');
+    if (contentType) {
+      responseHeaders['content-type'] = contentType;
+    }
+    if (contentDisposition) {
+      responseHeaders['content-disposition'] = contentDisposition;
+    }
+
+    if (!response.ok) {
+      const errorContentType = response.headers.get('content-type') ?? '';
+      if (errorContentType.includes('application/json')) {
+        try {
+          const errorBody = JSON.parse(body.toString('utf8')) as unknown;
+          throw new HttpException(
+            errorBody,
+            this.safeErrorStatus(response.status),
+          );
+        } catch (error) {
+          if (error instanceof HttpException) {
+            throw error;
+          }
+        }
+      }
+
+      throw new HttpException(
+        {
+          statusCode: this.safeErrorStatus(response.status),
+          message: this.safeErrorMessage(response.status),
+        },
+        this.safeErrorStatus(response.status),
+      );
+    }
+
+    return {
+      status: response.status,
+      body,
+      headers: responseHeaders,
+    };
   }
 
   private async request(

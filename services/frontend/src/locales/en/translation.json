@@ -33,6 +33,12 @@
       "yearsMax": "Years with company (max)",
       "apply": "Apply filters"
     },
+    "export": {
+      "button": "Export .xlsx",
+      "noColumns": "Select at least one column before exporting.",
+      "downloaded": "Export downloaded.",
+      "failed": "Export failed."
+    },
     "columns": {
       "manage": "Columns",
       "title": "Visible columns"

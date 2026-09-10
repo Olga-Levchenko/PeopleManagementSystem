@@ -15,6 +15,12 @@ export interface UpstreamResponse {
   body: unknown;
 }
 
+export interface UpstreamBinaryResponse {
+  status: number;
+  body: Buffer;
+  headers: Record<string, string>;
+}
+
 @Injectable()
 export class CustomFieldDefinitionsService {
   constructor(private readonly config: ConfigService) {}

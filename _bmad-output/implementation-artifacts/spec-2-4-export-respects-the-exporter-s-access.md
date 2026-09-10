@@ -2,9 +2,9 @@
 title: "Story 2.4: Export respects the exporter's access"
 type: 'feature'
 created: '2026-09-10'
-status: 'approved-for-implementation'
+status: 'review'
 review_loop_iteration: 1
-baseline_commit: 'f938f8be9afc59fbae112d00dd19255d3d4fa16f'
+baseline_commit: 'd1ddb4b'
 context:
   - '{project-root}/.claude/rules/access-control-invariants.md'
   - '{project-root}/docs/access-control/section-matrix.md'
@@ -88,13 +88,13 @@ Response `Content-Type: application/vnd.openxmlformats-officedocument.spreadshee
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `employees.service.ts` — export fetch reusing list query/projection helpers; single-pass custom-field-filter path; internal batch size 100
-- [ ] `employees-export.util.ts` + `exceljs` in `package.json` — assemble xlsx with catalog labels as headers; typed cells where practical (ISO date strings for dates, numbers for numeric fields)
-- [ ] `employees.controller.ts` — `GET /employees/export` with full validation and file response
-- [ ] `employees-export.service.spec.ts` + `employees-export.e2e-spec.ts` — EXPORT_ALL_PAGES, CUSTOM_FIELD_FILTER_EXPORT, PER_ROW_OMITTED_VALUE, UNKNOWN_COLUMN, SAME_FILTERS_AS_LIST parity
-- [ ] `bff/.../employees` — proxy export endpoint; preserve `Content-Disposition`
-- [ ] `frontend` API + `AllEmployeesPage` — Export button; pass active filters + `visibleColumnKeys`; trigger browser download
-- [ ] `all-employees-export.spec.ts` — Playwright export smoke
+- [x] `employees.service.ts` — export fetch reusing list query/projection helpers; single-pass custom-field-filter path; internal batch size 100
+- [x] `employees-export.util.ts` + `exceljs` in `package.json` — assemble xlsx with catalog labels as headers; typed cells where practical (ISO date strings for dates, numbers for numeric fields)
+- [x] `employees.controller.ts` — `GET /employees/export` with full validation and file response
+- [x] `employees-export.service.spec.ts` + `employees-export.e2e-spec.ts` — EXPORT_ALL_PAGES, CUSTOM_FIELD_FILTER_EXPORT, PER_ROW_OMITTED_VALUE, UNKNOWN_COLUMN, row-set parity with list
+- [x] `bff/.../employees` — proxy export endpoint; preserve `Content-Disposition`
+- [x] `frontend` API + `AllEmployeesPage` — Export button; pass active filters + `visibleColumnKeys`; trigger browser download
+- [x] `all-employees-export.spec.ts` — Playwright export smoke
 
 **Acceptance Criteria:**
 - Given a manager or PP with a specific set of visible columns on their current list view, when they export to `.xlsx`, then the file contains exactly those catalog-validated column keys in the same order — with headers from the viewer-scoped catalog and row values from the same entitlement projection as the live list, not a separate export-specific rule
@@ -117,6 +117,8 @@ Response `Content-Type: application/vnd.openxmlformats-officedocument.spreadshee
 
 **Mid-export consistency:** v1 accepts read-your-writes across batches within one export request (no snapshot isolation); document if org data changes mid-export, row order/count may reflect interleaved mutations — acceptable for v1.
 
+**Stale-filter divergence (accepted for 2.4):** Export applies `resolveApplicableFilters` (drops deleted departments and inactive custom filters); `listEmployees` does not yet. Export and list may return different row sets when UI state carries stale filter keys until a follow-up aligns list read-path stale-filter handling (code review decision B, 2026-09-11).
+
 ## Verification
 
 **Commands:**
@@ -128,6 +130,17 @@ Response `Content-Type: application/vnd.openxmlformats-officedocument.spreadshee
 
 ## Spec Change Log
 
-- **2026-09-11 (approved):** Human approval of review loop 1 after planning-gap audit (`PROCEED WITH CONDITIONS`); status → `approved-for-implementation`.
+- **2026-09-11 (code review):** Applied review decision B (accept stale-filter export/list divergence until list aligns); fixed PER_ROW/parity/colleague export tests, BFF JSON error passthrough, export i18n messages.
 - **2026-09-11 (review loop 1):** Advanced-elicitation critical review — resolved catalog vs row entitlement contradiction; documented single-pass custom-field-filter export path; added stale-filter parity, client page ignore, duplicate column rejection, row-set parity ACs, and expanded test/code-map expectations.
 - **2026-09-10 (draft):** Initial spec from `bmad-build` kickoff on `feature/2-4-export-respects-the-exporter-s-access`; Jira O4-38 → In Progress.
+
+### Review Findings
+
+- [x] [Review][Decision] Stale-filter parity vs SAME_FILTERS_AS_LIST — **Resolved (B):** accept export/list divergence on stale filters until a follow-up aligns `listEmployees` with `resolveApplicableFilters`.
+- [x] [Review][Patch] PER_ROW unit test uses wrong ACS mock and never asserts blank cells [services/people-service/src/modules/employees/__tests__/employees-export.service.spec.ts:115]
+- [x] [Review][Patch] Missing row-set parity test despite task checkbox marked done [services/people-service/src/modules/employees/__tests__/employees-export.service.spec.ts]
+- [x] [Review][Patch] Missing COLLEAGUE_API_CONTENT and colleague catalog-validation export tests [services/people-service/src/modules/employees/__tests__/employees-export.service.spec.ts]
+- [x] [Review][Patch] BFF `requestBinary` replaces upstream 400 validation bodies with generic error message [services/bff/src/modules/employees/employees.service.ts:166]
+- [x] [Review][Patch] Export live-region messages hardcoded in English (button uses i18n) [services/frontend/src/pages/AllEmployeesPage/hooks/useAllEmployeesPage.ts:295]
+- [x] [Review][Defer] No export row-count cap for large datasets [services/people-service/src/modules/employees/employees.service.ts] — deferred, spec Ask First allows no cap in v1
+- [x] [Review][Defer] Playwright e2e does not assert Export button hidden for colleague catalog [services/frontend/e2e/all-employees-export.spec.ts] — deferred, COLLEAGUE_UI_HIDDEN partially covered by Story 2.5 scope

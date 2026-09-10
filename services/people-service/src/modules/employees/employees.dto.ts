@@ -1,4 +1,4 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
@@ -45,4 +45,13 @@ export class ListEmployeesQueryDto {
   @IsInt()
   @Min(0)
   yearsWithCompanyMax?: number;
+}
+
+export class ExportEmployeesQueryDto extends ListEmployeesQueryDto {
+  @ApiProperty({
+    description: 'Comma-separated catalog column keys to export',
+    example: 'fullName,position',
+  })
+  @IsString()
+  columns!: string;
 }

@@ -672,3 +672,13 @@ Story 2.1 shipped in PR #65 (2026-09-10). Items below remain **open** follow-up 
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-3-saved-views.md`
   summary: Batch Prisma lookups in `SavedViewsService.toResponse` when listing many saved views with custom columns.
   evidence: bmad-code-review 2026-09-10; per-view/per-column `findUnique` loops acceptable for 2.3 view counts.
+
+## Deferred from: code review of spec-2-4-export-respects-the-exporter-s-access (2026-09-11)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-4-export-respects-the-exporter-s-access.md`
+  summary: Hard cap on exported row count (e.g. 5k/10k) for timeout protection.
+  evidence: bmad-code-review 2026-09-11; spec Ask First allows no cap in v1 unless perf testing demands it.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-4-export-respects-the-exporter-s-access.md`
+  summary: Playwright e2e asserting Export button hidden when `listAudienceLevel=colleague`.
+  evidence: bmad-code-review 2026-09-11; interim UI gate; full colleague lockout deferred to Story 2.5.

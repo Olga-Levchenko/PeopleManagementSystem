@@ -142,6 +142,23 @@ export class EmployeesController {
     );
   }
 
+  @Get('export')
+  async exportEmployees(
+    @Query() query: Record<string, string | undefined>,
+    @Req() request: Request,
+    @Res() response: Response,
+  ) {
+    const result = await this.service.exportEmployees(
+      query,
+      await this.context(request),
+    );
+    response.status(result.status);
+    for (const [header, value] of Object.entries(result.headers)) {
+      response.setHeader(header, value);
+    }
+    response.send(result.body);
+  }
+
   private async context(request: Request) {
     const session = request.session as BffSession | undefined;
     return {
