@@ -2,7 +2,7 @@
 title: 'Story 2.2: Inline editing writes through to the profile, subject to access'
 type: 'feature'
 created: '2026-09-10'
-status: 'in-progress'
+status: 'done'
 review_loop_iteration: 2
 baseline_commit: 'f8010b15137e5458e5d365f3b000adf078145c47'
 context:
