@@ -115,5 +115,46 @@ test.describe('All Employees saved views', () => {
 
     await expect(page.getByText('Read-only shared view')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Delete view' })).toHaveCount(0)
+  })
+
+  test('deletes owned view and returns to All tab', async ({ page }) => {
+    let savedViews = [ownedView, sharedView]
+
+    await page.route('**/api/v1/employees/saved-views**', async route => {
+      const method = route.request().method()
+      const url = route.request().url()
+
+      if (method === 'DELETE' && url.includes('/saved-views/view-owned')) {
+        savedViews = savedViews.filter(view => view.id !== 'view-owned')
+        await route.fulfill({ status: 204 })
+        return
+      }
+
+      if (method === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(savedViews),
+        })
+        return
+      }
+
+      await route.fallback()
+    })
+
+    page.on('dialog', dialog => {
+      void dialog.accept()
+    })
+
+    await page.goto('/all-employees')
+
+    await page.getByRole('button', { name: 'Kyiv team', exact: true }).click()
+    await page.getByRole('button', { name: 'Delete view' }).click()
+
+    await expect(page.getByRole('button', { name: 'Kyiv team', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Delete view' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'All', exact: true })).toHaveClass(/font-semibold/)
+    await expect(page.getByLabel('Country / city')).toHaveValue('')
   })
 })

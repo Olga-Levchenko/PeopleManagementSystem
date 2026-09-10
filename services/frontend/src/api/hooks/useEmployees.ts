@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createSavedViewApiCall,
+  deleteSavedViewApiCall,
   getFieldCatalogApiCall,
   listEmployeesApiCall,
   listSavedViewsApiCall,
@@ -70,6 +71,17 @@ export const useUpdateSavedView = () => {
       viewId: string
       body: UpdateSavedViewRequest
     }) => updateSavedViewApiCall(viewId, body),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['employees', 'saved-views'] })
+    },
+  })
+}
+
+export const useDeleteSavedView = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (viewId: string) => deleteSavedViewApiCall(viewId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['employees', 'saved-views'] })
     },

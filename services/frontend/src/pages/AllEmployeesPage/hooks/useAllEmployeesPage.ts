@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { EmployeeFieldCatalogEntry, EmployeeSavedView } from '@/api/employees'
 import {
   useCreateSavedView,
+  useDeleteSavedView,
   useEmployeeFieldCatalog,
   useEmployeesList,
   usePatchEmployeeField,
@@ -62,6 +63,7 @@ export const useAllEmployeesPage = () => {
   const patchMutation = usePatchEmployeeField(listParams)
   const createSavedViewMutation = useCreateSavedView()
   const updateSavedViewMutation = useUpdateSavedView()
+  const deleteSavedViewMutation = useDeleteSavedView()
   const [liveMessage, setLiveMessage] = useState('')
 
   const activeSavedView = useMemo(
@@ -245,6 +247,27 @@ export const useAllEmployeesPage = () => {
     setLiveMessage(`Created view "${created.name}".`)
   }
 
+  const deleteCurrentOwnedView = async () => {
+    if (!activeSavedView?.isOwner) {
+      return
+    }
+    const deletedId = activeSavedView.id
+    const deletedName = activeSavedView.name
+    try {
+      await deleteSavedViewMutation.mutateAsync(deletedId)
+      setOwnedBaselines(current => {
+        const next = { ...current }
+        delete next[deletedId]
+        return next
+      })
+      applyUiState(createDefaultUiState())
+      setActiveTabId('all')
+      setLiveMessage(`Deleted view "${deletedName}".`)
+    } catch {
+      setLiveMessage(`Failed to delete view "${deletedName}".`)
+    }
+  }
+
   const totalPages = listQuery.data
     ? Math.max(1, Math.ceil(listQuery.data.totalCount / listQuery.data.pageSize))
     : 1
@@ -272,6 +295,7 @@ export const useAllEmployeesPage = () => {
     patchMutation,
     createSavedViewMutation,
     updateSavedViewMutation,
+    deleteSavedViewMutation,
     liveMessage,
     saveField,
     page,
@@ -284,6 +308,7 @@ export const useAllEmployeesPage = () => {
     switchTab,
     saveCurrentOwnedView,
     renameCurrentOwnedView,
+    deleteCurrentOwnedView,
     createViewFromCurrentState,
     countryCity: uiState.countryCity,
     setCountryCity: (value: string) =>

@@ -50,6 +50,8 @@
       "saveChanges": "Save changes",
       "rename": "Rename",
       "renamePrompt": "New name for this saved view",
+      "delete": "Delete view",
+      "deleteConfirm": "Delete saved view \"{{name}}\"? This cannot be undone.",
       "readOnly": "Read-only shared view"
     }
   },
