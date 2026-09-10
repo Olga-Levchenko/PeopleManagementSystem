@@ -15,8 +15,33 @@
   },
   "sidebar": {
     "home": "Home",
+    "allEmployees": "All Employees",
     "relationships": "Relationships",
     "administration": "Administration"
+  },
+  "allEmployees": {
+    "title": "All Employees",
+    "description": "Browse, filter, and configure columns for your team.",
+    "loading": "Loading employees...",
+    "errors": {
+      "load": "Unable to load the employee list.",
+      "catalog": "Unable to load the field catalog."
+    },
+    "filters": {
+      "countryCity": "Country / city",
+      "yearsMin": "Years with company (min)",
+      "yearsMax": "Years with company (max)",
+      "apply": "Apply filters"
+    },
+    "columns": {
+      "manage": "Columns",
+      "title": "Visible columns"
+    },
+    "pagination": {
+      "summary": "Page {{page}} — {{total}} employees",
+      "previous": "Previous",
+      "next": "Next"
+    }
   },
   "administration": {
     "title": "Functional role administration",

@@ -135,6 +135,50 @@ export interface AccessRoleResolutionPort {
     viewerPersonId: string,
     subjectPersonId: string,
   ): Promise<AccessRoleResolution>;
+
+  resolveBatch(
+    viewerPersonId: string,
+    subjectPersonIds: readonly string[],
+  ): Promise<Map<string, AccessRoleResolution>>;
+}
+
+function batchItemToAccessRoleResolution(
+  item: Record<string, unknown>,
+): AccessRoleResolution {
+  return parseAccessRoleResolution({
+    reportingLine: item['reportingLine'],
+    projectLine: item['projectLine'],
+    peoplePartnerLine: item['peoplePartnerLine'],
+    fullProfileAccessLine: item['fullProfileAccessLine'],
+    managerSectionAccess: item['managerSectionAccess'],
+    peoplePartnerSectionAccess: item['peoplePartnerSectionAccess'],
+    fullProfileAccessSectionAccess: item['fullProfileAccessSectionAccess'],
+  });
+}
+
+function parseAccessRoleBatchResponse(
+  raw: unknown,
+): Map<string, AccessRoleResolution> {
+  const map = new Map<string, AccessRoleResolution>();
+  if (typeof raw !== 'object' || raw === null) {
+    return map;
+  }
+  const results = (raw as Record<string, unknown>)['results'];
+  if (!Array.isArray(results)) {
+    return map;
+  }
+  for (const entry of results) {
+    if (typeof entry !== 'object' || entry === null) {
+      continue;
+    }
+    const item = entry as Record<string, unknown>;
+    const subjectPersonId = item['subjectPersonId'];
+    if (typeof subjectPersonId !== 'string' || subjectPersonId.length === 0) {
+      continue;
+    }
+    map.set(subjectPersonId, batchItemToAccessRoleResolution(item));
+  }
+  return map;
 }
 
 /**
@@ -189,6 +233,66 @@ export class HttpAccessRoleResolutionAdapter implements AccessRoleResolutionPort
         `access-control-service unreachable resolving ${viewerPersonId} -> ${subjectPersonId}; failing closed to Colleague: ${(error as Error).message}`,
       );
       return NEITHER_LINE_RESOLUTION;
+    }
+  }
+
+  async resolveBatch(
+    viewerPersonId: string,
+    subjectPersonIds: readonly string[],
+  ): Promise<Map<string, AccessRoleResolution>> {
+    if (subjectPersonIds.length === 0) {
+      return new Map();
+    }
+
+    const baseUrl = this.config.getOrThrow<string>(
+      'ACCESS_CONTROL_SERVICE_BASE_URL',
+    );
+    const url = new URL('/api/v1/access-roles/resolve-batch', baseUrl);
+
+    try {
+      const accessToken = await this.tokenExchange.exchangeForAudience(
+        this.actor.accessToken,
+        'access-control-service',
+      );
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          viewerPersonId,
+          subjectPersonIds,
+        }),
+      });
+      if (!response.ok) {
+        this.logger.warn(
+          `access-control-service returned ${response.status} batch-resolving ${viewerPersonId} for ${subjectPersonIds.length} subjects; failing closed to Colleague for all`,
+        );
+        return new Map(
+          subjectPersonIds.map((subjectId) => [
+            subjectId,
+            NEITHER_LINE_RESOLUTION,
+          ]),
+        );
+      }
+      const parsed = parseAccessRoleBatchResponse(await response.json());
+      return new Map(
+        subjectPersonIds.map((subjectId) => [
+          subjectId,
+          parsed.get(subjectId) ?? NEITHER_LINE_RESOLUTION,
+        ]),
+      );
+    } catch (error) {
+      this.logger.warn(
+        `access-control-service unreachable batch-resolving ${viewerPersonId} for ${subjectPersonIds.length} subjects; failing closed to Colleague for all: ${(error as Error).message}`,
+      );
+      return new Map(
+        subjectPersonIds.map((subjectId) => [
+          subjectId,
+          NEITHER_LINE_RESOLUTION,
+        ]),
+      );
     }
   }
 }

@@ -9,6 +9,7 @@ import { OidcService } from './modules/auth/oidc.service';
 import { CustomFieldDefinitionsModule } from './modules/custom-field-definitions/custom-field-definitions.module';
 import { HealthModule } from './modules/health/health.module';
 import { OrganisationalRelationshipsModule } from './modules/organisational-relationships/organisational-relationships.module';
+import { EmployeesModule } from './modules/employees/employees.module';
 import { FunctionalRolesModule } from './modules/functional-roles/functional-roles.module';
 
 @Module({
@@ -19,6 +20,7 @@ import { FunctionalRolesModule } from './modules/functional-roles/functional-rol
     }),
     AuthModule,
     CustomFieldDefinitionsModule,
+    EmployeesModule,
     HealthModule,
     OrganisationalRelationshipsModule,
     FunctionalRolesModule,

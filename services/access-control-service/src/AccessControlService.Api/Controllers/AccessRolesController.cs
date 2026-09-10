@@ -143,14 +143,20 @@ public sealed class AccessRolesController : ControllerBase
                 ? ToResponse(ManagerSectionAccessPolicy.ResolveForPeoplePartner())
                 : null;
 
+            var fullProfileAccessSectionAccess = accessRole.FullProfileAccessLine
+                ? ToResponse(ManagerSectionAccessPolicy.ForFullProfileAccess())
+                : null;
+
             return new AccessRoleBatchResultItem
             {
                 SubjectPersonId = subjectId,
                 ReportingLine = accessRole.ReportingLine,
                 ProjectLine = accessRole.ProjectLine,
                 PeoplePartnerLine = accessRole.PeoplePartnerLine,
+                FullProfileAccessLine = accessRole.FullProfileAccessLine,
                 ManagerSectionAccess = managerSectionAccess,
                 PeoplePartnerSectionAccess = peoplePartnerSectionAccess,
+                FullProfileAccessSectionAccess = fullProfileAccessSectionAccess,
             };
         }).ToList();
 
@@ -352,4 +358,8 @@ public sealed record AccessRoleBatchResultItem
     /// <see cref="PeoplePartnerLine"/> is <c>false</c>.
     /// </summary>
     public required ManagerSectionAccessResponse? PeoplePartnerSectionAccess { get; init; }
+
+    public required bool FullProfileAccessLine { get; init; }
+
+    public required ManagerSectionAccessResponse? FullProfileAccessSectionAccess { get; init; }
 }

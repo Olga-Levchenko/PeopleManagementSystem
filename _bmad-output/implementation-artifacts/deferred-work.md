@@ -630,3 +630,37 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-13-persistent-session-store-and-oidc-e2e.md`
   summary: Add a note to BFF's deployment documentation that `createTableIfMissing: true` (connect-pg-simple) requires DDL privileges; if the production DB user has no CREATE TABLE rights, provide a manual SQL migration instead.
   evidence: `createTableIfMissing: true` will fail on startup in environments with a least-privilege DB user. No documentation currently warns about this; identified in Story 1.13 code review.
+
+## Deferred from: code review of spec-2-1-universal-filter-column-engine-over-profile-fields (2026-09-10)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-1-universal-filter-column-engine-over-profile-fields.md`
+  summary: Add an integration perf test that exercises real `access-control-service` batch resolve (not a mocked port) for 500+ subjects within the NFR-2 2s gate before production sign-off.
+  evidence: Story 2.1 `employees.e2e-spec.ts` overrides `AccessRoleResolutionPort`; it proves DB pagination latency only, not end-to-end permission resolution at scale.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-1-universal-filter-column-engine-over-profile-fields.md`
+  summary: Playwright e2e for `/all-employees` catalog-driven column/filter picker.
+  evidence: bmad-code-review 2026-09-10; no frontend e2e references All Employees page.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-1-universal-filter-column-engine-over-profile-fields.md`
+  summary: Extend stored field catalog with UX-mockup Person fields (`workEmail`, `workPhone`, manager/PP names, project name).
+  evidence: bmad-code-review 2026-09-10; `STORED_CATALOG_FIELDS` subset of available `Person` data.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-1-universal-filter-column-engine-over-profile-fields.md`
+  summary: Type-appropriate custom-field filter operators for NUMBER/DATE/BOOLEAN definitions.
+  evidence: bmad-code-review 2026-09-10; `buildWhereClause` uses string `equals` for all custom types.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-1-universal-filter-column-engine-over-profile-fields.md`
+  summary: ACS response caching or batching strategy to reduce catalog+list round trips on All Employees page load.
+  evidence: bmad-code-review 2026-09-10; catalog can trigger resolve + resolveBatch before list resolveBatch.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-1-universal-filter-column-engine-over-profile-fields.md`
+  summary: Share employees list/catalog DTOs via `libs/contracts` instead of frontend-local duplicates.
+  evidence: bmad-code-review 2026-09-10; types duplicated in `frontend/src/api/employees.ts`.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-1-universal-filter-column-engine-over-profile-fields.md`
+  summary: Profile navigation link from All Employees list rows; column picker persistence; `departmentId` filter UI.
+  evidence: bmad-code-review 2026-09-10; UX polish beyond 2.1 core ACs.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-1-universal-filter-column-engine-over-profile-fields.md`
+  summary: Employees module Swagger composite decorators and FPA batch HTTP composition test.
+  evidence: bmad-code-review 2026-09-10; OpenAPI and ACS batch API coverage gaps.

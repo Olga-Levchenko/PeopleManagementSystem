@@ -159,14 +159,22 @@ public sealed class AccessRoleResolver
                 viewerProjectIds, subjectPersonIds, cancellationToken);
         }
 
+        var fullProfileAccessLine = await _fullProfileAccessRepository.IsHolderAsync(
+            viewerPersonId,
+            cancellationToken);
+
         // Evaluate every subject in memory -- no additional DB round-trips.
         var results = new Dictionary<Guid, AccessRole>(subjectPersonIds.Count);
         foreach (var subjectId in subjectPersonIds)
         {
-            // Self-elevation is always fail-closed: the viewer cannot resolve toward themselves.
             if (subjectId == viewerPersonId)
             {
-                results[subjectId] = AccessRole.None;
+                // Match ResolveAsync: self-view preserves Full-profile-access only; relationship
+                // flags are false for self.
+                results[subjectId] = new AccessRole
+                {
+                    FullProfileAccessLine = fullProfileAccessLine,
+                };
                 continue;
             }
 
@@ -195,7 +203,7 @@ public sealed class AccessRoleResolver
                 peoplePartnerLine = ppId == viewerPersonId || reporteeIds.Contains(ppId);
             }
 
-            if (!reportingLine && !projectLine && !peoplePartnerLine)
+            if (!fullProfileAccessLine && !reportingLine && !projectLine && !peoplePartnerLine)
             {
                 results[subjectId] = AccessRole.None;
                 continue;
@@ -203,6 +211,7 @@ public sealed class AccessRoleResolver
 
             results[subjectId] = new AccessRole
             {
+                FullProfileAccessLine = fullProfileAccessLine,
                 ReportingLine = reportingLine,
                 ProjectLine = projectLine,
                 PeoplePartnerLine = peoplePartnerLine,

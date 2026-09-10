@@ -17,5 +17,6 @@ import { ProfileService } from './profile.service';
       useExisting: HttpAccessRoleResolutionAdapter,
     },
   ],
+  exports: ['AccessRoleResolutionPort'],
 })
 export class ProfileModule {}

@@ -10,6 +10,7 @@ import { HealthModule } from './modules/health/health.module';
 import { IdentityMappingsModule } from './modules/identity-mappings/identity-mappings.module';
 import { OrganisationalRelationshipsModule } from './modules/organisational-relationships/organisational-relationships.module';
 import { OutboxModule } from './modules/outbox/outbox.module';
+import { EmployeesModule } from './modules/employees/employees.module';
 import { ProfileModule } from './modules/profile/profile.module';
 import { PrismaModule } from './prisma/prisma.module';
 
@@ -27,6 +28,7 @@ import { PrismaModule } from './prisma/prisma.module';
     OrganisationalRelationshipsModule,
     OutboxModule,
     ProfileModule,
+    EmployeesModule,
   ],
   providers: [
     {
