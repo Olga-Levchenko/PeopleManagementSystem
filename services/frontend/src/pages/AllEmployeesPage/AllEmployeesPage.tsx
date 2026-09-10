@@ -1,6 +1,7 @@
 import { Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { InlineEditableCell } from './InlineEditableCell'
 import { useAllEmployeesPage } from './hooks/useAllEmployeesPage'
 
 export const AllEmployeesPage = () => {
@@ -26,14 +27,10 @@ export const AllEmployeesPage = () => {
     filterableCustomFields,
     customFieldFilters,
     setCustomFieldFilter,
+    liveMessage,
+    saveField,
+    patchMutation,
   } = useAllEmployeesPage()
-
-  const formatCell = (value: string | number | null | undefined) => {
-    if (value === null || value === undefined || value === '') {
-      return t('common.notAvailable')
-    }
-    return String(value)
-  }
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -44,6 +41,8 @@ export const AllEmployeesPage = () => {
           <p className="text-sm text-muted-foreground">{t('allEmployees.description')}</p>
         </div>
       </div>
+
+      <div aria-live="polite" className="sr-only">{liveMessage}</div>
 
       <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card p-4">
         <label className="flex flex-col gap-1 text-sm">
@@ -135,7 +134,13 @@ export const AllEmployeesPage = () => {
                   <tr key={row.personId} className="border-t border-border">
                     {visibleColumns.map(column => (
                       <td key={column.key} className="px-4 py-3 text-foreground">
-                        {formatCell(row.values[column.key])}
+                        <InlineEditableCell
+                          field={column}
+                          value={row.values[column.key]}
+                          editable={row.editableFields.includes(column.key)}
+                          saving={patchMutation.isPending}
+                          onSave={value => saveField(row.personId, column.key, value)}
+                        />
                       </td>
                     ))}
                   </tr>

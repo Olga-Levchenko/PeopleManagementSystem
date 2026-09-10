@@ -6,6 +6,33 @@ export function grantsSectionAccess(level: SectionAccessLevel): boolean {
   return level === 'Read' || level === 'ReadWrite';
 }
 
+export function grantsSectionWriteAccess(level: SectionAccessLevel): boolean {
+  return level === 'ReadWrite';
+}
+
+export function resolveS16WriteAccess(
+  resolution: AccessRoleResolution,
+): SectionAccessLevel {
+  const fullAccess =
+    resolution.fullProfileAccessLine &&
+    resolution.fullProfileAccessSectionAccess != null
+      ? resolution.fullProfileAccessSectionAccess
+      : null;
+  if (fullAccess) {
+    return mostPermissive(fullAccess.s16?.level);
+  }
+
+  const managerAccess =
+    resolution.reportingLine || resolution.projectLine
+      ? resolution.managerSectionAccess
+      : null;
+  const ppAccess = resolution.peoplePartnerLine
+    ? resolution.peoplePartnerSectionAccess
+    : null;
+
+  return mostPermissive(managerAccess?.s16?.level, ppAccess?.s16?.level);
+}
+
 export interface ResolvedProfileAudience {
   s1: SectionAccessLevel;
   s2: SectionAccessLevel;

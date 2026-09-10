@@ -4,8 +4,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import {
   deriveAudienceFromResolution,
   grantsSectionAccess,
+  grantsSectionWriteAccess,
+  resolveS16WriteAccess,
   type CustomFieldAudienceLevel,
 } from '../profile/profile-audience.util';
+import { EDITABLE_S1_FIELD_KEYS } from '../profile/profile-field-keys.util';
 import type {
   AccessRoleResolution,
   AccessRoleResolutionPort,
@@ -14,7 +17,7 @@ import { NEITHER_LINE_RESOLUTION } from '../profile/profile.ports';
 import { canSeeCustomField } from '../profile/profile.service';
 import type { ListEmployeesQueryDto } from './employees.dto';
 
-export type EmployeeFieldDataType = 'string' | 'number' | 'date';
+export type EmployeeFieldDataType = 'string' | 'number' | 'date' | 'boolean';
 
 export interface EmployeeFieldCatalogEntry {
   key: string;
@@ -32,6 +35,7 @@ export interface EmployeeFieldCatalogResponse {
 export interface EmployeeListRow {
   personId: string;
   values: Record<string, string | number | null>;
+  editableFields: string[];
 }
 
 export interface EmployeeListResponse {
@@ -177,8 +181,7 @@ export class EmployeesService {
         key: `custom:${definition.id}`,
         label: definition.name,
         kind: 'custom' as const,
-        dataType:
-          definition.dataType === 'NUMBER' ? 'number' : ('string' as const),
+        dataType: this.mapCustomFieldDataType(definition.dataType),
         filterable: true,
         columnable: true,
       }));
@@ -335,8 +338,66 @@ export class EmployeesService {
         values[`custom:${definition.id}`] = customFieldValue.value;
       }
 
-      return { personId: person.id, values };
+      const editableFields = this.computeEditableFields(
+        viewerPersonId,
+        person.id,
+        resolution,
+        audience,
+        person.customFieldValues,
+      );
+
+      return { personId: person.id, values, editableFields };
     });
+  }
+
+  private computeEditableFields(
+    viewerPersonId: string,
+    personId: string,
+    resolution: AccessRoleResolution,
+    audience: ReturnType<typeof deriveAudienceFromResolution>,
+    customFieldValues: PersonListRecord['customFieldValues'],
+  ): string[] {
+    if (viewerPersonId === personId) {
+      return [];
+    }
+
+    const editable: string[] = [];
+
+    if (grantsSectionWriteAccess(audience.s1)) {
+      for (const key of EDITABLE_S1_FIELD_KEYS) {
+        editable.push(key);
+      }
+    }
+
+    if (grantsSectionWriteAccess(resolveS16WriteAccess(resolution))) {
+      for (const customFieldValue of customFieldValues) {
+        const definition = customFieldValue.definition;
+        if (
+          definition.isActive &&
+          canSeeCustomField(
+            definition.visibility,
+            audience.customFieldAudienceLevel,
+          )
+        ) {
+          editable.push(`custom:${definition.id}`);
+        }
+      }
+    }
+
+    return editable;
+  }
+
+  private mapCustomFieldDataType(dataType: string): EmployeeFieldDataType {
+    switch (dataType) {
+      case 'NUMBER':
+        return 'number';
+      case 'DATE':
+        return 'date';
+      case 'BOOLEAN':
+        return 'boolean';
+      default:
+        return 'string';
+    }
   }
 
   private subjectPassesCustomFieldFilters(

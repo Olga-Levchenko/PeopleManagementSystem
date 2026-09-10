@@ -106,6 +106,14 @@ All-sections-ReadWrite coverage for the FPA viewer is verified in the resolve E2
 gets management-level custom fields, not employee-level) is covered in `people-service`'s
 `profile.service.spec.ts`.
 
+**Test coverage note (Story 2.2 — inline profile-field writes):** S1 and S16 **ReadWrite** gates
+for the All Employees write path are covered in `people-service`'s
+`profile.service.spec.ts` (`patchProfileField`: self-edit 403, R-only 403, RW success,
+org-relationship `ORG_RELATIONSHIP_FIELD_NOT_EDITABLE`, derived-field 400) and
+`profile.e2e-spec.ts` (HTTP PATCH self-edit 403, R-only 403, RW persist). Per-row
+`editableFields` (Read vs ReadWrite distinction, own-row `[]`) is covered in
+`employees.service.spec.ts`. BFF PATCH proxy: `bff/.../employees.service.spec.ts`.
+
 **Test coverage note (Story 1.7 — S7 management-notes flag gating):** the **S7 row** above is
 marked `full` — positive and negative coverage exists for every non-uniform cell: Self (positive:
 the employee sees a note once `visibleForEmployee` flips true, `management-notes.e2e-spec.ts`'s

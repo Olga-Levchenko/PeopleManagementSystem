@@ -898,6 +898,277 @@ describe('ProfileService', () => {
   });
 });
 
+describe('ProfileService.patchProfileField', () => {
+  const createPatchService = (
+    accessRoleResolution: AccessRoleResolutionPort,
+    prismaOverrides: Record<string, unknown> = {},
+  ) => {
+    const personUpdate = jest.fn().mockResolvedValue({});
+    const prisma = {
+      person: {
+        findUnique: jest.fn().mockResolvedValue({ id: SUBJECT_ID }),
+        update: personUpdate,
+      },
+      customFieldDefinition: {
+        findUnique: jest.fn(),
+      },
+      customFieldValue: {
+        upsert: jest.fn().mockResolvedValue({}),
+      },
+      ...prismaOverrides,
+    } as unknown as PrismaService;
+
+    return {
+      service: new ProfileService(prisma, accessRoleResolution),
+      prisma,
+      personUpdate,
+    };
+  };
+
+  const managerRwResolution = {
+    ...NEITHER_LINE_RESOLUTION,
+    reportingLine: true,
+    managerSectionAccess: {
+      s1: { level: 'ReadWrite' as const },
+      s2: { level: 'ReadWrite' as const },
+      s10: { level: 'Read' as const },
+      s11: { level: 'Read' as const },
+      s16: { level: 'ReadWrite' as const },
+    },
+  };
+
+  it('rejects self-edit with 403', async () => {
+    const resolve = jest.fn();
+    const { service } = createPatchService({ resolve });
+
+    await expect(
+      service.patchProfileField(VIEWER_ID, VIEWER_ID, 'countryCity', 'Lviv'),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
+  it('rejects R-only S1 patch with 403', async () => {
+    const resolve = jest.fn().mockResolvedValue({
+      ...NEITHER_LINE_RESOLUTION,
+      reportingLine: true,
+      managerSectionAccess: {
+        s1: { level: 'Read' as const },
+        s2: { level: 'Read' as const },
+        s10: { level: 'Read' as const },
+        s11: { level: 'Read' as const },
+        s16: { level: 'Read' as const },
+      },
+    });
+    const { service } = createPatchService({ resolve });
+
+    await expect(
+      service.patchProfileField(VIEWER_ID, SUBJECT_ID, 'countryCity', 'Lviv'),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('persists RW stored field and echoes persisted value', async () => {
+    const resolve = jest.fn().mockResolvedValue(managerRwResolution);
+    const { service, personUpdate } = createPatchService({ resolve });
+
+    const result = await service.patchProfileField(
+      VIEWER_ID,
+      SUBJECT_ID,
+      'countryCity',
+      'Lviv',
+    );
+
+    expect(personUpdate).toHaveBeenCalledWith({
+      where: { id: SUBJECT_ID },
+      data: { countryCity: 'Lviv' },
+    });
+    expect(result).toEqual({ fieldKey: 'countryCity', value: 'Lviv' });
+  });
+
+  it('rejects org-relationship keys with ORG_RELATIONSHIP_FIELD_NOT_EDITABLE', async () => {
+    const resolve = jest.fn().mockResolvedValue(managerRwResolution);
+    const { service } = createPatchService({ resolve });
+
+    await expect(
+      service.patchProfileField(
+        VIEWER_ID,
+        SUBJECT_ID,
+        'departmentName',
+        'Platform',
+      ),
+    ).rejects.toMatchObject({
+      status: 403,
+      response: {
+        error: 'ORG_RELATIONSHIP_FIELD_NOT_EDITABLE',
+      },
+    });
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
+  it('rejects derived yearsWithCompany with 400', async () => {
+    const resolve = jest.fn();
+    const { service } = createPatchService({ resolve });
+
+    await expect(
+      service.patchProfileField(VIEWER_ID, SUBJECT_ID, 'yearsWithCompany', 3),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
+  it('rejects empty fullName with 400', async () => {
+    const resolve = jest.fn().mockResolvedValue(managerRwResolution);
+    const { service } = createPatchService({ resolve });
+
+    await expect(
+      service.patchProfileField(VIEWER_ID, SUBJECT_ID, 'fullName', '   '),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('rejects malformed custom field keys with 400', async () => {
+    const resolve = jest.fn();
+    const { service } = createPatchService({ resolve });
+
+    await expect(
+      service.patchProfileField(
+        VIEWER_ID,
+        SUBJECT_ID,
+        'custom:not-a-uuid',
+        'x',
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
+  it('rejects inactive custom field definitions with 400', async () => {
+    const resolve = jest.fn().mockResolvedValue(managerRwResolution);
+    const customFieldUpsert = jest.fn().mockResolvedValue({});
+    const { service } = createPatchService(
+      { resolve },
+      {
+        customFieldDefinition: {
+          findUnique: jest.fn().mockResolvedValue({
+            id: MGMT_FIELD_ID,
+            visibility: 'MANAGEMENT',
+            dataType: 'TEXT',
+            isActive: false,
+          }),
+        },
+        customFieldValue: { upsert: customFieldUpsert },
+      },
+    );
+
+    await expect(
+      service.patchProfileField(
+        VIEWER_ID,
+        SUBJECT_ID,
+        `custom:${MGMT_FIELD_ID}`,
+        'G5',
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(customFieldUpsert).not.toHaveBeenCalled();
+  });
+
+  it('persists stored field for Full profile access holder with 200', async () => {
+    const fpaResolution = {
+      ...NEITHER_LINE_RESOLUTION,
+      fullProfileAccessLine: true,
+      fullProfileAccessSectionAccess: {
+        s1: { level: 'ReadWrite' as const },
+        s2: { level: 'ReadWrite' as const },
+        s10: { level: 'ReadWrite' as const },
+        s11: { level: 'ReadWrite' as const },
+        s16: { level: 'ReadWrite' as const },
+      },
+    };
+    const resolve = jest.fn().mockResolvedValue(fpaResolution);
+    const { service, personUpdate } = createPatchService({ resolve });
+
+    const result = await service.patchProfileField(
+      VIEWER_ID,
+      SUBJECT_ID,
+      'countryCity',
+      'Lviv',
+    );
+
+    expect(personUpdate).toHaveBeenCalledWith({
+      where: { id: SUBJECT_ID },
+      data: { countryCity: 'Lviv' },
+    });
+    expect(result).toEqual({ fieldKey: 'countryCity', value: 'Lviv' });
+  });
+
+  it('rejects custom field patch when S16 is Read-only with 403', async () => {
+    const s16ReadOnlyResolution = {
+      ...NEITHER_LINE_RESOLUTION,
+      reportingLine: true,
+      managerSectionAccess: {
+        s1: { level: 'ReadWrite' as const },
+        s2: { level: 'ReadWrite' as const },
+        s10: { level: 'Read' as const },
+        s11: { level: 'Read' as const },
+        s16: { level: 'Read' as const },
+      },
+    };
+    const resolve = jest.fn().mockResolvedValue(s16ReadOnlyResolution);
+    const customFieldUpsert = jest.fn().mockResolvedValue({});
+    const { service } = createPatchService(
+      { resolve },
+      {
+        customFieldDefinition: {
+          findUnique: jest.fn().mockResolvedValue({
+            id: MGMT_FIELD_ID,
+            visibility: 'MANAGEMENT',
+            dataType: 'TEXT',
+            isActive: true,
+          }),
+        },
+        customFieldValue: { upsert: customFieldUpsert },
+      },
+    );
+
+    await expect(
+      service.patchProfileField(
+        VIEWER_ID,
+        SUBJECT_ID,
+        `custom:${MGMT_FIELD_ID}`,
+        'G5',
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(customFieldUpsert).not.toHaveBeenCalled();
+  });
+
+  it('upserts custom field values when S16 ReadWrite and visibility allow', async () => {
+    const resolve = jest.fn().mockResolvedValue(managerRwResolution);
+    const customFieldUpsert = jest.fn().mockResolvedValue({});
+    const { service } = createPatchService(
+      { resolve },
+      {
+        customFieldDefinition: {
+          findUnique: jest.fn().mockResolvedValue({
+            id: MGMT_FIELD_ID,
+            visibility: 'MANAGEMENT',
+            dataType: 'TEXT',
+            isActive: true,
+          }),
+        },
+        customFieldValue: { upsert: customFieldUpsert },
+      },
+    );
+
+    const result = await service.patchProfileField(
+      VIEWER_ID,
+      SUBJECT_ID,
+      `custom:${MGMT_FIELD_ID}`,
+      'G5',
+    );
+
+    expect(customFieldUpsert).toHaveBeenCalled();
+    expect(result).toEqual({
+      fieldKey: `custom:${MGMT_FIELD_ID}`,
+      value: 'G5',
+    });
+  });
+});
+
 describe('parseAccessRoleResolution', () => {
   it('non-object input -> NEITHER_LINE_RESOLUTION (fail closed)', () => {
     expect(parseAccessRoleResolution(null)).toEqual(NEITHER_LINE_RESOLUTION);

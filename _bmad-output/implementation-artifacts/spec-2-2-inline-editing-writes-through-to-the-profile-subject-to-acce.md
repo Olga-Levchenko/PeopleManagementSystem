@@ -2,7 +2,7 @@
 title: 'Story 2.2: Inline editing writes through to the profile, subject to access'
 type: 'feature'
 created: '2026-09-10'
-status: 'ready-for-dev'
+status: 'in-progress'
 review_loop_iteration: 2
 baseline_commit: 'f8010b15137e5458e5d365f3b000adf078145c47'
 context:
@@ -73,15 +73,15 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `profile-audience.util.ts` — `grantsSectionWriteAccess` + `resolveS16WriteAccess`; unit tests for Read vs ReadWrite and FPA/manager/PP S16 paths
-- [ ] `profile.service.ts` — `patchProfileField` with self-edit 403, resolve, per-field section gate, org-relationship key blocklist, runtime `value` validation per field key, Prisma write for S1 stored + S16 custom values; org-relationship rejection throws `ForbiddenException` with `error: 'ORG_RELATIONSHIP_FIELD_NOT_EDITABLE'`
-- [ ] `profile.controller.ts` — authenticated PATCH endpoint; ValidationPipe on DTO (`fieldKey` only — `value` validated in service); 200 response shape `{ fieldKey, value }`
-- [ ] `employees.service.ts` — per-row `editableFields` via `grantsSectionWriteAccess` + `resolveS16WriteAccess` + blocklist; return `[]` when `viewerPersonId === person.id`; no editable derived fields
-- [ ] `employees.service.ts` (catalog) — extend custom-field catalog `dataType` from Story 2.1's `number`/`string` to `string` | `number` | `date` | `boolean` aligned with Prisma `CustomFieldDataType`
-- [ ] `bff/.../employees.controller.ts` + `employees.service.ts` — forward PATCH with auth headers
-- [ ] `AllEmployeesPage` + hooks — inline edit UX (blur/confirm, Escape cancel, Enter save), refetch-on-success, `aria-live` confirmation/error
-- [ ] `profile.service.spec.ts` + `employees.service.spec.ts` — self-edit 403, own-row `editableFields: []`, R-only 403, RW success, per-row editableFields variance, custom field paths, org-relationship rejection (`error` code), inactive custom field 400
-- [ ] `profile.e2e-spec.ts` or `employees.e2e-spec.ts` — HTTP PATCH negative tests for R-only editor and viewer-is-subject
+- [x] `profile-audience.util.ts` — `grantsSectionWriteAccess` + `resolveS16WriteAccess`; unit tests for Read vs ReadWrite and FPA/manager/PP S16 paths
+- [x] `profile.service.ts` — `patchProfileField` with self-edit 403, resolve, per-field section gate, org-relationship key blocklist, runtime `value` validation per field key, Prisma write for S1 stored + S16 custom values; org-relationship rejection throws `ForbiddenException` with `error: 'ORG_RELATIONSHIP_FIELD_NOT_EDITABLE'`
+- [x] `profile.controller.ts` — authenticated PATCH endpoint; ValidationPipe on DTO (`fieldKey` only — `value` validated in service); 200 response shape `{ fieldKey, value }`
+- [x] `employees.service.ts` — per-row `editableFields` via `grantsSectionWriteAccess` + `resolveS16WriteAccess` + blocklist; return `[]` when `viewerPersonId === person.id`; no editable derived fields
+- [x] `employees.service.ts` (catalog) — extend custom-field catalog `dataType` from Story 2.1's `number`/`string` to `string` | `number` | `date` | `boolean` aligned with Prisma `CustomFieldDataType`
+- [x] `bff/.../employees.controller.ts` + `employees.service.ts` — forward PATCH with auth headers
+- [x] `AllEmployeesPage` + hooks — inline edit UX (blur/confirm, Escape cancel, Enter save), refetch-on-success, `aria-live` confirmation/error
+- [x] `profile.service.spec.ts` + `employees.service.spec.ts` — self-edit 403, own-row `editableFields: []`, R-only 403, RW success, per-row editableFields variance, custom field paths, org-relationship rejection (`error` code), inactive custom field 400
+- [x] `profile.e2e-spec.ts` or `employees.e2e-spec.ts` — HTTP PATCH negative tests for R-only editor and viewer-is-subject
 
 **Acceptance Criteria:**
 - Given an editor who holds only Read access to a field for a subject, when they submit an inline edit to that field, then the edit is rejected server-side with 403 — direct API calls fail the same way as the UI

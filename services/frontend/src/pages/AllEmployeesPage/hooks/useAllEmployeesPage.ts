@@ -1,6 +1,10 @@
 import { useMemo, useState } from 'react'
 import type { EmployeeFieldCatalogEntry } from '@/api/employees'
-import { useEmployeeFieldCatalog, useEmployeesList } from '@/api/hooks/useEmployees'
+import {
+  useEmployeeFieldCatalog,
+  useEmployeesList,
+  usePatchEmployeeField,
+} from '@/api/hooks/useEmployees'
 
 const DEFAULT_COLUMNS = ['fullName', 'position', 'departmentName', 'countryCity']
 
@@ -24,14 +28,18 @@ export const useAllEmployeesPage = () => {
   const [customFieldFilters, setCustomFieldFilters] = useState<Record<string, string>>({})
 
   const catalogQuery = useEmployeeFieldCatalog()
-  const listQuery = useEmployeesList({
+  const listParams = {
     page,
     pageSize,
     countryCity: countryCity.trim() || undefined,
     yearsWithCompanyMin: parseOptionalInt(yearsMin),
     yearsWithCompanyMax: parseOptionalInt(yearsMax),
     customFieldFilters,
-  })
+  }
+
+  const listQuery = useEmployeesList(listParams)
+  const patchMutation = usePatchEmployeeField(listParams)
+  const [liveMessage, setLiveMessage] = useState('')
 
   const filterableCustomFields = useMemo(
     () =>
@@ -73,9 +81,28 @@ export const useAllEmployeesPage = () => {
     ? Math.max(1, Math.ceil(listQuery.data.totalCount / listQuery.data.pageSize))
     : 1
 
+  const saveField = async (
+    subjectPersonId: string,
+    fieldKey: string,
+    value: unknown,
+  ) => {
+    try {
+      await patchMutation.mutateAsync({
+        subjectPersonId,
+        body: { fieldKey, value },
+      })
+      setLiveMessage(`Saved ${fieldKey}.`)
+    } catch {
+      setLiveMessage(`Failed to save ${fieldKey}.`)
+    }
+  }
+
   return {
     catalogQuery,
     listQuery,
+    patchMutation,
+    liveMessage,
+    saveField,
     page,
     setPage,
     totalPages,

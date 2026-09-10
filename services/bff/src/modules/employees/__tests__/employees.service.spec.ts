@@ -49,6 +49,32 @@ describe('EmployeesService', () => {
     expect(call[1].method).toBe('GET');
   });
 
+  it('routes PATCH field updates to people-service profile endpoint', async () => {
+    const subjectPersonId = '22222222-2222-4222-8222-222222222222';
+    fetchMock.mockResolvedValue({
+      status: 200,
+      ok: true,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: jest
+        .fn()
+        .mockResolvedValue({ fieldKey: 'countryCity', value: 'Lviv' }),
+    } as unknown as Response);
+
+    const result = await service.patchField(
+      subjectPersonId,
+      { fieldKey: 'countryCity', value: 'Lviv' },
+      context,
+    );
+
+    const call = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(call[0]).toBe(
+      `${peopleServiceUrl}/api/v1/people/${subjectPersonId}/profile/fields`,
+    );
+    expect(call[1].method).toBe('PATCH');
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ fieldKey: 'countryCity', value: 'Lviv' });
+  });
+
   it('forwards years and custom field query params to people-service', async () => {
     await service.list(
       {
