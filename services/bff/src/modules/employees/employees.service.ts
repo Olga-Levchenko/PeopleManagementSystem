@@ -167,9 +167,17 @@ export class EmployeesService {
       const errorContentType = response.headers.get('content-type') ?? '';
       if (errorContentType.includes('application/json')) {
         try {
-          const errorBody = JSON.parse(body.toString('utf8')) as unknown;
+          const parsed: unknown = JSON.parse(body.toString('utf8'));
+          const errorBody =
+            typeof parsed === 'string' ||
+            (typeof parsed === 'object' && parsed !== null)
+              ? (parsed as string | Record<string, unknown>)
+              : {
+                  statusCode: this.safeErrorStatus(response.status),
+                  message: this.safeErrorMessage(response.status),
+                };
           throw new HttpException(
-            errorBody,
+            errorBody as string | Record<string, unknown>,
             this.safeErrorStatus(response.status),
           );
         } catch (error) {
