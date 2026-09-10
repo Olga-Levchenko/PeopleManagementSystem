@@ -38,9 +38,9 @@ reaching this layer, and this layer must not reintroduce them. Per-area conventi
 - `app.module.ts` — root module: imports only, no controllers/services
 - `config/` — infrastructure: Joi env validation schema
 - `modules/` — feature modules, one folder per feature; seeded modules today are `modules/health`,
-  `modules/organisational-relationships`, and `modules/auth` (the global JWT guard — `jwt.strategy.ts`,
-  `jwt-auth.guard.ts`, `public.decorator.ts`, `auth.module.ts`) — add further feature modules under
-  `modules/<name>`
+  `modules/organisational-relationships`, `modules/management-notes`, and `modules/auth` (the
+  global JWT guard — `jwt.strategy.ts`, `jwt-auth.guard.ts`, `public.decorator.ts`,
+  `auth.module.ts`) — add further feature modules under `modules/<name>`
 
 There is deliberately no `prisma/` or `src/prisma/` here — this service does not own a database.
 
@@ -94,10 +94,14 @@ is validated (JWT signature/claims) and logged, but no BFF session is destroyed 
 `MemoryStore` has no index on `userId`/`sid`. Production back-channel logout requires a
 persistent store with a userId/sid lookup. See `AuthController.backchannelLogout`.
 
-**Forwarding modules:** `OrganisationalRelationshipsController` (and any future forwarding module)
-resolves the outbound `Authorization` header as: (1) an audience-specific exchanged token for a
+**Forwarding modules:** `OrganisationalRelationshipsController`/`FunctionalRolesController`
+resolve the outbound `Authorization` header as: (1) an audience-specific exchanged token for a
 browser session user; (2) an incoming bearer token for a non-session service caller. The browser
-session token is never forwarded directly to a domain service.
+session token is never forwarded directly to a domain service. `ManagementNotesController` is the
+one exception: work-management-service's `JwtStrategy` still validates the plain
+`bff-confidential` audience (no dedicated `work-management-service-audience` client scope exists
+yet), so it forwards the session/incoming bearer token unchanged instead of exchanging it — revisit
+once work-management-service adopts a dedicated audience.
 
 ## Gotchas
 

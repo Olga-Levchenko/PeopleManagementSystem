@@ -8,6 +8,7 @@ import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 import { OidcService } from './modules/auth/oidc.service';
 import { CustomFieldDefinitionsModule } from './modules/custom-field-definitions/custom-field-definitions.module';
 import { HealthModule } from './modules/health/health.module';
+import { ManagementNotesModule } from './modules/management-notes/management-notes.module';
 import { OrganisationalRelationshipsModule } from './modules/organisational-relationships/organisational-relationships.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { FunctionalRolesModule } from './modules/functional-roles/functional-roles.module';
@@ -22,6 +23,7 @@ import { FunctionalRolesModule } from './modules/functional-roles/functional-rol
     CustomFieldDefinitionsModule,
     EmployeesModule,
     HealthModule,
+    ManagementNotesModule,
     OrganisationalRelationshipsModule,
     FunctionalRolesModule,
   ],
