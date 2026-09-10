@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "manifest": "SM-1",
+  "sourceOfTruth": "docs/access-control/section-matrix.md",
+  "scope": "Epic 1 FR-1 through FR-7 access-control evidence across access-control-service policy/resolver tests, people-service profile assembly e2e, and work-management-service S7 e2e",
+  "exclusions": {
+    "sharedLink": "inapplicable: profile sharing is Epic 6 and is not implemented here",
+    "campaignAuthorS14": "inapplicable: campaign-author exception belongs to Epic 11",
+    "hrAdmin": "inapplicable: HR Admin is configuration-only, not a data-access audience"
+  },
+  "sections": {
+    "S1": "implemented",
+    "S2": "implemented",
+    "S3": "implemented",
+    "S4": "implemented",
+    "S5": "implemented",
+    "S6": "implemented",
+    "S7": "implemented",
+    "S8": "implemented",
+    "S9": "implemented",
+    "S10": "implemented",
+    "S11": "implemented",
+    "S12": "implemented",
+    "S13": "implemented",
+    "S14": "implemented",
+    "S15": "implemented",
+    "S16": "implemented"
+  },
+  "cases": [
+    {
+      "audience": "self",
+      "relationshipPath": "self",
+      "status": "covered",
+      "sections": ["S1", "S2", "S10", "S11", "S16"],
+      "evidence": "services/people-service/test/profile.e2e-spec.ts::Self: non-FPA self-view"
+    },
+    {
+      "audience": "self",
+      "relationshipPath": "self",
+      "status": "covered",
+      "sections": ["S7"],
+      "evidence": "services/work-management-service/test/management-notes.e2e-spec.ts::AC2: an unflagged note is absent from the subject employee"
+    },
+    {
+      "audience": "reporting_line",
+      "relationshipPath": "direct_report",
+      "status": "covered",
+      "sections": ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11", "S12", "S13", "S14", "S15", "S16"],
+      "evidence": "services/access-control-service/tests/AccessControlService.Api.Tests/AccessRoleResolverCompositionTests.cs::ResolveEndpoint_ReportingLineOnly_ReturnsUnnarrowedManagerSectionAccess"
+    },
+    {
+      "audience": "reporting_line",
+      "relationshipPath": "two_levels_up",
+      "status": "covered",
+      "sections": ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11", "S12", "S13", "S14", "S15", "S16"],
+      "evidence": "services/access-control-service/tests/AccessControlService.Domain.Tests/AccessRoleResolverTests.cs::ResolveAsync_TransitiveReportsToNDeep_ReportingLineQualifies"
+    },
+    {
+      "audience": "reporting_line",
+      "relationshipPath": "department_manager",
+      "status": "covered",
+      "sections": ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11", "S12", "S13", "S14", "S15", "S16"],
+      "evidence": "services/access-control-service/tests/AccessControlService.Api.Tests/AccessRoleResolverCompositionTests.cs::BatchResolveEndpoint_DepartmentManagement_ReturnsReportingLineTrue"
+    },
+    {
+      "audience": "project_line",
+      "relationshipPath": "pm_project",
+      "status": "covered",
+      "sections": ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11", "S12", "S13", "S14", "S15", "S16"],
+      "evidence": "services/access-control-service/tests/AccessControlService.Api.Tests/AccessRoleResolverCompositionTests.cs::ResolveEndpoint_ProjectLineViaPmOnly_ReturnsProjectRolesWithProjectManagerOnly"
+    },
+    {
+      "audience": "project_line",
+      "relationshipPath": "dm_project",
+      "status": "covered",
+      "sections": ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11", "S12", "S13", "S14", "S15", "S16"],
+      "evidence": "services/access-control-service/tests/AccessControlService.Api.Tests/AccessRoleResolverCompositionTests.cs::ResolveEndpoint_ProjectLineViaDmOnly_ReturnsProjectRolesWithDeliveryManagerOnly"
+    },
+    {
+      "audience": "project_line",
+      "relationshipPath": "pm_project",
+      "status": "covered",
+      "sections": ["S2", "S3", "S7"],
+      "evidence": "services/access-control-service/tests/AccessControlService.Domain.Tests/ManagerSectionAccessPolicyTests.cs::Resolve_ProjectLineOnly_S2IsNone"
+    },
+    {
+      "audience": "people_partner",
+      "relationshipPath": "assigned_pp",
+      "status": "covered",
+      "sections": ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11", "S12", "S13", "S14", "S15", "S16"],
+      "evidence": "services/access-control-service/tests/AccessControlService.Api.Tests/AccessRoleResolverCompositionTests.cs::ResolveEndpoint_DirectPp_ReturnsPeoplePartnerLineTrueWithUnnarrowedSectionAccess"
+    },
+    {
+      "audience": "people_partner",
+      "relationshipPath": "pp_hr_line",
+      "status": "covered",
+      "sections": ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11", "S12", "S13", "S14", "S15", "S16"],
+      "evidence": "services/access-control-service/tests/AccessControlService.Api.Tests/AccessRoleResolverCompositionTests.cs::ResolveEndpoint_HrLineTransitive_ReturnsPeoplePartnerLineTrue"
+    },
+    {
+      "audience": "colleague",
+      "relationshipPath": "no_relationship",
+      "status": "covered",
+      "sections": ["S1", "S10", "S11", "S16"],
+      "evidence": "services/people-service/test/profile.e2e-spec.ts::Colleague: neither line qualifies"
+    },
+    {
+      "audience": "colleague",
+      "relationshipPath": "no_relationship",
+      "status": "covered",
+      "sections": ["S7"],
+      "evidence": "services/work-management-service/test/management-notes.e2e-spec.ts::colleague (no qualifying line) gets 403 on list, create, and update"
+    },
+    {
+      "audience": "full_profile_access",
+      "relationshipPath": "grant_without_relationship",
+      "status": "covered",
+      "sections": ["S1", "S2", "S10", "S11", "S16"],
+      "evidence": "services/people-service/test/profile.e2e-spec.ts::Full-profile-access holder"
+    },
+    {
+      "audience": "full_profile_access",
+      "relationshipPath": "grant_without_relationship",
+      "status": "covered",
+      "sections": ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11", "S12", "S13", "S14", "S15", "S16"],
+      "evidence": "services/access-control-service/tests/AccessControlService.Api.Tests/AccessRoleResolverCompositionTests.cs::ResolveEndpoint_FullProfileAccessHolder_WithNoRelationshipToSubject_OnlyFullProfileAccessLineIsTrue"
+    },
+    {
+      "audience": "project_line",
+      "relationshipPath": "pm_project",
+      "status": "covered",
+      "sections": ["S7"],
+      "evidence": "services/work-management-service/test/management-notes.e2e-spec.ts::AC2: an unflagged note is absent from a PM-only viewer"
+    }
+  ],
+  "gaps": [],
+  "validation": {
+    "complete": true,
+    "policy": "Every required audience x relationship-path combination is covered with cited automated test evidence; inapplicable exclusions do not count as green coverage"
+  }
+}
