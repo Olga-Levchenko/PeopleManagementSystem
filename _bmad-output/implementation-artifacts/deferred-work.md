@@ -633,6 +633,8 @@
 
 ## Deferred from: code review of spec-2-1-universal-filter-column-engine-over-profile-fields (2026-09-10)
 
+Story 2.1 shipped in PR #65 (2026-09-10). Items below remain **open** follow-up work (not blockers for the merge).
+
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-1-universal-filter-column-engine-over-profile-fields.md`
   summary: Add an integration perf test that exercises real `access-control-service` batch resolve (not a mocked port) for 500+ subjects within the NFR-2 2s gate before production sign-off.
   evidence: Story 2.1 `employees.e2e-spec.ts` overrides `AccessRoleResolutionPort`; it proves DB pagination latency only, not end-to-end permission resolution at scale.
