@@ -8,12 +8,14 @@ mkdir -p "$LOG_DIR"
 
 docker compose --project-directory "$INFRA_DIR" --env-file "$INFRA_DIR/.env" up -d
 
+# The NestJS services expose 'start:dev'; the Vite frontend exposes 'dev' instead.
 start_node_service() {
   local name="$1"
   local directory="$2"
+  local script="${3:-start:dev}"
   (
     cd "$REPO_ROOT/$directory"
-    exec npm run start:dev
+    exec npm run "$script"
   ) >"$LOG_DIR/$name.log" 2>&1 &
   echo "$!" >"$LOG_DIR/$name.pid"
 }
@@ -44,7 +46,7 @@ start_dotnet_service access-control-service \
   --project src/AccessControlService.Api \
   --launch-profile http
 start_node_service bff services/bff
-start_node_service frontend services/frontend
+start_node_service frontend services/frontend dev
 
 echo
 echo "All application services were started."

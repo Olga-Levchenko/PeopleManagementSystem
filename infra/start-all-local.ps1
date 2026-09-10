@@ -8,10 +8,11 @@ if ($LASTEXITCODE -ne 0) {
     throw 'Docker infrastructure could not be started.'
 }
 
-function Start-NodeService([string]$Directory) {
+# The NestJS services expose 'start:dev'; the Vite frontend exposes 'dev' instead.
+function Start-NodeService([string]$Directory, [string]$Script = 'start:dev') {
     Start-Process `
         -FilePath 'npm.cmd' `
-        -ArgumentList @('run', 'start:dev') `
+        -ArgumentList @('run', $Script) `
         -WorkingDirectory (Join-Path $RepoRoot $Directory) `
         -WindowStyle Normal
 }
@@ -41,7 +42,7 @@ Start-DotnetService 'services\access-control-service' @(
     '--launch-profile', 'http'
 )
 Start-NodeService 'services\bff'
-Start-NodeService 'services\frontend'
+Start-NodeService 'services\frontend' 'dev'
 
 Write-Host ''
 Write-Host 'All application services were started.'
