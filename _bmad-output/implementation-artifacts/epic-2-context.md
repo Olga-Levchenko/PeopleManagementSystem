@@ -9,7 +9,7 @@ Managers and people partners browse, filter, configure columns, edit inline, sav
 ## Stories
 
 - Story 2.1: Universal filter/column engine over profile fields — **done**
-- Story 2.2: Inline editing writes through to the profile, subject to access
+- Story 2.2: Inline editing writes through to the profile, subject to access — **done**
 - Story 2.3: Saved views
 - Story 2.4: Export respects the exporter's access
 - Story 2.5: Colleague mode on All Employees
@@ -30,7 +30,8 @@ Managers and people partners browse, filter, configure columns, edit inline, sav
 - Story 2.1 established `people-service` employees module with field catalog + paginated list, single `resolveBatch` per page, BFF proxy, and frontend `/all-employees`.
 - Shared `profile-audience.util.ts` derives per-subject section levels from `AccessRoleResolution`.
 - Custom-field visibility uses `canSeeCustomField()` (Story 1.10); catalog/list must respect visibility for filters, columns, and values.
-- Profile read today is `GET /people/:subjectPersonId/profile` only — no general profile write endpoint exists yet.
+- Profile read is `GET /people/:subjectPersonId/profile`; single-field writes are `PATCH /people/:subjectPersonId/profile/fields` (Story 2.2).
+- Saved views persist filter+column+pageSize in `people-service`; they are configuration only, not access grants.
 
 ## UX & Interaction Patterns
 

@@ -31,6 +31,72 @@ export class EmployeesService {
     );
   }
 
+  listSavedViews(context: ProxyContext): Promise<UpstreamResponse> {
+    return this.request('/employees/saved-views', 'GET', undefined, context);
+  }
+
+  createSavedView(
+    body: unknown,
+    context: ProxyContext,
+  ): Promise<UpstreamResponse> {
+    return this.request('/employees/saved-views', 'POST', body, context, true);
+  }
+
+  updateSavedView(
+    viewId: string,
+    body: unknown,
+    context: ProxyContext,
+  ): Promise<UpstreamResponse> {
+    return this.request(
+      `/employees/saved-views/${encodeURIComponent(viewId)}`,
+      'PATCH',
+      body,
+      context,
+      true,
+    );
+  }
+
+  deleteSavedView(
+    viewId: string,
+    context: ProxyContext,
+  ): Promise<UpstreamResponse> {
+    return this.request(
+      `/employees/saved-views/${encodeURIComponent(viewId)}`,
+      'DELETE',
+      undefined,
+      context,
+      true,
+    );
+  }
+
+  shareSavedView(
+    viewId: string,
+    body: unknown,
+    context: ProxyContext,
+  ): Promise<UpstreamResponse> {
+    return this.request(
+      `/employees/saved-views/${encodeURIComponent(viewId)}/shares`,
+      'POST',
+      body,
+      context,
+      true,
+    );
+  }
+
+  revokeSavedViewShare(
+    viewId: string,
+    recipientPersonId: string,
+    context: ProxyContext,
+  ): Promise<UpstreamResponse> {
+    return this.request(
+      `/employees/saved-views/${encodeURIComponent(viewId)}/shares/${encodeURIComponent(recipientPersonId)}`,
+      'DELETE',
+      undefined,
+      context,
+      true,
+    );
+  }
+
   list(
     query: Record<string, string | undefined>,
     context: ProxyContext,

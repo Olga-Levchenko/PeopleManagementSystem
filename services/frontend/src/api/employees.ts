@@ -12,8 +12,46 @@ export interface EmployeeFieldCatalogEntry {
   columnable: boolean
 }
 
+export type EmployeeListAudienceLevel = 'colleague' | 'employee' | 'management'
+
 export interface EmployeeFieldCatalogResponse {
   fields: EmployeeFieldCatalogEntry[]
+  listAudienceLevel: EmployeeListAudienceLevel
+}
+
+export interface SavedViewFilters {
+  countryCity?: string
+  departmentId?: string
+  yearsWithCompanyMin?: number
+  yearsWithCompanyMax?: number
+  customFieldFilters?: Record<string, string>
+}
+
+export interface SavedViewConfiguration {
+  visibleColumnKeys: string[]
+  filters: SavedViewFilters
+}
+
+export interface EmployeeSavedView {
+  id: string
+  name: string
+  creatorPersonId: string
+  isOwner: boolean
+  pageSize: number
+  configuration: SavedViewConfiguration
+  applicableConfiguration: SavedViewConfiguration
+}
+
+export interface CreateSavedViewRequest {
+  name: string
+  pageSize: number
+  configuration: SavedViewConfiguration
+}
+
+export interface UpdateSavedViewRequest {
+  name?: string
+  pageSize?: number
+  configuration?: SavedViewConfiguration
 }
 
 export interface EmployeeListRow {
@@ -92,6 +130,18 @@ export const patchEmployeeFieldApiCall = (
     `/api/v1/employees/${subjectPersonId}/fields`,
     body,
   )
+
+export const listSavedViewsApiCall = (signal?: AbortSignal) =>
+  apiClient.get<EmployeeSavedView[]>('/api/v1/employees/saved-views', { signal })
+
+export const createSavedViewApiCall = (body: CreateSavedViewRequest) =>
+  apiClient.post<EmployeeSavedView>('/api/v1/employees/saved-views', body)
+
+export const updateSavedViewApiCall = (viewId: string, body: UpdateSavedViewRequest) =>
+  apiClient.patch<EmployeeSavedView>(`/api/v1/employees/saved-views/${viewId}`, body)
+
+export const deleteSavedViewApiCall = (viewId: string) =>
+  apiClient.delete(`/api/v1/employees/saved-views/${viewId}`)
 
 export const listEmployeesApiCall = (params: ListEmployeesParams, signal?: AbortSignal) => {
   const { customFieldFilters, ...rest } = params

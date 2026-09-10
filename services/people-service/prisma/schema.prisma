@@ -253,6 +253,34 @@ model IdentityLinkOperation {
   @@map("identity_link_operations")
 }
 
+// Story 2.3 — All Employees saved views (filter + column configuration).
+model EmployeeListSavedView {
+  id              String                       @id @default(uuid()) @db.Uuid
+  name            String
+  creatorPersonId String                       @db.Uuid
+  configuration   Json
+  pageSize        Int
+  createdAt       DateTime                     @default(now())
+  updatedAt       DateTime                     @updatedAt
+  shares          EmployeeListSavedViewShare[]
+
+  @@unique([creatorPersonId, name])
+  @@index([creatorPersonId])
+  @@map("employee_list_saved_views")
+}
+
+model EmployeeListSavedViewShare {
+  id                String              @id @default(uuid()) @db.Uuid
+  viewId            String              @db.Uuid
+  recipientPersonId String              @db.Uuid
+  sharedAt          DateTime            @default(now())
+  view              EmployeeListSavedView @relation(fields: [viewId], references: [id], onDelete: Cascade)
+
+  @@unique([viewId, recipientPersonId])
+  @@index([recipientPersonId])
+  @@map("employee_list_saved_view_shares")
+}
+
 model IdentityLinkAudit {
   auditId               String                  @id @default(uuid()) @db.Uuid
   action                IdentityLinkAuditAction

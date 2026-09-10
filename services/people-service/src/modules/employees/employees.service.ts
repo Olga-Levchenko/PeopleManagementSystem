@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -15,6 +15,11 @@ import type {
 } from '../profile/profile.ports';
 import { NEITHER_LINE_RESOLUTION } from '../profile/profile.ports';
 import { canSeeCustomField } from '../profile/profile.service';
+import {
+  assertCustomFieldFiltersInCatalog,
+  assertYearsFilterRange,
+  buildCatalogKeySets,
+} from './employees-list-config.validator';
 import type { ListEmployeesQueryDto } from './employees.dto';
 
 export type EmployeeFieldDataType = 'string' | 'number' | 'date' | 'boolean';
@@ -30,6 +35,7 @@ export interface EmployeeFieldCatalogEntry {
 
 export interface EmployeeFieldCatalogResponse {
   fields: EmployeeFieldCatalogEntry[];
+  listAudienceLevel: CustomFieldAudienceLevel;
 }
 
 export interface EmployeeListRow {
@@ -192,6 +198,7 @@ export class EmployeesService {
         ...DERIVED_CATALOG_FIELDS,
         ...customFields,
       ],
+      listAudienceLevel: catalogAudience,
     };
   }
 
@@ -204,7 +211,10 @@ export class EmployeesService {
       viewerPersonId,
       customFieldFilters,
     );
-    this.assertYearsFilterRange(query);
+    assertYearsFilterRange(
+      query.yearsWithCompanyMin,
+      query.yearsWithCompanyMax,
+    );
 
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 50;
@@ -440,18 +450,6 @@ export class EmployeesService {
     return byKey;
   }
 
-  private assertYearsFilterRange(query: ListEmployeesQueryDto): void {
-    if (
-      query.yearsWithCompanyMin !== undefined &&
-      query.yearsWithCompanyMax !== undefined &&
-      query.yearsWithCompanyMin > query.yearsWithCompanyMax
-    ) {
-      throw new BadRequestException(
-        'yearsWithCompanyMin cannot exceed yearsWithCompanyMax.',
-      );
-    }
-  }
-
   private async resolveBatchChunked(
     viewerPersonId: string,
     subjectPersonIds: readonly string[],
@@ -486,19 +484,8 @@ export class EmployeesService {
     }
 
     const catalog = await this.getFieldCatalog(viewerPersonId);
-    const filterableCustomKeys = new Set(
-      catalog.fields
-        .filter((field) => field.filterable && field.kind === 'custom')
-        .map((field) => field.key),
-    );
-
-    for (const fieldKey of Object.keys(customFieldFilters)) {
-      if (!filterableCustomKeys.has(fieldKey)) {
-        throw new BadRequestException(
-          `Filter '${fieldKey}' is not available for this viewer.`,
-        );
-      }
-    }
+    const { filterableCustomKeys } = buildCatalogKeySets(catalog.fields);
+    assertCustomFieldFiltersInCatalog(customFieldFilters, filterableCustomKeys);
   }
 
   private buildWhereClause(

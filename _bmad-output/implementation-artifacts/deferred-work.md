@@ -666,3 +666,9 @@ Story 2.1 shipped in PR #65 (2026-09-10). Items below remain **open** follow-up 
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-1-universal-filter-column-engine-over-profile-fields.md`
   summary: Employees module Swagger composite decorators and FPA batch HTTP composition test.
   evidence: bmad-code-review 2026-09-10; OpenAPI and ACS batch API coverage gaps.
+
+## Deferred from: code review of spec-2-3-saved-views (2026-09-10)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-3-saved-views.md`
+  summary: Batch Prisma lookups in `SavedViewsService.toResponse` when listing many saved views with custom columns.
+  evidence: bmad-code-review 2026-09-10; per-view/per-column `findUnique` loops acceptable for 2.3 view counts.
