@@ -1,7 +1,7 @@
 import { ArrowLeft, User } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useColleagueProfile } from '@/api/hooks/useColleagueProfile'
+import { useEmployeeProfile } from '@/api/hooks/useEmployeeProfile'
 
 const formatDate = (value: string | null | undefined): string => {
   if (!value) {
@@ -20,10 +20,10 @@ const formatBirthday = (
   return `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
-export const ColleagueProfilePage = () => {
+export const EmployeeProfilePage = () => {
   const { t } = useTranslation()
   const { personId } = useParams<{ personId: string }>()
-  const profileQuery = useColleagueProfile(personId)
+  const profileQuery = useEmployeeProfile(personId)
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -33,7 +33,7 @@ export const ColleagueProfilePage = () => {
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
-          {t('colleagueProfile.backToList')}
+          {t('employeeProfile.backToList')}
         </Link>
       </div>
 
@@ -41,50 +41,50 @@ export const ColleagueProfilePage = () => {
         <User className="h-6 w-6 text-primary" />
         <div>
           <h1 className="text-2xl font-semibold text-foreground">
-            {profileQuery.data?.s1?.fullName ?? t('colleagueProfile.title')}
+            {profileQuery.data?.s1?.fullName ?? t('employeeProfile.title')}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {t('colleagueProfile.description')}
+            {t('employeeProfile.description')}
           </p>
         </div>
       </div>
 
       {profileQuery.isLoading ? (
-        <p className="text-muted-foreground">{t('colleagueProfile.loading')}</p>
+        <p className="text-muted-foreground">{t('employeeProfile.loading')}</p>
       ) : profileQuery.isError ? (
-        <p className="text-destructive">{t('colleagueProfile.error')}</p>
+        <p className="text-destructive">{t('employeeProfile.error')}</p>
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
           {profileQuery.data?.s1 && (
             <section className="rounded-lg border border-border bg-card p-4">
               <h2 className="mb-4 text-lg font-medium text-foreground">
-                {t('colleagueProfile.sections.identity')}
+                {t('employeeProfile.sections.identity')}
               </h2>
               <dl className="grid gap-3 text-sm">
                 <div>
-                  <dt className="text-muted-foreground">{t('colleagueProfile.fields.position')}</dt>
+                  <dt className="text-muted-foreground">{t('employeeProfile.fields.position')}</dt>
                   <dd className="text-foreground">{profileQuery.data.s1.position ?? '—'}</dd>
                 </div>
                 <div>
-                  <dt className="text-muted-foreground">{t('colleagueProfile.fields.department')}</dt>
+                  <dt className="text-muted-foreground">{t('employeeProfile.fields.department')}</dt>
                   <dd className="text-foreground">
                     {profileQuery.data.s1.department?.name ?? '—'}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-muted-foreground">{t('colleagueProfile.fields.countryCity')}</dt>
+                  <dt className="text-muted-foreground">{t('employeeProfile.fields.countryCity')}</dt>
                   <dd className="text-foreground">{profileQuery.data.s1.countryCity ?? '—'}</dd>
                 </div>
                 <div>
-                  <dt className="text-muted-foreground">{t('colleagueProfile.fields.workEmail')}</dt>
+                  <dt className="text-muted-foreground">{t('employeeProfile.fields.workEmail')}</dt>
                   <dd className="text-foreground">{profileQuery.data.s1.workEmail ?? '—'}</dd>
                 </div>
                 <div>
-                  <dt className="text-muted-foreground">{t('colleagueProfile.fields.workPhone')}</dt>
+                  <dt className="text-muted-foreground">{t('employeeProfile.fields.workPhone')}</dt>
                   <dd className="text-foreground">{profileQuery.data.s1.workPhone ?? '—'}</dd>
                 </div>
                 <div>
-                  <dt className="text-muted-foreground">{t('colleagueProfile.fields.birthday')}</dt>
+                  <dt className="text-muted-foreground">{t('employeeProfile.fields.birthday')}</dt>
                   <dd className="text-foreground">
                     {formatBirthday(
                       profileQuery.data.s1.birthdayMonth,
@@ -93,21 +93,55 @@ export const ColleagueProfilePage = () => {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-muted-foreground">{t('colleagueProfile.fields.startDate')}</dt>
+                  <dt className="text-muted-foreground">{t('employeeProfile.fields.startDate')}</dt>
                   <dd className="text-foreground">
                     {formatDate(profileQuery.data.s1.startDate)}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-muted-foreground">{t('colleagueProfile.fields.manager')}</dt>
+                  <dt className="text-muted-foreground">{t('employeeProfile.fields.manager')}</dt>
                   <dd className="text-foreground">
                     {profileQuery.data.s1.manager?.fullName ?? '—'}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-muted-foreground">{t('colleagueProfile.fields.peoplePartner')}</dt>
+                  <dt className="text-muted-foreground">{t('employeeProfile.fields.peoplePartner')}</dt>
                   <dd className="text-foreground">
                     {profileQuery.data.s1.peoplePartner?.fullName ?? '—'}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          )}
+
+          {profileQuery.data?.s2 && (
+            <section className="rounded-lg border border-border bg-card p-4">
+              <h2 className="mb-4 text-lg font-medium text-foreground">
+                {t('employeeProfile.sections.personalContacts')}
+              </h2>
+              <dl className="grid gap-3 text-sm">
+                <div>
+                  <dt className="text-muted-foreground">
+                    {t('employeeProfile.fields.personalPhone')}
+                  </dt>
+                  <dd className="text-foreground">
+                    {profileQuery.data.s2.personalPhone ?? '—'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">
+                    {t('employeeProfile.fields.personalEmail')}
+                  </dt>
+                  <dd className="text-foreground">
+                    {profileQuery.data.s2.personalEmail ?? '—'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">
+                    {t('employeeProfile.fields.residentialAddress')}
+                  </dt>
+                  <dd className="text-foreground">
+                    {profileQuery.data.s2.residentialAddress ?? '—'}
                   </dd>
                 </div>
               </dl>
@@ -117,15 +151,16 @@ export const ColleagueProfilePage = () => {
           {profileQuery.data?.s10 && (
             <section className="rounded-lg border border-border bg-card p-4">
               <h2 className="mb-4 text-lg font-medium text-foreground">
-                {t('colleagueProfile.sections.leaves')}
+                {t('employeeProfile.sections.leaves')}
               </h2>
               {profileQuery.data.s10.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{t('colleagueProfile.empty')}</p>
+                <p className="text-sm text-muted-foreground">{t('employeeProfile.empty')}</p>
               ) : (
                 <ul className="space-y-2 text-sm text-foreground">
                   {profileQuery.data.s10.map((leave, index) => (
                     <li key={`${leave.startDate}-${leave.endDate}-${index}`}>
                       {formatDate(leave.startDate)} – {formatDate(leave.endDate)}
+                      {leave.leaveType ? ` (${leave.leaveType})` : ''}
                     </li>
                   ))}
                 </ul>
@@ -136,14 +171,26 @@ export const ColleagueProfilePage = () => {
           {profileQuery.data?.s11 && (
             <section className="rounded-lg border border-border bg-card p-4">
               <h2 className="mb-4 text-lg font-medium text-foreground">
-                {t('colleagueProfile.sections.projects')}
+                {t('employeeProfile.sections.projects')}
               </h2>
               {profileQuery.data.s11.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{t('colleagueProfile.empty')}</p>
+                <p className="text-sm text-muted-foreground">{t('employeeProfile.empty')}</p>
               ) : (
                 <ul className="space-y-2 text-sm text-foreground">
                   {profileQuery.data.s11.map((project, index) => (
-                    <li key={`${project.projectName}-${index}`}>{project.projectName}</li>
+                    <li key={`${project.projectName}-${index}`}>
+                      <span>{project.projectName}</span>
+                      {project.role && (
+                        <span className="text-muted-foreground"> — {project.role}</span>
+                      )}
+                      {(project.startDate || project.endDate) && (
+                        <span className="text-muted-foreground">
+                          {' '}
+                          ({formatDate(project.startDate)}
+                          {project.endDate ? ` – ${formatDate(project.endDate)}` : ''})
+                        </span>
+                      )}
+                    </li>
                   ))}
                 </ul>
               )}
@@ -153,7 +200,7 @@ export const ColleagueProfilePage = () => {
           {profileQuery.data?.s16 && profileQuery.data.s16.length > 0 && (
             <section className="rounded-lg border border-border bg-card p-4">
               <h2 className="mb-4 text-lg font-medium text-foreground">
-                {t('colleagueProfile.sections.customFields')}
+                {t('employeeProfile.sections.customFields')}
               </h2>
               <dl className="grid gap-3 text-sm">
                 {profileQuery.data.s16.map(field => (

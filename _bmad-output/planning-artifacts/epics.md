@@ -929,10 +929,11 @@ implementation specification is
 Employees manage their own contact/emergency data and read their own managed fields; managers/PP
 browse, filter, save views, and export the org roster within their entitlements.
 
-**Parallelization note:** Stories 2.1-2.5 extend the same List/filter engine and are best done in
-sequence by one developer (or pair) to avoid merge conflicts on the same component; Stories 2.6-2.7
-are a separate self-service surface and can be built in parallel by a second developer, since both
-chains only depend on Epic 1 already having cleared its exit gate.
+**Parallelization note:** Stories 2.1-2.5 and **2.8** extend the same List/filter engine and are best
+done in sequence by one developer (or pair) to avoid merge conflicts on the same component (2.8
+after 2.5); Stories 2.6-2.7 are a separate self-service surface on the shared profile route and
+can be built in parallel by a second developer once 2.8 lands the Employee Profile shell, since
+both chains depend on Epic 1 having cleared its exit gate.
 
 ### Story 2.1: Universal filter/column engine over profile fields
 
@@ -1033,6 +1034,35 @@ columns or filters
 **When** they click a row
 **Then** it opens the limited profile view directly — never the full profile with columns hidden
 client-side
+
+### Story 2.8: Management list row navigation to Employee Profile
+
+As a manager or PP browsing All Employees in management mode,
+I want to open an employee's profile by clicking their list row,
+So that I can review their full entitled profile without hunting for another entry point.
+
+**Acceptance Criteria:**
+
+**Given** a viewer with `listAudienceLevel === 'management'`
+**When** they click another person's row on All Employees (outside an inline-edit control)
+**Then** the app navigates to `/people/:personId` and renders an Employee Profile backed by
+`GET /profile`
+
+**Given** that management viewer and a subject they hold Manager or PP access over
+**When** the profile loads
+**Then** the page includes every section key the API returns among `{ s1, s2, s10, s11, s16 }`
+and omits every absent key with no client-side section matrix
+
+**Given** a management viewer
+**When** they interact with an inline-editable list cell
+**Then** the row click handler does not fire and Story 2.2 PATCH behavior is unchanged
+
+**Given** a viewer with `listAudienceLevel === 'colleague'`
+**When** they click a row
+**Then** Story 2.5 behavior is unchanged (same route, colleague-tier API body)
+
+**Specification:** `_bmad-output/implementation-artifacts/spec-2-8-management-list-row-navigation-to-employee-profile.md`
+(closes the Story 2.1 deferred-work browse-to-profile gap; Story 2.5 `MANAGEMENT_UNCHANGED` scope)
 
 ### Story 2.6: Self-managed personal data
 

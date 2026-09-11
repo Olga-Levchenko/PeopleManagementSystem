@@ -11,8 +11,9 @@ Managers and people partners browse, filter, configure columns, edit inline, sav
 - Story 2.1: Universal filter/column engine over profile fields — **done**
 - Story 2.2: Inline editing writes through to the profile, subject to access — **done**
 - Story 2.3: Saved views — **done**
-- Story 2.4: Export respects the exporter's access
-- Story 2.5: Colleague mode on All Employees
+- Story 2.4: Export respects the exporter's access — **done**
+- Story 2.5: Colleague mode on All Employees — **done**
+- Story 2.8: Management list row navigation to Employee Profile — **in-progress**
 - Story 2.6: Self-managed personal data
 - Story 2.7: Self-read of managed data and never own risk level
 
@@ -44,4 +45,5 @@ Managers and people partners browse, filter, configure columns, edit inline, sav
 
 - **2.2** depends on **2.1** (list surface, catalog, row values).
 - **2.3–2.5** extend the same All Employees component — sequential delivery recommended to avoid merge conflicts.
-- **2.6–2.7** are self-service on the profile page and can parallelize with 2.3+ once 2.2 lands the shared write path.
+- **2.8** depends on **2.5** (done — colleague row-click route exists); delivers management row-click + unified `EmployeeProfilePage` shell. Recommended before **2.6–2.7** so managers can browse profiles from the list.
+- **2.6–2.7** are self-service on the profile page and can parallelize once **2.8** lands the shared profile route component.

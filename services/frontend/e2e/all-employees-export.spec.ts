@@ -94,9 +94,9 @@ test.describe('All Employees export', () => {
     expect(download.suggestedFilename()).toContain('employees-export.xlsx')
   })
 
-  test('management catalog row click does not navigate to colleague profile', async ({
-    page,
-  }) => {
+  test('management catalog row click navigates to employee profile', async ({ page }) => {
+    const subjectPersonId = '22222222-2222-4222-8222-222222222222'
+
     await page.route('**/api/v1/employees?**', route =>
       route.fulfill({
         status: 200,
@@ -105,9 +105,36 @@ test.describe('All Employees export', () => {
       }),
     )
 
+    await page.route(`**/api/v1/people/${subjectPersonId}/profile**`, route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          s1: {
+            fullName: 'Managed Person',
+            photoUrl: null,
+            position: 'Engineer',
+            department: { id: 'dept-1', name: 'Platform' },
+            countryCity: 'Kyiv',
+            workEmail: 'managed@example.com',
+            workPhone: null,
+            birthdayMonth: null,
+            birthdayDay: null,
+            startDate: '2020-01-01T00:00:00.000Z',
+            manager: { id: 'mgr-1', fullName: 'Manager Person' },
+            peoplePartner: null,
+          },
+          s10: [],
+          s11: [{ projectName: 'Delivery Alpha', role: 'Developer' }],
+        }),
+      }),
+    )
+
     await page.goto('/all-employees')
     await page.getByRole('cell', { name: 'Managed Person' }).click()
 
-    await expect(page).toHaveURL('/all-employees')
+    await expect(page).toHaveURL(`/people/${subjectPersonId}`)
+    await expect(page.getByRole('heading', { name: 'Managed Person' })).toBeVisible()
+    await expect(page.getByText('Delivery Alpha')).toBeVisible()
   })
 })

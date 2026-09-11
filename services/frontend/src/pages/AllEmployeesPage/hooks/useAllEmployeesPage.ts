@@ -83,6 +83,8 @@ export const useAllEmployeesPage = () => {
   }
 
   const listQuery = useEmployeesList(listParams)
+  const isRowNavigationEnabled =
+    catalogQuery.isSuccess && !listQuery.isLoading && !listQuery.isError
   const patchMutation = usePatchEmployeeField(listParams)
   const createSavedViewMutation = useCreateSavedView()
   const updateSavedViewMutation = useUpdateSavedView()
@@ -373,6 +375,7 @@ export const useAllEmployeesPage = () => {
     totalPages,
     showSavedViews,
     isColleagueBrowseMode,
+    isRowNavigationEnabled,
     activeTabId,
     activeSavedView,
     isOwnedTabDirty,

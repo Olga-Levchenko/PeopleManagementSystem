@@ -11,7 +11,7 @@ import { LoginPage } from '@/pages/LoginPage/LoginPage'
 import { OrganisationalRelationshipsPage } from '@/pages/OrganisationalRelationshipsPage/OrganisationalRelationshipsPage'
 import { AdministrationPage } from '@/pages/AdministrationPage/AdministrationPage'
 import { AllEmployeesPage } from '@/pages/AllEmployeesPage/AllEmployeesPage'
-import { ColleagueProfilePage } from '@/pages/ColleagueProfilePage/ColleagueProfilePage'
+import { EmployeeProfilePage } from '@/pages/EmployeeProfilePage/EmployeeProfilePage'
 
 const router = createBrowserRouter([
   // Standalone error page (rendered outside the main layout)
@@ -45,7 +45,7 @@ const router = createBrowserRouter([
           },
           {
             path: 'people/:personId',
-            element: <ColleagueProfilePage />,
+            element: <EmployeeProfilePage />,
           },
           {
             path: 'organisational-relationships',

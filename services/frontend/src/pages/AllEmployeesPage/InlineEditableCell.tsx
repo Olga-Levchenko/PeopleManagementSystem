@@ -63,7 +63,10 @@ export const InlineEditableCell = ({
       <button
         type="button"
         className="w-full rounded px-1 py-0.5 text-left hover:bg-muted"
-        onClick={startEditing}
+        onClick={event => {
+          event.stopPropagation()
+          startEditing()
+        }}
         disabled={saving}
       >
         {displayValue}
@@ -78,6 +81,7 @@ export const InlineEditableCell = ({
       value={draft}
       type={field.dataType === 'number' ? 'number' : field.dataType === 'date' ? 'date' : 'text'}
       disabled={saving}
+      onClick={event => event.stopPropagation()}
       onChange={event => setDraft(event.target.value)}
       onBlur={() => {
         void commit()

@@ -16,7 +16,7 @@ export const AllEmployeesPage = () => {
     setPage,
     totalPages,
     showSavedViews,
-    isColleagueBrowseMode,
+    isRowNavigationEnabled,
     activeTabId,
     activeSavedView,
     isOwnedTabDirty,
@@ -269,10 +269,10 @@ export const AllEmployeesPage = () => {
                   <tr
                     key={row.personId}
                     className={`border-t border-border ${
-                      isColleagueBrowseMode ? 'cursor-pointer hover:bg-muted/40' : ''
+                      isRowNavigationEnabled ? 'cursor-pointer hover:bg-muted/40' : ''
                     }`}
                     onClick={
-                      isColleagueBrowseMode
+                      isRowNavigationEnabled
                         ? () => navigate(`/people/${row.personId}`)
                         : undefined
                     }
