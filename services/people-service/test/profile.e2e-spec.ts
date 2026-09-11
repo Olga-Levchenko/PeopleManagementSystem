@@ -273,6 +273,7 @@ describe('Profile (e2e)', () => {
       .expect(200);
 
     expect(Object.keys(res.body as object).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -280,10 +281,12 @@ describe('Profile (e2e)', () => {
       's2',
     ]);
     const body = res.body as {
+      isSelf: boolean;
       s10: Array<Record<string, unknown>>;
       s11: Array<Record<string, unknown>>;
       s16: Array<{ fieldId: string; name: string; value: string }>;
     };
+    expect(body.isSelf).toBe(true);
     // Self sees full S10 including leaveType
     expect(body.s10).toHaveLength(1);
     expect(body.s10[0]).toHaveProperty('leaveType', 'vacation');
@@ -326,6 +329,7 @@ describe('Profile (e2e)', () => {
       .expect(200);
 
     expect(Object.keys(res.body as object).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -373,6 +377,7 @@ describe('Profile (e2e)', () => {
       s16: Array<{ fieldId: string; name: string; value: string }>;
     };
     expect(Object.keys(res.body as object).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -427,6 +432,7 @@ describe('Profile (e2e)', () => {
       s16: Array<{ fieldId: string; name: string; value: string }>;
     };
     expect(Object.keys(res.body as object).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -473,6 +479,7 @@ describe('Profile (e2e)', () => {
       .expect(200);
 
     expect(Object.keys(res.body as object).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -506,6 +513,7 @@ describe('Profile (e2e)', () => {
       s16: Array<{ name: string }>;
     };
     expect(Object.keys(res.body as object).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -538,6 +546,7 @@ describe('Profile (e2e)', () => {
 
     // COLLEAGUE_WHITELIST_KEYS: exactly s1, s10, s11, s16
     expect(Object.keys(res.body as object).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -585,6 +594,7 @@ describe('Profile (e2e)', () => {
       .expect(200);
 
     expect(Object.keys(res.body as object).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -617,6 +627,7 @@ describe('Profile (e2e)', () => {
       .expect(200);
 
     expect(Object.keys(res.body as object).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
