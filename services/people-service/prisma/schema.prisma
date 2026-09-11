@@ -81,9 +81,18 @@ model Person {
   personalEmail      String?
   residentialAddress String?
 
+  // S4 -- Employment snapshot (Story 2.7 MVP; manager-maintained fields, self read-only).
+  employmentType String?
+  grade          String?
+  seniority      String?
+  englishLevel   String?
+
   // S10/S11 -- Leaves and project assignments (Story 1.8).
   leaves                   Leave[]
   personProjectAssignments PersonProjectAssignment[]
+
+  // S9 -- Career timeline read model (Story 2.7 MVP; Epic 8 owns generation).
+  careerTimelineEvents CareerTimelineEvent[]
 
   // S16 -- Custom field values (Story 1.10).
   customFieldValues CustomFieldValue[]
@@ -150,6 +159,19 @@ model Leave {
   person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@map("leaves")
+}
+
+// S9 -- Career timeline events (Story 2.7 read model).
+model CareerTimelineEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  personId   String   @db.Uuid
+  occurredAt DateTime
+  eventType  String
+  summary    String
+  person     Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([personId, occurredAt])
+  @@map("career_timeline_events")
 }
 
 // S11 -- Project assignments as seen from the profile (Story 1.8).

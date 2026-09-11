@@ -42,12 +42,12 @@ Consumers of this doc: `.claude/rules/access-control-invariants.md`,
 | S1 | Identity card | Full name, photo, position, department/unit, country/city, work email/phone, birthday (day+month), start date, manager, people partner, mentor, current project(s) | R (photo RW) | RW¹ | RW¹ | RW¹ | R | on by default | partial |
 | S2 | Personal contacts | Personal phone/email, messengers, residential address, current place of stay | RW | R | **—** | RW | — | cfg | partial |
 | S3 | Emergency contacts | Contact person, relationship, phone | RW | R | **—** | RW | — | — (never shareable) | partial |
-| S4 | Employment | Employee type (FTE/Subcontractor), grade, seniority, position history, English level, probation status, employment status, contract type | R | RW | RW | RW | — | cfg | partial |
+| S4 | Employment | Employee type (FTE/Subcontractor), grade, seniority, position history, English level, probation status, employment status, contract type | R | RW | RW | RW | — | cfg | partial (Story 2.7: Self read MVP — `profile.service.spec` / `profile.e2e-spec`) |
 | S5 | Documents | Contract, W8, cooperation form, Diia City, CV, certificates | R (own) + upload certificates | R | **R, CV + certificates only** | RW | — | cfg | partial |
-| S6 | Risks | Current level, trend, description, details, date, full history — no closed/terminal state (4.6) | — | RW | RW | RW | — | cfg | partial |
+| S6 | Risks | Current level, trend, description, details, date, full history — no closed/terminal state (4.6) | — | RW | RW | RW | — | cfg | partial (Story 2.7: Self never receives `s6` — negative tests in `profile.service.spec` / `profile.e2e-spec`) |
 | S7 | Management notes | Free-form notes by managers and PP, per-record visibility flags | R — only records flagged visible for employee | RW | RW; **PM exception**: R, only records flagged visible for PM² | RW | — | — (never shareable) | full |
 | S8 | Feedbacks | Structured feedback records (4.15), including joining-interview feedback (moved here from S5 in v1.5) | R — only records flagged shared with employee | RW | RW | RW | — | cfg | partial |
-| S9 | Career timeline | System-generated event log (4.9); includes department change; departure/dismissal is explicitly NOT a timeline event (v1.5) — see S4 employment status instead | R | RW | RW | RW | — | cfg | partial |
+| S9 | Career timeline | System-generated event log (4.9); includes department change; departure/dismissal is explicitly NOT a timeline event (v1.5) — see S4 employment status instead | R | RW | RW | RW | — | cfg | partial (Story 2.7: Self read MVP — `profile.service.spec` / `profile.e2e-spec`) |
 | S10 | Leaves and absences | Vacation, sick, parental, extended leave — dates and types | R | R | R | R | **R, dates only — type hidden (v1.5)** | cfg | partial |
 | S11 | Projects | Project, PM, DM, period | R | R | R | R | R (project name only) | cfg | partial |
 | S12 | CDS | Skills matrix link (keyed off the department entity, v1.5), assessment log, results, final conclusion, IDP | R (+ complete own IDP) | RW | RW | RW | — | cfg | partial |

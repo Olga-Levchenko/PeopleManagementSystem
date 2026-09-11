@@ -258,7 +258,20 @@ describe('Profile (e2e)', () => {
   }
 
   it('Self: non-FPA self-view returns full s1+s2+s10+s11+s16; management field absent from s16, colleague field present', async () => {
-    const { subject } = await seedSubject();
+    const { subject } = await seedSubject({
+      employmentType: 'FTE',
+      grade: 'L4',
+      seniority: 'Middle',
+      englishLevel: 'B1',
+    });
+    await prisma.careerTimelineEvent.create({
+      data: {
+        personId: subject.id,
+        occurredAt: new Date('2024-01-01T00:00:00.000Z'),
+        eventType: 'GRADE_CHANGE',
+        summary: 'Promoted to L4',
+      },
+    });
     currentViewerId = subject.id;
     // Resolver is called before the self-view short-circuit (FPA check happens first).
     // Return a non-FPA resolution so the self-view path is taken.
@@ -279,14 +292,35 @@ describe('Profile (e2e)', () => {
       's11',
       's16',
       's2',
+      's4',
+      's9',
     ]);
+    expect(res.body).not.toHaveProperty('s6');
     const body = res.body as {
       isSelf: boolean;
+      s4: {
+        employmentType: string;
+        grade: string;
+        seniority: string;
+        englishLevel: string;
+      };
+      s9: Array<{ eventType: string; summary: string }>;
       s10: Array<Record<string, unknown>>;
       s11: Array<Record<string, unknown>>;
       s16: Array<{ fieldId: string; name: string; value: string }>;
     };
     expect(body.isSelf).toBe(true);
+    expect(body.s4).toMatchObject({
+      employmentType: 'FTE',
+      grade: 'L4',
+      seniority: 'Middle',
+      englishLevel: 'B1',
+    });
+    expect(body.s9).toHaveLength(1);
+    expect(body.s9[0]).toMatchObject({
+      eventType: 'GRADE_CHANGE',
+      summary: 'Promoted to L4',
+    });
     // Self sees full S10 including leaveType
     expect(body.s10).toHaveLength(1);
     expect(body.s10[0]).toHaveProperty('leaveType', 'vacation');
@@ -642,6 +676,62 @@ describe('Profile (e2e)', () => {
       .get('/people/00000000-0000-4000-8000-000000000000/profile')
       .expect(404);
 
+    expect(resolveMock).not.toHaveBeenCalled();
+  });
+
+  it('FPA holder self-view includes s4/s9, excludes s6, and keeps management S16', async () => {
+    const { subject } = await seedSubject();
+    currentViewerId = subject.id;
+    resolveMock.mockResolvedValue({
+      reportingLine: false,
+      projectLine: false,
+      peoplePartnerLine: false,
+      fullProfileAccessLine: true,
+      managerSectionAccess: null,
+      peoplePartnerSectionAccess: null,
+      fullProfileAccessSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'ReadWrite' },
+        s4: { level: 'ReadWrite' },
+        s6: { level: 'ReadWrite' },
+        s9: { level: 'ReadWrite' },
+        s10: { level: 'ReadWrite' },
+        s11: { level: 'ReadWrite' },
+        s16: { level: 'ReadWrite' },
+      },
+    });
+
+    const res = await request(app.getHttpServer())
+      .get(`/people/${subject.id}/profile`)
+      .expect(200);
+
+    expect(res.body).not.toHaveProperty('s6');
+    const body = res.body as {
+      s4: Record<string, unknown>;
+      s9: unknown[];
+      s16: Array<{ name: string }>;
+    };
+    expect(body.s4).toBeDefined();
+    expect(Array.isArray(body.s9)).toBe(true);
+    const s16Names = body.s16.map((f) => f.name);
+    expect(s16Names).toContain('Internal Grade');
+  });
+
+  it('PATCH profile field rejects self S4 edit with deferral message', async () => {
+    const viewer = await prisma.person.create({
+      data: { fullName: 'Self Viewer', grade: 'L3' },
+    });
+    currentViewerId = viewer.id;
+
+    const response = await request(app.getHttpServer())
+      .patch(`/people/${viewer.id}/profile/fields`)
+      .send({ fieldKey: 'grade', value: 'L4' })
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      statusCode: 403,
+      message: 'Self-edit is not permitted on All Employees.',
+    });
     expect(resolveMock).not.toHaveBeenCalled();
   });
 

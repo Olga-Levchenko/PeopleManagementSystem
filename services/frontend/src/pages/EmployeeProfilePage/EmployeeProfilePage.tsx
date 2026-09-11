@@ -134,6 +134,64 @@ export const EmployeeProfilePage = () => {
             </section>
           )}
 
+          {profileQuery.data?.s4 && (
+            <section className="rounded-lg border border-border bg-card p-4">
+              <h2 className="mb-4 text-lg font-medium text-foreground">
+                {t('employeeProfile.sections.employment')}
+              </h2>
+              <dl className="grid gap-3 text-sm">
+                <div>
+                  <dt className="text-muted-foreground">
+                    {t('employeeProfile.fields.employmentType')}
+                  </dt>
+                  <dd className="text-foreground">
+                    {profileQuery.data.s4.employmentType ?? '—'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">{t('employeeProfile.fields.grade')}</dt>
+                  <dd className="text-foreground">{profileQuery.data.s4.grade ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">
+                    {t('employeeProfile.fields.seniority')}
+                  </dt>
+                  <dd className="text-foreground">
+                    {profileQuery.data.s4.seniority ?? '—'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">
+                    {t('employeeProfile.fields.englishLevel')}
+                  </dt>
+                  <dd className="text-foreground">
+                    {profileQuery.data.s4.englishLevel ?? '—'}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          )}
+
+          {profileQuery.data?.s9 && (
+            <section className="rounded-lg border border-border bg-card p-4">
+              <h2 className="mb-4 text-lg font-medium text-foreground">
+                {t('employeeProfile.sections.careerTimeline')}
+              </h2>
+              {profileQuery.data.s9.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t('employeeProfile.empty')}</p>
+              ) : (
+                <ul className="space-y-2 text-sm text-foreground">
+                  {profileQuery.data.s9.map((event, index) => (
+                    <li key={`${event.eventType}-${event.occurredAt}-${index}`}>
+                      <span>{formatDate(event.occurredAt)}</span>
+                      <span className="text-muted-foreground"> — {event.summary}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+
           {profileQuery.data?.s2 && (
             <section className="rounded-lg border border-border bg-card p-4">
               <h2 className="mb-4 text-lg font-medium text-foreground">

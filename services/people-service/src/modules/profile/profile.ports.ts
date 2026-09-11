@@ -11,10 +11,22 @@ export interface SectionAccess {
   restriction?: string | null;
 }
 
+/** Parsed section-access levels consumed by profile assembly (subset of ACS S1–S16 wire shape). */
+export interface ProfileSectionAccessGroup {
+  s1: SectionAccess;
+  s2: SectionAccess;
+  s4: SectionAccess;
+  s6: SectionAccess;
+  s9: SectionAccess;
+  s10: SectionAccess;
+  s11: SectionAccess;
+  s16: SectionAccess;
+}
+
 /**
  * The subset of access-control-service's `GET /api/v1/access-roles/resolve` response this slice
- * consumes -- only `s1`/`s2`/`s10`/`s11`/`s16` are read today, but the wire shape carries S1-S16
- * (see `AccessRolesController.cs`); extra keys are simply ignored by JSON parsing.
+ * consumes. The wire shape carries S1-S16 (see `AccessRolesController.cs`); unlisted keys are
+ * ignored by JSON parsing until profile assembly adds a section.
  */
 export interface AccessRoleResolution {
   reportingLine: boolean;
@@ -22,20 +34,8 @@ export interface AccessRoleResolution {
   peoplePartnerLine: boolean;
   /** True when the viewer holds a Full-profile-access grant (spec §2.4). Maximum possible access. */
   fullProfileAccessLine: boolean;
-  managerSectionAccess: {
-    s1: SectionAccess;
-    s2: SectionAccess;
-    s10: SectionAccess;
-    s11: SectionAccess;
-    s16: SectionAccess;
-  } | null;
-  peoplePartnerSectionAccess: {
-    s1: SectionAccess;
-    s2: SectionAccess;
-    s10: SectionAccess;
-    s11: SectionAccess;
-    s16: SectionAccess;
-  } | null;
+  managerSectionAccess: ProfileSectionAccessGroup | null;
+  peoplePartnerSectionAccess: ProfileSectionAccessGroup | null;
   /**
    * All 16 sections as ReadWrite when `fullProfileAccessLine` is true; null otherwise.
    * Takes precedence over all other qualifying lines (most-permissive-path-wins; Full profile
@@ -45,13 +45,7 @@ export interface AccessRoleResolution {
    * new section is added to profile assembly (resolveAudience / ProfileService), add it here
    * too — omitting it silently degrades FPA holders to non-holder access on that section.
    */
-  fullProfileAccessSectionAccess: {
-    s1: SectionAccess;
-    s2: SectionAccess;
-    s10: SectionAccess;
-    s11: SectionAccess;
-    s16: SectionAccess;
-  } | null;
+  fullProfileAccessSectionAccess: ProfileSectionAccessGroup | null;
 }
 
 /** The fail-closed shape: no line qualifies, matching a Colleague-audience resolution. */
@@ -99,6 +93,9 @@ export function parseAccessRoleResolution(raw: unknown): AccessRoleResolution {
     return {
       s1: parseSectionAccess(o['s1']),
       s2: parseSectionAccess(o['s2']),
+      s4: parseSectionAccess(o['s4']),
+      s6: parseSectionAccess(o['s6']),
+      s9: parseSectionAccess(o['s9']),
       s10: parseSectionAccess(o['s10']),
       s11: parseSectionAccess(o['s11']),
       // s16 is parsed for interface symmetry but is intentionally not consumed by ProfileService:

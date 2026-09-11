@@ -705,3 +705,7 @@ Story 2.1 shipped in PR #65 (2026-09-10). Items below remain **open** follow-up 
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-6-self-managed-personal-data.md`
   summary: S2 fields beyond current Prisma columns — messengers and current place of stay — once modeled and exposed in `GET /profile` `s2`.
   evidence: `section-matrix.md` S2 lists messengers and place of stay; `toS2()` and `Person` only implement `personalPhone`, `personalEmail`, `residentialAddress`.
+
+## Deferred from: code review of spec-2-7 (2026-09-11)
+
+- Wire manager/PP S4/S9 from ACS `managerSectionAccess` / `peoplePartnerSectionAccess` instead of `NO_SECTION_ACCESS` hardcode — intentional 2.7 MVP scope; manager employment/timeline read is a future story.
