@@ -2,7 +2,7 @@
 title: 'Story 2.6: Self-managed personal data (S2 self-edit MVP)'
 type: 'feature'
 created: '2026-09-11'
-status: 'in-progress'
+status: 'done'
 review_loop_iteration: 1
 baseline_commit: '3ce0b66'
 context:
@@ -140,3 +140,4 @@ Section matrix S2 lists messengers and place of stay; the implemented `Person` m
 
 - **2026-09-11 (review loop 1):** Added `ColleagueBrowseGateService` bypass for self PATCH. Resolved `LIST_SELF_UNCHANGED` vs shared-endpoint contradiction (list UI `editableFields: []` + API allowlist split). Pinned 403 deferral message, S2 validation (`null`/string), `personalEmail` no format check, BFF `PeopleController` PATCH default. Expanded I/O matrix; fixed `profile.controller.ts` code map; added controller spec and section-matrix trace tasks.
 - **2026-09-11 (post-PR fix):** Manual test found S2 fields not clickable — `EmployeeProfilePage` compared Keycloak `sub` to platform `personId`. Fixed by adding `ProfileResponse.isSelf` on profile GET and driving edit affordance from `profile.isSelf`; Playwright mocks updated.
+- **2026-09-11 (done):** PR #79 merged to `main` (`1392ff4`); sprint/spec status → `done`; Jira O4-40 → Done.
