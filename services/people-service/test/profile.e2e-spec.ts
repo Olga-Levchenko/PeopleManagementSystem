@@ -634,7 +634,7 @@ describe('Profile (e2e)', () => {
     expect(resolveMock).not.toHaveBeenCalled();
   });
 
-  it('PATCH profile field rejects viewer-is-subject with 403', async () => {
+  it('PATCH profile field rejects self S1 edit with deferral message', async () => {
     const viewer = await prisma.person.create({
       data: { fullName: 'Self Viewer', countryCity: 'Kyiv' },
     });
@@ -647,8 +647,36 @@ describe('Profile (e2e)', () => {
 
     expect(response.body).toMatchObject({
       statusCode: 403,
-      error: 'COLLEAGUE_BROWSE_RESTRICTED',
+      message: 'Self-edit is not permitted on All Employees.',
     });
+    expect(resolveMock).not.toHaveBeenCalled();
+  });
+
+  it('PATCH profile field persists self S2 field for colleague-catalog viewer', async () => {
+    const viewer = await prisma.person.create({
+      data: {
+        fullName: 'Self Viewer',
+        personalPhone: '+380000000010',
+      },
+    });
+    currentViewerId = viewer.id;
+
+    const response = await request(app.getHttpServer())
+      .patch(`/people/${viewer.id}/profile/fields`)
+      .send({ fieldKey: 'personalPhone', value: '+380000000011' })
+      .expect(200);
+
+    expect(response.body).toEqual({
+      fieldKey: 'personalPhone',
+      value: '+380000000011',
+    });
+    expect(resolveMock).not.toHaveBeenCalled();
+
+    const updated = await prisma.person.findUnique({
+      where: { id: viewer.id },
+      select: { personalPhone: true },
+    });
+    expect(updated?.personalPhone).toBe('+380000000011');
   });
 
   it('PATCH profile field rejects R-only editor with 403', async () => {

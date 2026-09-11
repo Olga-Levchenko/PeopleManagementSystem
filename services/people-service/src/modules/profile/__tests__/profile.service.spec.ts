@@ -937,14 +937,53 @@ describe('ProfileService.patchProfileField', () => {
     },
   };
 
-  it('rejects self-edit with 403', async () => {
+  it('rejects self S1 edit with 403 deferral message', async () => {
     const resolve = jest.fn();
     const { service } = createPatchService({ resolve });
 
     await expect(
       service.patchProfileField(VIEWER_ID, VIEWER_ID, 'countryCity', 'Lviv'),
-    ).rejects.toMatchObject({ status: 403 });
+    ).rejects.toMatchObject({
+      status: 403,
+      message: 'Self-edit is not permitted on All Employees.',
+    });
     expect(resolve).not.toHaveBeenCalled();
+  });
+
+  it('persists self S2 field without calling access resolver', async () => {
+    const resolve = jest.fn();
+    const { service, personUpdate } = createPatchService({ resolve });
+
+    const result = await service.patchProfileField(
+      VIEWER_ID,
+      VIEWER_ID,
+      'personalPhone',
+      '+380999999999',
+    );
+
+    expect(resolve).not.toHaveBeenCalled();
+    expect(personUpdate).toHaveBeenCalledWith({
+      where: { id: VIEWER_ID },
+      data: { personalPhone: '+380999999999' },
+    });
+    expect(result).toEqual({
+      fieldKey: 'personalPhone',
+      value: '+380999999999',
+    });
+  });
+
+  it('rejects manager patching another person S2 field with 403', async () => {
+    const resolve = jest.fn().mockResolvedValue(managerRwResolution);
+    const { service } = createPatchService({ resolve });
+
+    await expect(
+      service.patchProfileField(
+        VIEWER_ID,
+        SUBJECT_ID,
+        'personalPhone',
+        '+380999999999',
+      ),
+    ).rejects.toMatchObject({ status: 403 });
   });
 
   it('rejects R-only S1 patch with 403', async () => {

@@ -69,4 +69,26 @@ describe('ProfileController colleague browse gate', () => {
 
     expect(profileService.patchProfileField).not.toHaveBeenCalled();
   });
+
+  it('PATCH profile field bypasses colleague browse gate when viewer is subject', async () => {
+    profileService.patchProfileField.mockResolvedValue({
+      fieldKey: 'personalPhone',
+      value: '+380111111111',
+    });
+
+    await controller.patchProfileField(viewerId, {
+      fieldKey: 'personalPhone',
+      value: '+380111111111',
+    });
+
+    expect(
+      colleagueBrowseGate.assertManagementBrowseAllowed,
+    ).not.toHaveBeenCalled();
+    expect(profileService.patchProfileField).toHaveBeenCalledWith(
+      viewerId,
+      viewerId,
+      'personalPhone',
+      '+380111111111',
+    );
+  });
 });

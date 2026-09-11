@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Req, Res } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { OidcService } from '../auth/oidc.service';
@@ -22,6 +22,23 @@ export class PeopleController {
     return this.forward(
       response,
       this.service.getProfile(subjectPersonId, await this.context(request)),
+    );
+  }
+
+  @Patch(':subjectPersonId/profile/fields')
+  async patchProfileField(
+    @Param('subjectPersonId') subjectPersonId: string,
+    @Body() body: unknown,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return this.forward(
+      response,
+      this.service.patchField(
+        subjectPersonId,
+        body,
+        await this.context(request),
+      ),
     );
   }
 

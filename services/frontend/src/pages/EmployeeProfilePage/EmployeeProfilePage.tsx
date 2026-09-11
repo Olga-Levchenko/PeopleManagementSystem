@@ -1,7 +1,11 @@
+import { useState } from 'react'
 import { ArrowLeft, User } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useEmployeeProfile } from '@/api/hooks/useEmployeeProfile'
+import { usePatchProfileField } from '@/api/hooks/usePatchProfileField'
+import { useAuth } from '@/contexts/AuthContext'
+import { ProfileInlineEditableField } from './ProfileInlineEditableField'
 
 const formatDate = (value: string | null | undefined): string => {
   if (!value) {
@@ -20,13 +24,32 @@ const formatBirthday = (
   return `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
+type S2FieldKey = 'personalPhone' | 'personalEmail' | 'residentialAddress'
+
 export const EmployeeProfilePage = () => {
   const { t } = useTranslation()
   const { personId } = useParams<{ personId: string }>()
+  const { user, loading: authLoading } = useAuth()
   const profileQuery = useEmployeeProfile(personId)
+  const patchMutation = usePatchProfileField(personId)
+  const [liveMessage, setLiveMessage] = useState('')
+
+  const isSelfProfile =
+    !authLoading && Boolean(personId) && user?.sub === personId
+
+  const saveS2Field = async (fieldKey: S2FieldKey, value: unknown) => {
+    try {
+      await patchMutation.mutateAsync({ fieldKey, value })
+      setLiveMessage(t('employeeProfile.saveSuccess', { field: fieldKey }))
+    } catch {
+      setLiveMessage(t('employeeProfile.saveError', { field: fieldKey }))
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6 p-6">
+      <div aria-live="polite" className="sr-only">{liveMessage}</div>
+
       <div className="flex items-center gap-3">
         <Link
           to="/all-employees"
@@ -125,7 +148,12 @@ export const EmployeeProfilePage = () => {
                     {t('employeeProfile.fields.personalPhone')}
                   </dt>
                   <dd className="text-foreground">
-                    {profileQuery.data.s2.personalPhone ?? '—'}
+                    <ProfileInlineEditableField
+                      value={profileQuery.data.s2.personalPhone}
+                      editable={isSelfProfile}
+                      saving={patchMutation.isPending}
+                      onSave={value => saveS2Field('personalPhone', value)}
+                    />
                   </dd>
                 </div>
                 <div>
@@ -133,7 +161,12 @@ export const EmployeeProfilePage = () => {
                     {t('employeeProfile.fields.personalEmail')}
                   </dt>
                   <dd className="text-foreground">
-                    {profileQuery.data.s2.personalEmail ?? '—'}
+                    <ProfileInlineEditableField
+                      value={profileQuery.data.s2.personalEmail}
+                      editable={isSelfProfile}
+                      saving={patchMutation.isPending}
+                      onSave={value => saveS2Field('personalEmail', value)}
+                    />
                   </dd>
                 </div>
                 <div>
@@ -141,7 +174,12 @@ export const EmployeeProfilePage = () => {
                     {t('employeeProfile.fields.residentialAddress')}
                   </dt>
                   <dd className="text-foreground">
-                    {profileQuery.data.s2.residentialAddress ?? '—'}
+                    <ProfileInlineEditableField
+                      value={profileQuery.data.s2.residentialAddress}
+                      editable={isSelfProfile}
+                      saving={patchMutation.isPending}
+                      onSave={value => saveS2Field('residentialAddress', value)}
+                    />
                   </dd>
                 </div>
               </dl>

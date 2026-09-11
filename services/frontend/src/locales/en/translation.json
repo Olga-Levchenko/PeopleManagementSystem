@@ -75,6 +75,8 @@
       "projects": "Projects",
       "customFields": "Custom fields"
     },
+    "saveSuccess": "Saved {{field}}.",
+    "saveError": "Failed to save {{field}}.",
     "fields": {
       "position": "Position",
       "department": "Department",

@@ -687,3 +687,21 @@ Story 2.1 shipped in PR #65 (2026-09-10). Items below remain **open** follow-up 
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-4-export-respects-the-exporter-s-access.md`
   summary: Playwright e2e asserting Export button hidden when `listAudienceLevel=colleague`.
   evidence: bmad-code-review 2026-09-11; interim UI gate; full colleague lockout deferred to Story 2.5.
+
+## Deferred from: bmad-build scope split for Story 2.6 (2026-09-11)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-6-self-managed-personal-data.md`
+  summary: S3 emergency contacts self-edit (schema, API, and profile UI) — employee-maintained emergency contact records per section matrix.
+  evidence: Epic 2.6 AC and `epics.md` include S3 writes; no S3 model or profile assembly exists in people-service today. MVP scoped to stored S2 fields only.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-6-self-managed-personal-data.md`
+  summary: Employee photo upload and attachment to own `photoUrl` / S1 identity card.
+  evidence: Epic 2.6 AC requires photo upload; `Person.photoUrl` is read-only storage with no upload pipeline in repo. Not owned by another story.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-6-self-managed-personal-data.md`
+  summary: Employee certificate upload and attachment to own record (S5 CV/certificates slice).
+  evidence: Epic 2.6 AC requires certificate upload; no certificate storage or upload API found in people-service. Distinct from S2 self-edit MVP.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-6-self-managed-personal-data.md`
+  summary: S2 fields beyond current Prisma columns — messengers and current place of stay — once modeled and exposed in `GET /profile` `s2`.
+  evidence: `section-matrix.md` S2 lists messengers and place of stay; `toS2()` and `Person` only implement `personalPhone`, `personalEmail`, `residentialAddress`.
