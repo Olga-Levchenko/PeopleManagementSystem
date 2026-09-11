@@ -706,9 +706,14 @@ describe('Profile (e2e)', () => {
       .expect(200);
 
     expect(res.body).not.toHaveProperty('s6');
-    expect(res.body.s4).toBeDefined();
-    expect(Array.isArray(res.body.s9)).toBe(true);
-    const s16Names = (res.body.s16 as Array<{ name: string }>).map((f) => f.name);
+    const body = res.body as {
+      s4: Record<string, unknown>;
+      s9: unknown[];
+      s16: Array<{ name: string }>;
+    };
+    expect(body.s4).toBeDefined();
+    expect(Array.isArray(body.s9)).toBe(true);
+    const s16Names = body.s16.map((f) => f.name);
     expect(s16Names).toContain('Internal Grade');
   });
 
