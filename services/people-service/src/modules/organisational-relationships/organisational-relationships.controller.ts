@@ -14,48 +14,44 @@ export class OrganisationalRelationshipsController {
   ) {}
 
   @Patch('people/:personId/manager')
-  changeManager(
+  async changeManager(
     @Param('personId', new ParseUUIDPipe()) personId: string,
     @Body() body: ChangePersonRelationshipDto,
   ) {
-    return this.service.changeManager(
-      this.actor.actorId,
-      personId,
-      body.relatedPersonId,
-    );
+    const actorId = await this.actor.resolveActorId();
+    return this.service.changeManager(actorId, personId, body.relatedPersonId);
   }
 
   @Patch('people/:personId/people-partner')
-  changePeoplePartner(
+  async changePeoplePartner(
     @Param('personId', new ParseUUIDPipe()) personId: string,
     @Body() body: ChangePersonRelationshipDto,
   ) {
+    const actorId = await this.actor.resolveActorId();
     return this.service.changePeoplePartner(
-      this.actor.actorId,
+      actorId,
       personId,
       body.relatedPersonId,
     );
   }
 
   @Patch('people/:personId/department')
-  changeDepartment(
+  async changeDepartment(
     @Param('personId', new ParseUUIDPipe()) personId: string,
     @Body() body: ChangeDepartmentDto,
   ) {
-    return this.service.changeDepartment(
-      this.actor.actorId,
-      personId,
-      body.departmentId,
-    );
+    const actorId = await this.actor.resolveActorId();
+    return this.service.changeDepartment(actorId, personId, body.departmentId);
   }
 
   @Patch('departments/:departmentId/manager')
-  changeDepartmentManager(
+  async changeDepartmentManager(
     @Param('departmentId', new ParseUUIDPipe()) departmentId: string,
     @Body() body: ChangePersonRelationshipDto,
   ) {
+    const actorId = await this.actor.resolveActorId();
     return this.service.changeDepartmentManager(
-      this.actor.actorId,
+      actorId,
       departmentId,
       body.relatedPersonId,
     );

@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { IdentityMappingsModule } from '../identity-mappings/identity-mappings.module';
 import { ProfileModule } from '../profile/profile.module';
 import { RequestActorContext } from '../organisational-relationships/request-actor.context';
 import { ColleagueBrowseGateService } from './colleague-browse.gate.service';
@@ -9,7 +10,11 @@ import { SavedViewsController } from './saved-views.controller';
 import { SavedViewsService } from './saved-views.service';
 
 @Module({
-  imports: [AuthModule, forwardRef(() => ProfileModule)],
+  imports: [
+    AuthModule,
+    IdentityMappingsModule,
+    forwardRef(() => ProfileModule),
+  ],
   controllers: [EmployeesController, SavedViewsController],
   providers: [
     EmployeesService,

@@ -23,10 +23,11 @@ export class ProfileController {
   ) {}
 
   @Get(':subjectPersonId/profile')
-  getProfile(
+  async getProfile(
     @Param('subjectPersonId', new ParseUUIDPipe()) subjectPersonId: string,
   ) {
-    return this.service.getProfile(this.actor.actorId, subjectPersonId);
+    const actorId = await this.actor.resolveActorId();
+    return this.service.getProfile(actorId, subjectPersonId);
   }
 
   @Patch(':subjectPersonId/profile/fields')
@@ -40,11 +41,10 @@ export class ProfileController {
     )
     dto: PatchProfileFieldDto,
   ) {
-    await this.colleagueBrowseGate.assertManagementBrowseAllowed(
-      this.actor.actorId,
-    );
+    const actorId = await this.actor.resolveActorId();
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(actorId);
     return this.service.patchProfileField(
-      this.actor.actorId,
+      actorId,
       subjectPersonId,
       dto.fieldKey,
       dto.value,

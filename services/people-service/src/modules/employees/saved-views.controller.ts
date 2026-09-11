@@ -32,10 +32,9 @@ export class SavedViewsController {
 
   @Get()
   async listSavedViews() {
-    await this.colleagueBrowseGate.assertManagementBrowseAllowed(
-      this.actor.actorId,
-    );
-    return this.service.listSavedViews(this.actor.actorId);
+    const actorId = await this.actor.resolveActorId();
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(actorId);
+    return this.service.listSavedViews(actorId);
   }
 
   @Post()
@@ -49,10 +48,9 @@ export class SavedViewsController {
     )
     body: CreateSavedViewDto,
   ) {
-    await this.colleagueBrowseGate.assertManagementBrowseAllowed(
-      this.actor.actorId,
-    );
-    return this.service.createSavedView(this.actor.actorId, body);
+    const actorId = await this.actor.resolveActorId();
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(actorId);
+    return this.service.createSavedView(actorId, body);
   }
 
   @Patch(':viewId')
@@ -67,19 +65,17 @@ export class SavedViewsController {
     )
     body: UpdateSavedViewDto,
   ) {
-    await this.colleagueBrowseGate.assertManagementBrowseAllowed(
-      this.actor.actorId,
-    );
-    return this.service.updateSavedView(this.actor.actorId, viewId, body);
+    const actorId = await this.actor.resolveActorId();
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(actorId);
+    return this.service.updateSavedView(actorId, viewId, body);
   }
 
   @Delete(':viewId')
   @HttpCode(204)
   async deleteSavedView(@Param('viewId') viewId: string) {
-    await this.colleagueBrowseGate.assertManagementBrowseAllowed(
-      this.actor.actorId,
-    );
-    await this.service.deleteSavedView(this.actor.actorId, viewId);
+    const actorId = await this.actor.resolveActorId();
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(actorId);
+    await this.service.deleteSavedView(actorId, viewId);
   }
 
   @Post(':viewId/shares')
@@ -95,11 +91,10 @@ export class SavedViewsController {
     body: ShareSavedViewDto,
     @Res({ passthrough: true }) response: Response,
   ) {
-    await this.colleagueBrowseGate.assertManagementBrowseAllowed(
-      this.actor.actorId,
-    );
+    const actorId = await this.actor.resolveActorId();
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(actorId);
     const result = await this.service.shareSavedView(
-      this.actor.actorId,
+      actorId,
       viewId,
       body.recipientPersonId,
     );
@@ -113,13 +108,8 @@ export class SavedViewsController {
     @Param('viewId') viewId: string,
     @Param('recipientPersonId') recipientPersonId: string,
   ) {
-    await this.colleagueBrowseGate.assertManagementBrowseAllowed(
-      this.actor.actorId,
-    );
-    await this.service.revokeShare(
-      this.actor.actorId,
-      viewId,
-      recipientPersonId,
-    );
+    const actorId = await this.actor.resolveActorId();
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(actorId);
+    await this.service.revokeShare(actorId, viewId, recipientPersonId);
   }
 }

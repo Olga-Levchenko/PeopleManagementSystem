@@ -17,15 +17,18 @@ describe('OrganisationalRelationshipsController', () => {
     changeDepartment,
     changeDepartmentManager,
   } as unknown as OrganisationalRelationshipsService;
-  const actor = { actorId: 'actor-id' } as RequestActorContext;
+  const actor = {
+    resolveActorId: jest.fn().mockResolvedValue('actor-id'),
+  } as unknown as RequestActorContext;
   const controller = new OrganisationalRelationshipsController(service, actor);
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (actor.resolveActorId as jest.Mock).mockResolvedValue('actor-id');
   });
 
-  it('delegates manager changes with the authenticated actor', () => {
-    void controller.changeManager('person-id', {
+  it('delegates manager changes with the authenticated actor', async () => {
+    await controller.changeManager('person-id', {
       relatedPersonId: 'manager-id',
     });
 
@@ -36,8 +39,8 @@ describe('OrganisationalRelationshipsController', () => {
     );
   });
 
-  it('delegates People Partner changes with the authenticated actor', () => {
-    void controller.changePeoplePartner('person-id', {
+  it('delegates People Partner changes with the authenticated actor', async () => {
+    await controller.changePeoplePartner('person-id', {
       relatedPersonId: 'partner-id',
     });
 
@@ -48,8 +51,8 @@ describe('OrganisationalRelationshipsController', () => {
     );
   });
 
-  it('delegates department membership changes with the authenticated actor', () => {
-    void controller.changeDepartment('person-id', {
+  it('delegates department membership changes with the authenticated actor', async () => {
+    await controller.changeDepartment('person-id', {
       departmentId: 'department-id',
     });
 
@@ -60,8 +63,8 @@ describe('OrganisationalRelationshipsController', () => {
     );
   });
 
-  it('delegates department membership clearing with null', () => {
-    void controller.changeDepartment('person-id', { departmentId: null });
+  it('delegates department membership clearing with null', async () => {
+    await controller.changeDepartment('person-id', { departmentId: null });
 
     expect(changeDepartment).toHaveBeenCalledWith(
       'actor-id',
@@ -70,8 +73,8 @@ describe('OrganisationalRelationshipsController', () => {
     );
   });
 
-  it('delegates department manager changes with the authenticated actor', () => {
-    void controller.changeDepartmentManager('department-id', {
+  it('delegates department manager changes with the authenticated actor', async () => {
+    await controller.changeDepartmentManager('department-id', {
       relatedPersonId: 'manager-id',
     });
 

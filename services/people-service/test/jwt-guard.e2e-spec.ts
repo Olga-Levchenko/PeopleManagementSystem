@@ -6,8 +6,13 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 import { AppModule } from '../src/app.module';
+import { IdentityResolutionService } from '../src/modules/identity-mappings/identity-resolution.service';
 import { UnavailableRelationshipPermissionAdapter } from '../src/modules/organisational-relationships/organisational-relationships.ports';
 import { PrismaService } from '../src/prisma/prisma.service';
+import {
+  STORY_1_11_PERSON_ID,
+  createStory111IdentityResolutionStub,
+} from './support/e2e-auth.helpers';
 
 /**
  * Proves the four I/O-matrix rows of `spec-1-11c-verified-identity-propagation.md` end-to-end
@@ -296,6 +301,8 @@ describe('JWT guard (e2e)', () => {
       })
       .overrideProvider(PrismaService)
       .useValue(fakePrismaService())
+      .overrideProvider(IdentityResolutionService)
+      .useValue(createStory111IdentityResolutionStub())
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -338,9 +345,6 @@ describe('JWT guard (e2e)', () => {
       'canChange',
     );
     const { access_token: accessToken } = await obtainToken();
-    const payload = JSON.parse(
-      Buffer.from(accessToken.split('.')[1], 'base64').toString('utf8'),
-    ) as { sub: string };
 
     const res = await request(app.getHttpServer())
       .patch(`/organisational-relationships/people/${SOME_PERSON_ID}/manager`)
@@ -356,11 +360,10 @@ describe('JWT guard (e2e)', () => {
       'Relationship authorization is unavailable',
     );
     expect(canChangeSpy).toHaveBeenCalledTimes(1);
-    // Not just "was called" -- proves RequestActorContext.actorId actually resolved to *this*
-    // token's real sub claim, not some other value (e.g. a stale mock, an empty string that
-    // happened to still fail permission, or a swapped argument position).
+    // Not just "was called" -- proves RequestActorContext.resolveActorId() mapped the token's
+    // Keycloak principal to the seeded platform Person.id, not the raw sub claim.
     expect(canChangeSpy).toHaveBeenCalledWith(
-      payload.sub,
+      STORY_1_11_PERSON_ID,
       SOME_PERSON_ID,
       'reports_to',
     );

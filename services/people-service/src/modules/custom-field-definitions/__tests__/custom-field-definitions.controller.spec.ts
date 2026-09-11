@@ -7,7 +7,9 @@ describe('CustomFieldDefinitionsController — dataType rejection', () => {
     const service = {
       listAll: jest.fn().mockResolvedValue(definitions),
     } as never;
-    const actor = { actorId: 'actor-1' } as never;
+    const actor = {
+      resolveActorId: jest.fn().mockResolvedValue('actor-1'),
+    } as never;
     const controller = new CustomFieldDefinitionsController(service, actor);
 
     const result = await controller.listAll();
@@ -20,7 +22,9 @@ describe('CustomFieldDefinitionsController — dataType rejection', () => {
       listAll: jest.fn(),
       update: jest.fn(),
     } as never;
-    const actor = { actorId: 'actor-1' } as never;
+    const actor = {
+      resolveActorId: jest.fn().mockResolvedValue('actor-1'),
+    } as never;
     const controller = new CustomFieldDefinitionsController(service, actor);
 
     expect(() =>
@@ -46,7 +50,9 @@ describe('CustomFieldDefinitionsController — dataType rejection', () => {
       listAll: jest.fn(),
       update: jest.fn().mockResolvedValue(updated),
     } as never;
-    const actor = { actorId: 'actor-1' } as never;
+    const actor = {
+      resolveActorId: jest.fn().mockResolvedValue('actor-1'),
+    } as never;
     const controller = new CustomFieldDefinitionsController(service, actor);
 
     const result = await controller.update(

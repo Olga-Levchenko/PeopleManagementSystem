@@ -30,8 +30,9 @@ export class EmployeesController {
   ) {}
 
   @Get('field-catalog')
-  getFieldCatalog() {
-    return this.service.getFieldCatalog(this.actor.actorId);
+  async getFieldCatalog() {
+    const actorId = await this.actor.resolveActorId();
+    return this.service.getFieldCatalog(actorId);
   }
 
   @Get('export')
@@ -47,12 +48,11 @@ export class EmployeesController {
     @Req() request: Request,
     @Res() response: Response,
   ) {
-    await this.colleagueBrowseGate.assertManagementBrowseAllowed(
-      this.actor.actorId,
-    );
+    const actorId = await this.actor.resolveActorId();
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(actorId);
     const columnKeys = parseExportColumnKeys(query.columns);
     const { buffer, filename } = await this.service.exportEmployeesToXlsx(
-      this.actor.actorId,
+      actorId,
       query,
       parseCustomFieldFilters(request.query),
       columnKeys,
@@ -70,7 +70,7 @@ export class EmployeesController {
   }
 
   @Get()
-  listEmployees(
+  async listEmployees(
     @Query(
       new ValidationPipe({
         whitelist: true,
@@ -81,8 +81,9 @@ export class EmployeesController {
     query: ListEmployeesQueryDto,
     @Req() request: Request,
   ) {
+    const actorId = await this.actor.resolveActorId();
     return this.service.listEmployees(
-      this.actor.actorId,
+      actorId,
       query,
       parseCustomFieldFilters(request.query),
     );

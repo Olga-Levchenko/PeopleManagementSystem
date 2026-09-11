@@ -15,8 +15,8 @@ describe('ProfileController colleague browse gate', () => {
   >;
 
   const actor = {
-    actorId: viewerId,
-  } as RequestActorContext;
+    resolveActorId: jest.fn().mockResolvedValue(viewerId),
+  } as unknown as RequestActorContext;
 
   const colleagueBrowseGate = {
     assertManagementBrowseAllowed: jest.fn(),
