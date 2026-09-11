@@ -2,9 +2,9 @@
 title: 'Story 2.7: Self-read of managed data, and never own risk level (S4/S9 + S6 exclusion MVP)'
 type: 'feature'
 created: '2026-09-11'
-status: 'in-progress'
+status: 'done'
 review_loop_iteration: 2
-baseline_commit: '1392ff4a7481b778d898e815c9aa1ce5dd39a094'
+baseline_commit: '1d079d8'
 context:
   - '{project-root}/.claude/rules/access-control-invariants.md'
   - '{project-root}/docs/access-control/section-matrix.md'
