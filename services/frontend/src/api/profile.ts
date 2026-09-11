@@ -51,6 +51,7 @@ export interface S16CustomField {
 }
 
 export interface EmployeeProfileResponse {
+  isSelf: boolean
   s1?: S1IdentityCard
   s2?: S2PersonalContacts
   s10?: S10Leave[]

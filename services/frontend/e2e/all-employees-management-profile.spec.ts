@@ -39,6 +39,7 @@ const managementList = {
 }
 
 const managementProfile = {
+  isSelf: false,
   s1: {
     fullName: 'Report Person',
     photoUrl: null,

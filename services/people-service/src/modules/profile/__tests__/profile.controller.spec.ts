@@ -35,7 +35,7 @@ describe('ProfileController colleague browse gate', () => {
   });
 
   it('GET profile remains available for colleague catalog audience', async () => {
-    profileService.getProfile.mockResolvedValue({ s16: [] });
+    profileService.getProfile.mockResolvedValue({ isSelf: false, s16: [] });
     colleagueBrowseGate.assertManagementBrowseAllowed.mockResolvedValue(
       undefined,
     );

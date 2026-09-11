@@ -4,7 +4,6 @@ import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useEmployeeProfile } from '@/api/hooks/useEmployeeProfile'
 import { usePatchProfileField } from '@/api/hooks/usePatchProfileField'
-import { useAuth } from '@/contexts/AuthContext'
 import { ProfileInlineEditableField } from './ProfileInlineEditableField'
 
 const formatDate = (value: string | null | undefined): string => {
@@ -29,13 +28,11 @@ type S2FieldKey = 'personalPhone' | 'personalEmail' | 'residentialAddress'
 export const EmployeeProfilePage = () => {
   const { t } = useTranslation()
   const { personId } = useParams<{ personId: string }>()
-  const { user, loading: authLoading } = useAuth()
   const profileQuery = useEmployeeProfile(personId)
   const patchMutation = usePatchProfileField(personId)
   const [liveMessage, setLiveMessage] = useState('')
 
-  const isSelfProfile =
-    !authLoading && Boolean(personId) && user?.sub === personId
+  const isSelfProfile = profileQuery.data?.isSelf === true
 
   const saveS2Field = async (fieldKey: S2FieldKey, value: unknown) => {
     try {

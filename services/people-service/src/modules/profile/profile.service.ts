@@ -80,6 +80,7 @@ export interface S11ProjectEntry {
  * revealing whether invisible fields exist.
  */
 export interface ProfileResponse {
+  isSelf: boolean;
   s1?: S1IdentityCard;
   s2?: S2PersonalContacts;
   s10?: S10Leave[];
@@ -238,7 +239,10 @@ export class ProfileService {
       subjectPersonId,
     );
 
-    const response: ProfileResponse = { s16: [] };
+    const response: ProfileResponse = {
+      isSelf: viewerPersonId === subjectPersonId,
+      s16: [],
+    };
     if (this.grantsAccess(audience.s1)) {
       response.s1 = this.toS1(person);
     }

@@ -77,7 +77,8 @@ context:
 - `services/bff/src/modules/employees/people.controller.ts` — add `PATCH :subjectPersonId/profile/fields` forwarding to `EmployeesService.patchField` (same upstream as employees controller)
 - `services/bff/src/modules/employees/__tests__/people.controller.spec.ts` — PATCH proxy test
 - `services/frontend/src/api/profile.ts` — `patchProfileFieldApiCall`; optional `usePatchProfileField` mutation hook
-- `services/frontend/src/pages/EmployeeProfilePage/EmployeeProfilePage.tsx:117-148` — self-only editable S2 cells; `useAuth` for `user.sub === personId`
+- `services/people-service/src/modules/profile/profile.service.ts` — `ProfileResponse.isSelf` (`viewerPersonId === subjectPersonId`) on profile GET
+- `services/frontend/src/pages/EmployeeProfilePage/EmployeeProfilePage.tsx:117-148` — self-only editable S2 cells; `profile.isSelf === true` (not Keycloak `sub` — identity links map `sub` to platform `personId`)
 - `services/frontend/src/locales/en/translation.json` — save/error strings for profile field edit if missing
 - `services/frontend/e2e/employee-profile-self-edit.spec.ts` — new Playwright: mock or seed own profile, edit S2 field, assert UI + PATCH
 
@@ -98,7 +99,7 @@ context:
 - [x] `employee-profile-self-edit.spec.ts` — Playwright smoke for own-profile S2 edit
 
 **Acceptance Criteria:**
-- Given an employee viewing their own profile at `/people/:personId` where `personId` matches their authenticated `sub`, when the API returns `s2`, then `personalPhone`, `personalEmail`, and `residentialAddress` are inline-editable and PATCH persists on blur/commit
+- Given an employee viewing their own profile at `/people/:personId` where `personId` is their resolved platform person id (`profile.isSelf === true`), when the API returns `s2`, then `personalPhone`, `personalEmail`, and `residentialAddress` are inline-editable and PATCH persists on blur/commit
 - Given a colleague-catalog employee (`listAudienceLevel=colleague`) PATCHing their own `personalPhone` via `PATCH /people/:id/profile/fields`, when the request is valid, then the server returns 200 (colleague browse gate bypassed) with persisted value and profile GET reflects the change
 - Given an employee PATCHing their own `countryCity` or any S1/custom field via the same endpoint, when the request is submitted, then the server returns 403 and Story 2.2 All Employees deferral behavior is preserved
 - Given a manager PATCHing another person's `personalPhone`, when the request is submitted, then the server returns 403 (S2 manager writes not in this story)
@@ -138,3 +139,4 @@ Section matrix S2 lists messengers and place of stay; the implemented `Person` m
 ## Review history
 
 - **2026-09-11 (review loop 1):** Added `ColleagueBrowseGateService` bypass for self PATCH. Resolved `LIST_SELF_UNCHANGED` vs shared-endpoint contradiction (list UI `editableFields: []` + API allowlist split). Pinned 403 deferral message, S2 validation (`null`/string), `personalEmail` no format check, BFF `PeopleController` PATCH default. Expanded I/O matrix; fixed `profile.controller.ts` code map; added controller spec and section-matrix trace tasks.
+- **2026-09-11 (post-PR fix):** Manual test found S2 fields not clickable — `EmployeeProfilePage` compared Keycloak `sub` to platform `personId`. Fixed by adding `ProfileResponse.isSelf` on profile GET and driving edit affordance from `profile.isSelf`; Playwright mocks updated.

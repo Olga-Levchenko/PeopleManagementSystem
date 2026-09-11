@@ -4,6 +4,7 @@ import { mockAuthenticatedSession } from './shared/auth-helpers'
 const selfPersonId = 'test-sub-001'
 
 const selfProfile = {
+  isSelf: true,
   s1: {
     fullName: 'Playwright Self',
     photoUrl: null,

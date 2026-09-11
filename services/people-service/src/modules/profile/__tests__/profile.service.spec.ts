@@ -107,7 +107,9 @@ describe('ProfileService', () => {
     const result = await service.getProfile(SUBJECT_ID, SUBJECT_ID);
 
     expect(resolve).toHaveBeenCalledWith(SUBJECT_ID, SUBJECT_ID);
+    expect(result.isSelf).toBe(true);
     expect(Object.keys(result).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -158,6 +160,7 @@ describe('ProfileService', () => {
 
     expect(resolve).toHaveBeenCalledWith(VIEWER_ID, SUBJECT_ID);
     expect(Object.keys(result).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -194,7 +197,13 @@ describe('ProfileService', () => {
 
     const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
 
-    expect(Object.keys(result).sort()).toEqual(['s1', 's10', 's11', 's16']);
+    expect(Object.keys(result).sort()).toEqual([
+      'isSelf',
+      's1',
+      's10',
+      's11',
+      's16',
+    ]);
     expect(result.s2).toBeUndefined();
     // Project-line viewer is NOT a colleague (isColleague: false) so gets full S10/S11 data
     expect(result.s10![0]).toHaveProperty('leaveType', 'vacation');
@@ -215,7 +224,13 @@ describe('ProfileService', () => {
     const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
 
     // COLLEAGUE_WHITELIST_KEYS: exactly s1, s10, s11, s16 -- no s2 or any other key
-    expect(Object.keys(result).sort()).toEqual(['s1', 's10', 's11', 's16']);
+    expect(Object.keys(result).sort()).toEqual([
+      'isSelf',
+      's1',
+      's10',
+      's11',
+      's16',
+    ]);
     expect(result.s2).toBeUndefined();
     expect(result.s1?.manager).toEqual(FULL_PERSON_ROW.manager);
     expect(result.s1?.peoplePartner).toEqual(FULL_PERSON_ROW.peoplePartner);
@@ -255,7 +270,13 @@ describe('ProfileService', () => {
 
     const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
 
-    expect(Object.keys(result).sort()).toEqual(['s1', 's10', 's11', 's16']);
+    expect(Object.keys(result).sort()).toEqual([
+      'isSelf',
+      's1',
+      's10',
+      's11',
+      's16',
+    ]);
     expect(result.s10).toEqual([]);
     expect(result.s11).toEqual([]);
     // NO_VALUES: s16 always present even when there are no custom field values
@@ -406,7 +427,13 @@ describe('ProfileService', () => {
 
     const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
 
-    expect(Object.keys(result).sort()).toEqual(['s1', 's10', 's11', 's16']);
+    expect(Object.keys(result).sort()).toEqual([
+      'isSelf',
+      's1',
+      's10',
+      's11',
+      's16',
+    ]);
   });
 
   it('Unknown subjectPersonId: no Person row matches -> NotFoundException, resolver never called', async () => {
@@ -430,7 +457,13 @@ describe('ProfileService', () => {
     const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
 
     // Falls back to Colleague whitelist: s1+s10+s11+s16 with field restrictions
-    expect(Object.keys(result).sort()).toEqual(['s1', 's10', 's11', 's16']);
+    expect(Object.keys(result).sort()).toEqual([
+      'isSelf',
+      's1',
+      's10',
+      's11',
+      's16',
+    ]);
   });
 
   it('unrecognized level string from access-control-service fails closed (allowlist, not a denylist) -- s16 still present', async () => {
@@ -450,7 +483,7 @@ describe('ProfileService', () => {
     const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
 
     // s16 is always present; other sections with None/unrecognized levels are absent
-    expect(Object.keys(result)).toEqual(['s16']);
+    expect(Object.keys(result).sort()).toEqual(['isSelf', 's16']);
   });
 
   it('PP line: peoplePartnerLine true, neither Manager line qualifying -> unnarrowed s1+s2+s10+s11+s16 from peoplePartnerSectionAccess', async () => {
@@ -473,6 +506,7 @@ describe('ProfileService', () => {
 
     expect(resolve).toHaveBeenCalledWith(VIEWER_ID, SUBJECT_ID);
     expect(Object.keys(result).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -515,6 +549,7 @@ describe('ProfileService', () => {
     const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
 
     expect(Object.keys(result).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -551,6 +586,7 @@ describe('ProfileService', () => {
     const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
 
     expect(Object.keys(result).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -575,7 +611,7 @@ describe('ProfileService', () => {
     const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
 
     // s2/s10/s11 missing from managerSectionAccess: all resolve to None, only s1 + s16 present
-    expect(Object.keys(result).sort()).toEqual(['s1', 's16']);
+    expect(Object.keys(result).sort()).toEqual(['isSelf', 's1', 's16']);
   });
 
   it('PP line qualifies but peoplePartnerSectionAccess missing falls back to Colleague (defensive, malformed response)', async () => {
@@ -591,7 +627,13 @@ describe('ProfileService', () => {
     const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
 
     // Falls back to Colleague whitelist: s1+s10+s11+s16 with field restrictions
-    expect(Object.keys(result).sort()).toEqual(['s1', 's10', 's11', 's16']);
+    expect(Object.keys(result).sort()).toEqual([
+      'isSelf',
+      's1',
+      's10',
+      's11',
+      's16',
+    ]);
   });
 
   it('No line qualifies (including PP): Colleague whitelist, s1+s10+s11+s16 present, s2 absent', async () => {
@@ -606,7 +648,13 @@ describe('ProfileService', () => {
 
     const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
 
-    expect(Object.keys(result).sort()).toEqual(['s1', 's10', 's11', 's16']);
+    expect(Object.keys(result).sort()).toEqual([
+      'isSelf',
+      's1',
+      's10',
+      's11',
+      's16',
+    ]);
     expect(result.s2).toBeUndefined();
   });
 
@@ -635,6 +683,7 @@ describe('ProfileService', () => {
     expect(resolve).toHaveBeenCalledWith(VIEWER_ID, SUBJECT_ID);
     // All four principal sections present (s1+s2+s10+s11) plus s16
     expect(Object.keys(result).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -681,6 +730,7 @@ describe('ProfileService', () => {
 
     // Full-profile-access takes priority: S2 must be present despite narrowed Project line
     expect(Object.keys(result).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -707,7 +757,13 @@ describe('ProfileService', () => {
     const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
 
     // Falls back to Colleague whitelist (fail-closed: no access granted on malformed response)
-    expect(Object.keys(result).sort()).toEqual(['s1', 's10', 's11', 's16']);
+    expect(Object.keys(result).sort()).toEqual([
+      'isSelf',
+      's1',
+      's10',
+      's11',
+      's16',
+    ]);
     expect(result.s2).toBeUndefined();
   });
 
@@ -738,6 +794,7 @@ describe('ProfileService', () => {
 
     // FPA path: all sections present and S16 includes management-level field
     expect(Object.keys(result).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -769,6 +826,7 @@ describe('ProfileService', () => {
 
     // Self-view path: S16 absent management field
     expect(Object.keys(result).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
