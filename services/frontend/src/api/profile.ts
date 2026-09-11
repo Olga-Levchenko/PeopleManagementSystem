@@ -25,6 +25,12 @@ export interface S1IdentityCard {
   peoplePartner: PersonSummary | null
 }
 
+export interface S2PersonalContacts {
+  personalPhone: string | null
+  personalEmail: string | null
+  residentialAddress: string | null
+}
+
 export interface S10Leave {
   startDate: string
   endDate: string
@@ -44,17 +50,24 @@ export interface S16CustomField {
   value: string | number | boolean | null
 }
 
-export interface ColleagueProfileResponse {
+export interface EmployeeProfileResponse {
   s1?: S1IdentityCard
+  s2?: S2PersonalContacts
   s10?: S10Leave[]
   s11?: S11ProjectEntry[]
-  s16: S16CustomField[]
+  s16?: S16CustomField[]
 }
 
-export const getColleagueProfileApiCall = (
+/** @deprecated Use EmployeeProfileResponse */
+export type ColleagueProfileResponse = EmployeeProfileResponse
+
+export const getEmployeeProfileApiCall = (
   personId: string,
   signal?: AbortSignal,
 ) =>
-  apiClient.get<ColleagueProfileResponse>(`/api/v1/people/${personId}/profile`, {
+  apiClient.get<EmployeeProfileResponse>(`/api/v1/people/${personId}/profile`, {
     signal,
   })
+
+/** @deprecated Use getEmployeeProfileApiCall */
+export const getColleagueProfileApiCall = getEmployeeProfileApiCall

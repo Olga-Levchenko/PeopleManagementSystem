@@ -61,15 +61,16 @@
       "readOnly": "Read-only shared view"
     }
   },
-  "colleagueProfile": {
-    "title": "Colleague profile",
-    "description": "Limited profile view based on your access.",
+  "employeeProfile": {
+    "title": "Employee profile",
+    "description": "Profile view based on your access.",
     "backToList": "Back to All Employees",
     "loading": "Loading profile...",
     "error": "Unable to load this profile.",
     "empty": "No records to show.",
     "sections": {
       "identity": "Identity",
+      "personalContacts": "Personal contacts",
       "leaves": "Leaves",
       "projects": "Projects",
       "customFields": "Custom fields"
@@ -83,7 +84,10 @@
       "birthday": "Birthday",
       "startDate": "Start date",
       "manager": "Manager",
-      "peoplePartner": "People partner"
+      "peoplePartner": "People partner",
+      "personalPhone": "Personal phone",
+      "personalEmail": "Personal email",
+      "residentialAddress": "Residential address"
     }
   },
   "administration": {

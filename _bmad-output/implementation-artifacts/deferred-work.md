@@ -660,8 +660,13 @@ Story 2.1 shipped in PR #65 (2026-09-10). Items below remain **open** follow-up 
   evidence: bmad-code-review 2026-09-10; types duplicated in `frontend/src/api/employees.ts`.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-1-universal-filter-column-engine-over-profile-fields.md`
-  summary: Profile navigation link from All Employees list rows; column picker persistence; `departmentId` filter UI.
+  summary: Profile navigation link from All Employees list rows (management mode).
   evidence: bmad-code-review 2026-09-10; UX polish beyond 2.1 core ACs.
+  status: **claimed by Story 2.8** (`spec-2-8-management-list-row-navigation-to-employee-profile.md`, Jira O4-168, 2026-09-11). Colleague row-click shipped in Story 2.5; management browse deferred there via `MANAGEMENT_UNCHANGED`.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-1-universal-filter-column-engine-over-profile-fields.md`
+  summary: Column picker persistence; `departmentId` filter UI.
+  evidence: bmad-code-review 2026-09-10; UX polish beyond 2.1 core ACs; profile navigation split to Story 2.8.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-1-universal-filter-column-engine-over-profile-fields.md`
   summary: Employees module Swagger composite decorators and FPA batch HTTP composition test.

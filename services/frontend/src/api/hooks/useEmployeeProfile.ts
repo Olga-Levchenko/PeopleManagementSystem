@@ -1,14 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
-import { getColleagueProfileApiCall } from '@/api/profile'
+import { getEmployeeProfileApiCall } from '@/api/profile'
 
-export const useColleagueProfile = (personId: string | undefined) =>
+export const useEmployeeProfile = (personId: string | undefined) =>
   useQuery({
     queryKey: ['people', 'profile', personId],
     queryFn: ({ signal }) => {
       if (!personId) {
         throw new Error('personId is required')
       }
-      return getColleagueProfileApiCall(personId, signal)
+      return getEmployeeProfileApiCall(personId, signal)
     },
     enabled: Boolean(personId),
   })
