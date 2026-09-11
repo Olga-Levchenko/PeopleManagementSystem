@@ -310,19 +310,11 @@ describe('Saved views (e2e)', () => {
 
     const sharedViewResponse = await request(app.getHttpServer())
       .get('/employees/saved-views')
-      .expect(200);
-    const sharedViews = sharedViewResponse.body as Array<{
-      id: string;
-      applicableConfiguration: {
-        filters: { customFieldFilters?: Record<string, string> };
-      };
-    }>;
-    const sharedView = sharedViews.find((view) => view.id === created.id);
-    expect(
-      sharedView?.applicableConfiguration.filters.customFieldFilters?.[
-        customFieldKey
-      ],
-    ).toBe('Senior');
+      .expect(403);
+    expect(sharedViewResponse.body).toMatchObject({
+      statusCode: 403,
+      error: 'COLLEAGUE_BROWSE_RESTRICTED',
+    });
 
     const recipientCatalogResponse = await request(app.getHttpServer())
       .get('/employees/field-catalog')

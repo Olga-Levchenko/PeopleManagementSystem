@@ -174,9 +174,9 @@ describe('Employees (e2e)', () => {
       items: Array<{ values: { fullName?: string } }>;
     };
 
-    expect(resolveBatchMock).toHaveBeenCalledTimes(2);
+    expect(resolveBatchMock).toHaveBeenCalledTimes(3);
     expect(resolveBatchMock).toHaveBeenNthCalledWith(
-      2,
+      3,
       viewer.id,
       expect.arrayContaining([subjectId]),
     );
@@ -237,10 +237,10 @@ describe('Employees (e2e)', () => {
 
     expect(responseBody.totalCount).toBeGreaterThanOrEqual(500);
     expect(responseBody.items.length).toBe(100);
-    expect(resolveBatchMock).toHaveBeenCalledTimes(1);
-    const firstBatchCall = resolveBatchMock.mock.calls[0] as
+    expect(resolveBatchMock).toHaveBeenCalledTimes(2);
+    const listBatchCall = resolveBatchMock.mock.calls[1] as
       [string, string[]] | undefined;
-    expect(firstBatchCall?.[1]).toHaveLength(100);
+    expect(listBatchCall?.[1]).toHaveLength(100);
     expect(elapsedMs).toBeLessThan(2000);
     expect(allIds.length).toBeGreaterThanOrEqual(500);
   });

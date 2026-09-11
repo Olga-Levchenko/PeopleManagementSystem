@@ -643,12 +643,15 @@ describe('Profile (e2e)', () => {
     });
     currentViewerId = viewer.id;
 
-    await request(app.getHttpServer())
+    const response = await request(app.getHttpServer())
       .patch(`/people/${viewer.id}/profile/fields`)
       .send({ fieldKey: 'countryCity', value: 'Lviv' })
       .expect(403);
 
-    expect(resolveMock).not.toHaveBeenCalled();
+    expect(response.body).toMatchObject({
+      statusCode: 403,
+      error: 'COLLEAGUE_BROWSE_RESTRICTED',
+    });
   });
 
   it('PATCH profile field rejects R-only editor with 403', async () => {
