@@ -273,6 +273,7 @@ describe('Profile (e2e)', () => {
       .expect(200);
 
     expect(Object.keys(res.body as object).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -280,10 +281,12 @@ describe('Profile (e2e)', () => {
       's2',
     ]);
     const body = res.body as {
+      isSelf: boolean;
       s10: Array<Record<string, unknown>>;
       s11: Array<Record<string, unknown>>;
       s16: Array<{ fieldId: string; name: string; value: string }>;
     };
+    expect(body.isSelf).toBe(true);
     // Self sees full S10 including leaveType
     expect(body.s10).toHaveLength(1);
     expect(body.s10[0]).toHaveProperty('leaveType', 'vacation');
@@ -326,6 +329,7 @@ describe('Profile (e2e)', () => {
       .expect(200);
 
     expect(Object.keys(res.body as object).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -373,6 +377,7 @@ describe('Profile (e2e)', () => {
       s16: Array<{ fieldId: string; name: string; value: string }>;
     };
     expect(Object.keys(res.body as object).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -427,6 +432,7 @@ describe('Profile (e2e)', () => {
       s16: Array<{ fieldId: string; name: string; value: string }>;
     };
     expect(Object.keys(res.body as object).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -473,6 +479,7 @@ describe('Profile (e2e)', () => {
       .expect(200);
 
     expect(Object.keys(res.body as object).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -506,6 +513,7 @@ describe('Profile (e2e)', () => {
       s16: Array<{ name: string }>;
     };
     expect(Object.keys(res.body as object).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -538,6 +546,7 @@ describe('Profile (e2e)', () => {
 
     // COLLEAGUE_WHITELIST_KEYS: exactly s1, s10, s11, s16
     expect(Object.keys(res.body as object).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -585,6 +594,7 @@ describe('Profile (e2e)', () => {
       .expect(200);
 
     expect(Object.keys(res.body as object).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -617,6 +627,7 @@ describe('Profile (e2e)', () => {
       .expect(200);
 
     expect(Object.keys(res.body as object).sort()).toEqual([
+      'isSelf',
       's1',
       's10',
       's11',
@@ -634,7 +645,7 @@ describe('Profile (e2e)', () => {
     expect(resolveMock).not.toHaveBeenCalled();
   });
 
-  it('PATCH profile field rejects viewer-is-subject with 403', async () => {
+  it('PATCH profile field rejects self S1 edit with deferral message', async () => {
     const viewer = await prisma.person.create({
       data: { fullName: 'Self Viewer', countryCity: 'Kyiv' },
     });
@@ -647,8 +658,36 @@ describe('Profile (e2e)', () => {
 
     expect(response.body).toMatchObject({
       statusCode: 403,
-      error: 'COLLEAGUE_BROWSE_RESTRICTED',
+      message: 'Self-edit is not permitted on All Employees.',
     });
+    expect(resolveMock).not.toHaveBeenCalled();
+  });
+
+  it('PATCH profile field persists self S2 field for colleague-catalog viewer', async () => {
+    const viewer = await prisma.person.create({
+      data: {
+        fullName: 'Self Viewer',
+        personalPhone: '+380000000010',
+      },
+    });
+    currentViewerId = viewer.id;
+
+    const response = await request(app.getHttpServer())
+      .patch(`/people/${viewer.id}/profile/fields`)
+      .send({ fieldKey: 'personalPhone', value: '+380000000011' })
+      .expect(200);
+
+    expect(response.body).toEqual({
+      fieldKey: 'personalPhone',
+      value: '+380000000011',
+    });
+    expect(resolveMock).not.toHaveBeenCalled();
+
+    const updated = await prisma.person.findUnique({
+      where: { id: viewer.id },
+      select: { personalPhone: true },
+    });
+    expect(updated?.personalPhone).toBe('+380000000011');
   });
 
   it('PATCH profile field rejects R-only editor with 403', async () => {

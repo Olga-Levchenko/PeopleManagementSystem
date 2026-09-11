@@ -15,6 +15,7 @@ import {
 import {
   DERIVED_FIELD_KEYS,
   EDITABLE_S1_FIELD_KEYS,
+  EDITABLE_S2_FIELD_KEYS,
   ORG_RELATIONSHIP_FIELD_KEYS,
   parseCustomFieldKey,
 } from './profile-field-keys.util';
@@ -79,6 +80,7 @@ export interface S11ProjectEntry {
  * revealing whether invisible fields exist.
  */
 export interface ProfileResponse {
+  isSelf: boolean;
   s1?: S1IdentityCard;
   s2?: S2PersonalContacts;
   s10?: S10Leave[];
@@ -237,7 +239,10 @@ export class ProfileService {
       subjectPersonId,
     );
 
-    const response: ProfileResponse = { s16: [] };
+    const response: ProfileResponse = {
+      isSelf: viewerPersonId === subjectPersonId,
+      s16: [],
+    };
     if (this.grantsAccess(audience.s1)) {
       response.s1 = this.toS1(person);
     }
@@ -269,20 +274,6 @@ export class ProfileService {
     fieldKey: string,
     value: unknown,
   ): Promise<PatchProfileFieldResponse> {
-    if (viewerPersonId === subjectPersonId) {
-      throw new ForbiddenException(
-        'Self-edit is not permitted on All Employees.',
-      );
-    }
-
-    const person = await this.prisma.person.findUnique({
-      where: { id: subjectPersonId },
-      select: { id: true },
-    });
-    if (!person) {
-      throw new NotFoundException('Person not found');
-    }
-
     if (!fieldKey || typeof fieldKey !== 'string' || fieldKey.trim() === '') {
       throw new BadRequestException('fieldKey is required.');
     }
@@ -302,6 +293,19 @@ export class ProfileService {
     const customDefinitionId = parseCustomFieldKey(fieldKey);
     if (fieldKey.startsWith('custom:') && customDefinitionId === null) {
       throw new BadRequestException(`Malformed field key '${fieldKey}'.`);
+    }
+
+    const person = await this.prisma.person.findUnique({
+      where: { id: subjectPersonId },
+      select: { id: true },
+    });
+    if (!person) {
+      throw new NotFoundException('Person not found');
+    }
+
+    const isSelf = viewerPersonId === subjectPersonId;
+    if (isSelf) {
+      return this.patchSelfProfileField(subjectPersonId, fieldKey, value);
     }
 
     const resolution = await this.accessRoleResolution.resolve(
@@ -339,6 +343,62 @@ export class ProfileService {
       value,
     );
     return { fieldKey, value: persisted };
+  }
+
+  private patchSelfProfileField(
+    subjectPersonId: string,
+    fieldKey: string,
+    value: unknown,
+  ): Promise<PatchProfileFieldResponse> {
+    if (!EDITABLE_S2_FIELD_KEYS.has(fieldKey)) {
+      throw new ForbiddenException(
+        'Self-edit is not permitted on All Employees.',
+      );
+    }
+
+    const audience = deriveAudienceFromResolution(
+      {
+        reportingLine: false,
+        projectLine: false,
+        peoplePartnerLine: false,
+        fullProfileAccessLine: false,
+        managerSectionAccess: null,
+        peoplePartnerSectionAccess: null,
+        fullProfileAccessSectionAccess: null,
+      },
+      subjectPersonId,
+      subjectPersonId,
+    );
+
+    if (!grantsSectionWriteAccess(audience.s2)) {
+      throw new ForbiddenException();
+    }
+
+    return this.patchStoredS2Field(subjectPersonId, fieldKey, value).then(
+      (persisted) => ({ fieldKey, value: persisted }),
+    );
+  }
+
+  private async patchStoredS2Field(
+    subjectPersonId: string,
+    fieldKey: string,
+    value: unknown,
+  ): Promise<string | null> {
+    if (value === null) {
+      await this.prisma.person.update({
+        where: { id: subjectPersonId },
+        data: { [fieldKey]: null },
+      });
+      return null;
+    }
+    if (typeof value !== 'string') {
+      throw new BadRequestException(`Invalid value for field '${fieldKey}'.`);
+    }
+    await this.prisma.person.update({
+      where: { id: subjectPersonId },
+      data: { [fieldKey]: value },
+    });
+    return value;
   }
 
   private async patchStoredS1Field(

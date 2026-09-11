@@ -35,7 +35,7 @@ describe('ProfileController colleague browse gate', () => {
   });
 
   it('GET profile remains available for colleague catalog audience', async () => {
-    profileService.getProfile.mockResolvedValue({ s16: [] });
+    profileService.getProfile.mockResolvedValue({ isSelf: false, s16: [] });
     colleagueBrowseGate.assertManagementBrowseAllowed.mockResolvedValue(
       undefined,
     );
@@ -68,5 +68,27 @@ describe('ProfileController colleague browse gate', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
 
     expect(profileService.patchProfileField).not.toHaveBeenCalled();
+  });
+
+  it('PATCH profile field bypasses colleague browse gate when viewer is subject', async () => {
+    profileService.patchProfileField.mockResolvedValue({
+      fieldKey: 'personalPhone',
+      value: '+380111111111',
+    });
+
+    await controller.patchProfileField(viewerId, {
+      fieldKey: 'personalPhone',
+      value: '+380111111111',
+    });
+
+    expect(
+      colleagueBrowseGate.assertManagementBrowseAllowed,
+    ).not.toHaveBeenCalled();
+    expect(profileService.patchProfileField).toHaveBeenCalledWith(
+      viewerId,
+      viewerId,
+      'personalPhone',
+      '+380111111111',
+    );
   });
 });

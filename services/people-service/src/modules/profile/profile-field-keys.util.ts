@@ -5,6 +5,12 @@ export const EDITABLE_S1_FIELD_KEYS = new Set([
   'startDate',
 ]);
 
+export const EDITABLE_S2_FIELD_KEYS = new Set([
+  'personalPhone',
+  'personalEmail',
+  'residentialAddress',
+]);
+
 export const ORG_RELATIONSHIP_FIELD_KEYS = new Set([
   'departmentName',
   'managerName',

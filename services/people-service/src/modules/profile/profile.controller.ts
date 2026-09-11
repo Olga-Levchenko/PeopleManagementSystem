@@ -42,7 +42,9 @@ export class ProfileController {
     dto: PatchProfileFieldDto,
   ) {
     const actorId = await this.actor.resolveActorId();
-    await this.colleagueBrowseGate.assertManagementBrowseAllowed(actorId);
+    if (actorId !== subjectPersonId) {
+      await this.colleagueBrowseGate.assertManagementBrowseAllowed(actorId);
+    }
     return this.service.patchProfileField(
       actorId,
       subjectPersonId,

@@ -23,7 +23,7 @@ const mockRequest = (
 
 describe('PeopleController profile proxy', () => {
   let controller: PeopleController;
-  let service: jest.Mocked<Pick<EmployeesService, 'getProfile'>>;
+  let service: jest.Mocked<Pick<EmployeesService, 'getProfile' | 'patchField'>>;
 
   beforeEach(async () => {
     const module = await Test.createTestingModule({
@@ -43,6 +43,10 @@ describe('PeopleController profile proxy', () => {
             getProfile: jest.fn().mockResolvedValue({
               status: 200,
               body: { s1: { fullName: 'Subject Person' }, s16: [] },
+            }),
+            patchField: jest.fn().mockResolvedValue({
+              status: 200,
+              body: { fieldKey: 'personalPhone', value: '+380000000011' },
             }),
           },
         },
@@ -71,5 +75,35 @@ describe('PeopleController profile proxy', () => {
     );
     expect(res.status).toHaveBeenCalledWith(200);
     expect(body).toEqual({ s1: { fullName: 'Subject Person' }, s16: [] });
+  });
+
+  it('forwards PATCH profile field to EmployeesService.patchField', async () => {
+    const subjectPersonId = '22222222-2222-4222-8222-222222222222';
+    const req = mockRequest({
+      headers: { authorization: 'Bearer incoming-token' },
+    });
+    const res = mockResponse();
+    const patchBody = { fieldKey: 'personalPhone', value: '+380000000011' };
+
+    const body = await controller.patchProfileField(
+      subjectPersonId,
+      patchBody,
+      req,
+      res,
+    );
+
+    expect(service.patchField).toHaveBeenCalledWith(
+      subjectPersonId,
+      patchBody,
+      expect.objectContaining({
+        authorization: 'Bearer verified-token',
+        correlationId: 'test-correlation-id',
+      }),
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(body).toEqual({
+      fieldKey: 'personalPhone',
+      value: '+380000000011',
+    });
   });
 });

@@ -51,6 +51,7 @@ export interface S16CustomField {
 }
 
 export interface EmployeeProfileResponse {
+  isSelf: boolean
   s1?: S1IdentityCard
   s2?: S2PersonalContacts
   s10?: S10Leave[]
@@ -61,6 +62,16 @@ export interface EmployeeProfileResponse {
 /** @deprecated Use EmployeeProfileResponse */
 export type ColleagueProfileResponse = EmployeeProfileResponse
 
+export interface PatchProfileFieldRequest {
+  fieldKey: string
+  value: unknown
+}
+
+export interface PatchProfileFieldResponse {
+  fieldKey: string
+  value: string | null
+}
+
 export const getEmployeeProfileApiCall = (
   personId: string,
   signal?: AbortSignal,
@@ -68,6 +79,15 @@ export const getEmployeeProfileApiCall = (
   apiClient.get<EmployeeProfileResponse>(`/api/v1/people/${personId}/profile`, {
     signal,
   })
+
+export const patchProfileFieldApiCall = (
+  personId: string,
+  body: PatchProfileFieldRequest,
+) =>
+  apiClient.patch<PatchProfileFieldResponse>(
+    `/api/v1/people/${personId}/profile/fields`,
+    body,
+  )
 
 /** @deprecated Use getEmployeeProfileApiCall */
 export const getColleagueProfileApiCall = getEmployeeProfileApiCall
