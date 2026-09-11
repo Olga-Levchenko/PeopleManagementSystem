@@ -17,7 +17,7 @@ describe('CustomFieldDefinitionsController — dataType rejection', () => {
     expect(result).toBe(definitions);
   });
 
-  it('throws BadRequestException from update when raw body contains dataType', () => {
+  it('throws BadRequestException from update when raw body contains dataType', async () => {
     const service = {
       listAll: jest.fn(),
       update: jest.fn(),
@@ -27,7 +27,7 @@ describe('CustomFieldDefinitionsController — dataType rejection', () => {
     } as never;
     const controller = new CustomFieldDefinitionsController(service, actor);
 
-    expect(() =>
+    await expect(
       controller.update(
         'bbbbbbbb-0000-4000-8000-000000000001',
         {},
@@ -36,8 +36,9 @@ describe('CustomFieldDefinitionsController — dataType rejection', () => {
           name: 'X',
         },
       ),
-    ).toThrow(BadRequestException);
+    ).rejects.toThrow(BadRequestException);
 
+    expect(actor.resolveActorId).not.toHaveBeenCalled();
     expect(service.update).not.toHaveBeenCalled();
   });
 
