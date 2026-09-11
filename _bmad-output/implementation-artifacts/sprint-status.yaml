@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-30-2026 12:52
-last_updated: 09-11-2026 01:22
+last_updated: 09-11-2026 12:56
 project: PeopleManagementSystem
 project_key: NOKEY
 tracking_system: file-system
@@ -62,7 +62,8 @@ development_status:
   2-2-inline-editing-writes-through-to-the-profile-subject-to-acce: done  # Jira O4-36; PR #67 merged 2026-09-10
   2-3-saved-views: done  # Jira O4-37; PR #69 merged 2026-09-10
   2-4-export-respects-the-exporter-s-access: done  # Jira O4-38; PR #72 merged 2026-09-10
-  2-5-colleague-mode-on-all-employees: in-progress  # Jira O4-39; spec draft kickoff 2026-09-11
+  2-5-colleague-mode-on-all-employees: done  # Jira O4-39; PR #74 merged 2026-09-11
+  2-8-management-list-row-navigation-to-employee-profile: backlog  # Jira O4-168; spec registered 2026-09-11
   2-6-self-managed-personal-data: backlog
   2-7-self-read-of-managed-data-and-never-own-risk-level: backlog
   epic-2-retrospective: optional
