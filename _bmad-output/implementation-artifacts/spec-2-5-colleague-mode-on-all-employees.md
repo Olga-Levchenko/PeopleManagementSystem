@@ -2,7 +2,7 @@
 title: 'Story 2.5: Colleague mode on All Employees'
 type: 'feature'
 created: '2026-09-11'
-status: 'in-review'
+status: 'done'
 review_loop_iteration: 1
 baseline_commit: '8f15868'
 context:
@@ -159,6 +159,7 @@ Colleague mode keeps row grouping (UX note in mockup) — grouping must not add 
 
 ## Spec Change Log
 
+- **2026-09-11 (done):** PR #74 merged to `main` (`101a92e`); CI green; sprint/spec status → `done`; Jira O4-39 → Done.
 - **2026-09-11 (draft):** Initial spec from `bmad-build` kickoff on `feature/2-5-colleague-mode-on-all-employees`; Jira O4-39 → In Progress.
 - **2026-09-11 (review loop 1):** Elicitation + party-mode amendments — normative catalog key table; S10/S11 list selection/format rules; hybrid `listAudienceLevel` decision; self-row exception; PATCH 403 gate; negative ACs; `TAMPER_COLUMN_KEY` 403→400-only; `mentorName` deferred; stable `COLLEAGUE_BROWSE_RESTRICTED` error shape; context links to Stories 1.8/1.10.
 - **2026-09-11 (approval):** Human-approved amended frozen intent after planning-gap audit (PROCEED WITH CONDITIONS); status → `approved`; implementation may proceed via `bmad-build` on `feature/2-5-colleague-mode-on-all-employees`.
