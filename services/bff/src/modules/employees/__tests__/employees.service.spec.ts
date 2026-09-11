@@ -57,6 +57,31 @@ describe('EmployeesService', () => {
     expect(call[1].method).toBe('GET');
   });
 
+  it('routes profile GET to people-service profile endpoint', async () => {
+    const subjectPersonId = '22222222-2222-4222-8222-222222222222';
+    fetchMock.mockResolvedValue({
+      status: 200,
+      ok: true,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: jest
+        .fn()
+        .mockResolvedValue({ s1: { fullName: 'Subject Person' }, s16: [] }),
+    } as unknown as Response);
+
+    const result = await service.getProfile(subjectPersonId, context);
+
+    const call = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(call[0]).toBe(
+      `${peopleServiceUrl}/api/v1/people/${subjectPersonId}/profile`,
+    );
+    expect(call[1].method).toBe('GET');
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({
+      s1: { fullName: 'Subject Person' },
+      s16: [],
+    });
+  });
+
   it('routes PATCH field updates to people-service profile endpoint', async () => {
     const subjectPersonId = '22222222-2222-4222-8222-222222222222';
     fetchMock.mockResolvedValue({

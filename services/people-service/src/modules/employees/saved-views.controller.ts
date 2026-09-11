@@ -13,6 +13,7 @@ import {
 import type { Response } from 'express';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { RequestActorContext } from '../organisational-relationships/request-actor.context';
+import { ColleagueBrowseGateService } from './colleague-browse.gate.service';
 import {
   CreateSavedViewDto,
   ShareSavedViewDto,
@@ -26,15 +27,18 @@ export class SavedViewsController {
   constructor(
     private readonly service: SavedViewsService,
     private readonly actor: RequestActorContext,
+    private readonly colleagueBrowseGate: ColleagueBrowseGateService,
   ) {}
 
   @Get()
-  listSavedViews() {
-    return this.service.listSavedViews(this.actor.actorId);
+  async listSavedViews() {
+    const actorId = await this.actor.resolveActorId();
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(actorId);
+    return this.service.listSavedViews(actorId);
   }
 
   @Post()
-  createSavedView(
+  async createSavedView(
     @Body(
       new ValidationPipe({
         whitelist: true,
@@ -44,11 +48,13 @@ export class SavedViewsController {
     )
     body: CreateSavedViewDto,
   ) {
-    return this.service.createSavedView(this.actor.actorId, body);
+    const actorId = await this.actor.resolveActorId();
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(actorId);
+    return this.service.createSavedView(actorId, body);
   }
 
   @Patch(':viewId')
-  updateSavedView(
+  async updateSavedView(
     @Param('viewId') viewId: string,
     @Body(
       new ValidationPipe({
@@ -59,13 +65,17 @@ export class SavedViewsController {
     )
     body: UpdateSavedViewDto,
   ) {
-    return this.service.updateSavedView(this.actor.actorId, viewId, body);
+    const actorId = await this.actor.resolveActorId();
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(actorId);
+    return this.service.updateSavedView(actorId, viewId, body);
   }
 
   @Delete(':viewId')
   @HttpCode(204)
   async deleteSavedView(@Param('viewId') viewId: string) {
-    await this.service.deleteSavedView(this.actor.actorId, viewId);
+    const actorId = await this.actor.resolveActorId();
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(actorId);
+    await this.service.deleteSavedView(actorId, viewId);
   }
 
   @Post(':viewId/shares')
@@ -81,8 +91,10 @@ export class SavedViewsController {
     body: ShareSavedViewDto,
     @Res({ passthrough: true }) response: Response,
   ) {
+    const actorId = await this.actor.resolveActorId();
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(actorId);
     const result = await this.service.shareSavedView(
-      this.actor.actorId,
+      actorId,
       viewId,
       body.recipientPersonId,
     );
@@ -96,10 +108,8 @@ export class SavedViewsController {
     @Param('viewId') viewId: string,
     @Param('recipientPersonId') recipientPersonId: string,
   ) {
-    await this.service.revokeShare(
-      this.actor.actorId,
-      viewId,
-      recipientPersonId,
-    );
+    const actorId = await this.actor.resolveActorId();
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(actorId);
+    await this.service.revokeShare(actorId, viewId, recipientPersonId);
   }
 }

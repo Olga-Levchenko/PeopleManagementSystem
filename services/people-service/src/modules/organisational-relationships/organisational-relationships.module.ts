@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { IdentityMappingsModule } from '../identity-mappings/identity-mappings.module';
 import { OrganisationalRelationshipsController } from './organisational-relationships.controller';
 import { OrganisationalRelationshipsService } from './organisational-relationships.service';
 import { RequestActorContext } from './request-actor.context';
@@ -8,6 +9,7 @@ import {
 } from './organisational-relationships.ports';
 
 @Module({
+  imports: [IdentityMappingsModule],
   controllers: [OrganisationalRelationshipsController],
   providers: [
     OrganisationalRelationshipsService,

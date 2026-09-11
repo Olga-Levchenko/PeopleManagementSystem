@@ -7,7 +7,9 @@ describe('CustomFieldDefinitionsController — dataType rejection', () => {
     const service = {
       listAll: jest.fn().mockResolvedValue(definitions),
     } as never;
-    const actor = { actorId: 'actor-1' } as never;
+    const actor = {
+      resolveActorId: jest.fn().mockResolvedValue('actor-1'),
+    } as never;
     const controller = new CustomFieldDefinitionsController(service, actor);
 
     const result = await controller.listAll();
@@ -15,15 +17,17 @@ describe('CustomFieldDefinitionsController — dataType rejection', () => {
     expect(result).toBe(definitions);
   });
 
-  it('throws BadRequestException from update when raw body contains dataType', () => {
+  it('throws BadRequestException from update when raw body contains dataType', async () => {
     const service = {
       listAll: jest.fn(),
       update: jest.fn(),
     } as never;
-    const actor = { actorId: 'actor-1' } as never;
+    const actor = {
+      resolveActorId: jest.fn().mockResolvedValue('actor-1'),
+    } as never;
     const controller = new CustomFieldDefinitionsController(service, actor);
 
-    expect(() =>
+    await expect(
       controller.update(
         'bbbbbbbb-0000-4000-8000-000000000001',
         {},
@@ -32,8 +36,9 @@ describe('CustomFieldDefinitionsController — dataType rejection', () => {
           name: 'X',
         },
       ),
-    ).toThrow(BadRequestException);
+    ).rejects.toThrow(BadRequestException);
 
+    expect(actor.resolveActorId).not.toHaveBeenCalled();
     expect(service.update).not.toHaveBeenCalled();
   });
 
@@ -46,7 +51,9 @@ describe('CustomFieldDefinitionsController — dataType rejection', () => {
       listAll: jest.fn(),
       update: jest.fn().mockResolvedValue(updated),
     } as never;
-    const actor = { actorId: 'actor-1' } as never;
+    const actor = {
+      resolveActorId: jest.fn().mockResolvedValue('actor-1'),
+    } as never;
     const controller = new CustomFieldDefinitionsController(service, actor);
 
     const result = await controller.update(

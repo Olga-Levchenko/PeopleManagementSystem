@@ -29,6 +29,14 @@ import {
   buildEmployeesExportWorkbook,
   EMPLOYEES_EXPORT_FILENAME,
 } from './employees-export.util';
+import {
+  assertColleagueCatalogAudience,
+  assertColleagueListFilters,
+  COLLEAGUE_CATALOG_FIELDS,
+  formatBirthdayForList,
+  selectLeaveDatesForList,
+  selectProjectNameForList,
+} from './employees-colleague.util';
 
 export type EmployeeFieldDataType = 'string' | 'number' | 'date' | 'boolean';
 
@@ -123,7 +131,24 @@ const PERSON_LIST_SELECT = {
   position: true,
   countryCity: true,
   startDate: true,
+  workEmail: true,
+  workPhone: true,
+  birthdayMonth: true,
+  birthdayDay: true,
   department: { select: { name: true } },
+  manager: { select: { fullName: true } },
+  peoplePartner: { select: { fullName: true } },
+  leaves: {
+    select: { startDate: true, endDate: true },
+  },
+  personProjectAssignments: {
+    select: {
+      projectName: true,
+      role: true,
+      startDate: true,
+      endDate: true,
+    },
+  },
   customFieldValues: {
     select: {
       value: true,
@@ -145,7 +170,20 @@ type PersonListRecord = {
   position: string | null;
   countryCity: string | null;
   startDate: Date | null;
+  workEmail: string | null;
+  workPhone: string | null;
+  birthdayMonth: number | null;
+  birthdayDay: number | null;
   department: { name: string } | null;
+  manager: { fullName: string } | null;
+  peoplePartner: { fullName: string } | null;
+  leaves: Array<{ startDate: Date; endDate: Date }>;
+  personProjectAssignments: Array<{
+    projectName: string;
+    role: string | null;
+    startDate: Date | null;
+    endDate: Date | null;
+  }>;
   customFieldValues: Array<{
     value: string;
     definition: {
@@ -201,6 +239,13 @@ export class EmployeesService {
         columnable: true,
       }));
 
+    if (catalogAudience === 'colleague') {
+      return {
+        fields: [...COLLEAGUE_CATALOG_FIELDS, ...customFields],
+        listAudienceLevel: catalogAudience,
+      };
+    }
+
     return {
       fields: [
         ...STORED_CATALOG_FIELDS,
@@ -216,9 +261,15 @@ export class EmployeesService {
     query: ListEmployeesQueryDto,
     customFieldFilters: Record<string, string> = {},
   ): Promise<EmployeeListResponse> {
+    const catalog = await this.getFieldCatalog(viewerPersonId);
+    if (catalog.listAudienceLevel === 'colleague') {
+      assertColleagueListFilters(query);
+    }
+
     await this.assertCustomFieldFiltersAllowed(
       viewerPersonId,
       customFieldFilters,
+      catalog,
     );
     assertYearsFilterRange(
       query.yearsWithCompanyMin,
@@ -235,6 +286,7 @@ export class EmployeesService {
         customFieldFilters,
         page,
         pageSize,
+        catalog.listAudienceLevel,
       );
     }
 
@@ -254,6 +306,8 @@ export class EmployeesService {
     const items = await this.projectPeopleToListRows(
       viewerPersonId,
       people as PersonListRecord[],
+      undefined,
+      catalog.listAudienceLevel,
     );
 
     return { items, page, pageSize, totalCount };
@@ -266,6 +320,7 @@ export class EmployeesService {
     columnKeys: string[],
   ): Promise<{ buffer: Buffer; filename: string }> {
     const catalog = await this.getFieldCatalog(viewerPersonId);
+    assertColleagueCatalogAudience(catalog.listAudienceLevel);
     assertVisibleColumnKeys(columnKeys);
     const { columnableKeys } = buildCatalogKeySets(catalog.fields);
     assertColumnKeysInCatalog(columnKeys, columnableKeys);
@@ -288,6 +343,7 @@ export class EmployeesService {
       viewerPersonId,
       applicable.query,
       applicable.customFieldFilters,
+      catalog.listAudienceLevel,
     );
 
     const buffer = await buildEmployeesExportWorkbook(
@@ -346,12 +402,14 @@ export class EmployeesService {
     viewerPersonId: string,
     query: ListEmployeesQueryDto,
     customFieldFilters: Record<string, string>,
+    listAudienceLevel: CustomFieldAudienceLevel,
   ): Promise<EmployeeListRow[]> {
     if (Object.keys(customFieldFilters).length > 0) {
       return this.fetchAllListRowsWithCustomFieldFilters(
         viewerPersonId,
         query,
         customFieldFilters,
+        listAudienceLevel,
       );
     }
 
@@ -376,7 +434,12 @@ export class EmployeesService {
         break;
       }
 
-      const items = await this.projectPeopleToListRows(viewerPersonId, people);
+      const items = await this.projectPeopleToListRows(
+        viewerPersonId,
+        people,
+        undefined,
+        listAudienceLevel,
+      );
       allRows.push(...items);
     }
 
@@ -387,6 +450,7 @@ export class EmployeesService {
     viewerPersonId: string,
     query: ListEmployeesQueryDto,
     customFieldFilters: Record<string, string>,
+    listAudienceLevel: CustomFieldAudienceLevel,
   ): Promise<EmployeeListRow[]> {
     const where = this.buildWhereClause(query, customFieldFilters);
     const filterDefinitions =
@@ -431,6 +495,7 @@ export class EmployeesService {
         viewerPersonId,
         slice,
         resolutions,
+        listAudienceLevel,
       );
       allRows.push(...items);
     }
@@ -444,6 +509,7 @@ export class EmployeesService {
     customFieldFilters: Record<string, string>,
     page: number,
     pageSize: number,
+    listAudienceLevel: CustomFieldAudienceLevel,
   ): Promise<EmployeeListResponse> {
     const where = this.buildWhereClause(query, customFieldFilters);
     const filterDefinitions =
@@ -484,6 +550,7 @@ export class EmployeesService {
       viewerPersonId,
       pageSlice,
       resolutions,
+      listAudienceLevel,
     );
 
     return { items, page, pageSize, totalCount };
@@ -493,6 +560,7 @@ export class EmployeesService {
     viewerPersonId: string,
     people: PersonListRecord[],
     resolutions?: Map<string, AccessRoleResolution>,
+    listAudienceLevel: CustomFieldAudienceLevel = 'management',
   ): Promise<EmployeeListRow[]> {
     const resolvedBatch =
       resolutions ??
@@ -510,31 +578,10 @@ export class EmployeesService {
         person.id,
       );
 
-      const values: Record<string, string | number | null> = {};
-      if (grantsSectionAccess(audience.s1)) {
-        values.fullName = person.fullName;
-        values.position = person.position;
-        values.departmentName = person.department?.name ?? null;
-        values.countryCity = person.countryCity;
-        values.startDate = person.startDate
-          ? person.startDate.toISOString().slice(0, 10)
-          : null;
-        values.yearsWithCompany = computeYearsWithCompany(person.startDate);
-      }
-
-      for (const customFieldValue of person.customFieldValues) {
-        const definition = customFieldValue.definition;
-        if (
-          !definition.isActive ||
-          !canSeeCustomField(
-            definition.visibility,
-            audience.customFieldAudienceLevel,
-          )
-        ) {
-          continue;
-        }
-        values[`custom:${definition.id}`] = customFieldValue.value;
-      }
+      const values =
+        listAudienceLevel === 'colleague' || audience.isColleague
+          ? this.buildColleagueCatalogRowValues(person, audience)
+          : this.buildManagementCatalogRowValues(person, audience);
 
       const editableFields = this.computeEditableFields(
         viewerPersonId,
@@ -542,10 +589,95 @@ export class EmployeesService {
         resolution,
         audience,
         person.customFieldValues,
+        listAudienceLevel,
       );
 
       return { personId: person.id, values, editableFields };
     });
+  }
+
+  private buildManagementCatalogRowValues(
+    person: PersonListRecord,
+    audience: ReturnType<typeof deriveAudienceFromResolution>,
+  ): Record<string, string | number | null> {
+    const values: Record<string, string | number | null> = {};
+    if (grantsSectionAccess(audience.s1)) {
+      values.fullName = person.fullName;
+      values.position = person.position;
+      values.departmentName = person.department?.name ?? null;
+      values.countryCity = person.countryCity;
+      values.startDate = person.startDate
+        ? person.startDate.toISOString().slice(0, 10)
+        : null;
+      values.yearsWithCompany = computeYearsWithCompany(person.startDate);
+    }
+
+    for (const customFieldValue of person.customFieldValues) {
+      const definition = customFieldValue.definition;
+      if (
+        !definition.isActive ||
+        !canSeeCustomField(
+          definition.visibility,
+          audience.customFieldAudienceLevel,
+        )
+      ) {
+        continue;
+      }
+      values[`custom:${definition.id}`] = customFieldValue.value;
+    }
+
+    return values;
+  }
+
+  private buildColleagueCatalogRowValues(
+    person: PersonListRecord,
+    audience: ReturnType<typeof deriveAudienceFromResolution>,
+  ): Record<string, string | number | null> {
+    const values: Record<string, string | number | null> = {};
+
+    if (grantsSectionAccess(audience.s1)) {
+      values.fullName = person.fullName;
+      values.position = person.position;
+      values.departmentName = person.department?.name ?? null;
+      values.countryCity = person.countryCity;
+      values.workEmail = person.workEmail;
+      values.workPhone = person.workPhone;
+      values.birthday = formatBirthdayForList(
+        person.birthdayMonth,
+        person.birthdayDay,
+      );
+      values.startDate = person.startDate
+        ? person.startDate.toISOString().slice(0, 10)
+        : null;
+      values.managerName = person.manager?.fullName ?? null;
+      values.peoplePartnerName = person.peoplePartner?.fullName ?? null;
+    }
+
+    if (grantsSectionAccess(audience.s10)) {
+      values.leaveDates = selectLeaveDatesForList(person.leaves);
+    }
+
+    if (grantsSectionAccess(audience.s11)) {
+      values.projectName = selectProjectNameForList(
+        person.personProjectAssignments,
+      );
+    }
+
+    for (const customFieldValue of person.customFieldValues) {
+      const definition = customFieldValue.definition;
+      if (
+        !definition.isActive ||
+        !canSeeCustomField(
+          definition.visibility,
+          audience.customFieldAudienceLevel,
+        )
+      ) {
+        continue;
+      }
+      values[`custom:${definition.id}`] = customFieldValue.value;
+    }
+
+    return values;
   }
 
   private computeEditableFields(
@@ -554,8 +686,9 @@ export class EmployeesService {
     resolution: AccessRoleResolution,
     audience: ReturnType<typeof deriveAudienceFromResolution>,
     customFieldValues: PersonListRecord['customFieldValues'],
+    listAudienceLevel: CustomFieldAudienceLevel = 'management',
   ): string[] {
-    if (viewerPersonId === personId) {
+    if (viewerPersonId === personId || listAudienceLevel === 'colleague') {
       return [];
     }
 
@@ -666,13 +799,17 @@ export class EmployeesService {
   private async assertCustomFieldFiltersAllowed(
     viewerPersonId: string,
     customFieldFilters: Record<string, string>,
+    catalog?: EmployeeFieldCatalogResponse,
   ): Promise<void> {
     if (Object.keys(customFieldFilters).length === 0) {
       return;
     }
 
-    const catalog = await this.getFieldCatalog(viewerPersonId);
-    const { filterableCustomKeys } = buildCatalogKeySets(catalog.fields);
+    const resolvedCatalog =
+      catalog ?? (await this.getFieldCatalog(viewerPersonId));
+    const { filterableCustomKeys } = buildCatalogKeySets(
+      resolvedCatalog.fields,
+    );
     assertCustomFieldFiltersInCatalog(customFieldFilters, filterableCustomKeys);
   }
 
@@ -763,7 +900,7 @@ export class EmployeesService {
     const candidateIds =
       await this.collectCatalogAudienceCandidateSubjectIds(viewerPersonId);
     if (candidateIds.length === 0) {
-      return selfAudience.customFieldAudienceLevel;
+      return 'colleague';
     }
 
     const resolutions = await this.resolveBatchChunked(
@@ -782,7 +919,7 @@ export class EmployeesService {
       }
     }
 
-    return selfAudience.customFieldAudienceLevel;
+    return 'colleague';
   }
 
   private async collectCatalogAudienceCandidateSubjectIds(

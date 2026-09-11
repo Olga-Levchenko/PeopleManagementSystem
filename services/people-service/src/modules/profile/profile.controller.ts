@@ -11,6 +11,7 @@ import { ApiBearerAuth } from '@nestjs/swagger';
 import { ProfileService } from './profile.service';
 import { PatchProfileFieldDto } from './profile.dto';
 import { RequestActorContext } from '../organisational-relationships/request-actor.context';
+import { ColleagueBrowseGateService } from '../employees/colleague-browse.gate.service';
 
 @ApiBearerAuth()
 @Controller('people')
@@ -18,17 +19,19 @@ export class ProfileController {
   constructor(
     private readonly service: ProfileService,
     private readonly actor: RequestActorContext,
+    private readonly colleagueBrowseGate: ColleagueBrowseGateService,
   ) {}
 
   @Get(':subjectPersonId/profile')
-  getProfile(
+  async getProfile(
     @Param('subjectPersonId', new ParseUUIDPipe()) subjectPersonId: string,
   ) {
-    return this.service.getProfile(this.actor.actorId, subjectPersonId);
+    const actorId = await this.actor.resolveActorId();
+    return this.service.getProfile(actorId, subjectPersonId);
   }
 
   @Patch(':subjectPersonId/profile/fields')
-  patchProfileField(
+  async patchProfileField(
     @Param('subjectPersonId', new ParseUUIDPipe()) subjectPersonId: string,
     @Body(
       new ValidationPipe({
@@ -38,8 +41,10 @@ export class ProfileController {
     )
     dto: PatchProfileFieldDto,
   ) {
+    const actorId = await this.actor.resolveActorId();
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(actorId);
     return this.service.patchProfileField(
-      this.actor.actorId,
+      actorId,
       subjectPersonId,
       dto.fieldKey,
       dto.value,

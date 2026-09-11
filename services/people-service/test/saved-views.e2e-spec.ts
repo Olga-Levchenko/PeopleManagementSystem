@@ -1,10 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import {
-  ExecutionContext,
-  INestApplication,
-  ValidationPipe,
-} from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
@@ -12,13 +8,18 @@ import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
-import { JwtAuthGuard } from '../src/modules/auth/jwt-auth.guard';
+import { IdentityResolutionService } from '../src/modules/identity-mappings/identity-resolution.service';
 import type {
   AccessRoleResolution,
   AccessRoleResolutionPort,
 } from '../src/modules/profile/profile.ports';
 import { NEITHER_LINE_RESOLUTION } from '../src/modules/profile/profile.ports';
 import { PrismaService } from '../src/prisma/prisma.service';
+import {
+  E2E_JWT_ISSUER,
+  createIdentityResolutionStub,
+  installJwtAuthGuardBypass,
+} from './support/e2e-auth.helpers';
 
 const SERVICE_ROOT = path.resolve(__dirname, '..');
 const MANAGER_SECTION_ACCESS = {
@@ -63,6 +64,7 @@ describe('Saved views (e2e)', () => {
       OUTBOX_PUBLISHER_INTERVAL_MS: '999999999',
       KEYCLOAK_BASE_URL: 'http://localhost:8080',
       KEYCLOAK_REALM: 'people-management',
+      OIDC_ALLOWED_ISSUERS: E2E_JWT_ISSUER,
       ACCESS_CONTROL_SERVICE_BASE_URL: 'http://stub-access-control:3007',
     };
 
@@ -73,15 +75,7 @@ describe('Saved views (e2e)', () => {
       resolveBatch: resolveBatchMock,
     };
 
-    jest
-      .spyOn(JwtAuthGuard.prototype, 'canActivate')
-      .mockImplementation((context: ExecutionContext) => {
-        const httpRequest = context
-          .switchToHttp()
-          .getRequest<{ user?: { sub?: string } }>();
-        httpRequest.user = { sub: currentViewerId };
-        return true;
-      });
+    installJwtAuthGuardBypass();
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -97,6 +91,8 @@ describe('Saved views (e2e)', () => {
         },
         get: (key: string) => configOverrides[key],
       })
+      .overrideProvider(IdentityResolutionService)
+      .useValue(createIdentityResolutionStub(() => currentViewerId))
       .overrideProvider('AccessRoleResolutionPort')
       .useValue(fakeAccessRoleResolution)
       .compile();
@@ -310,19 +306,11 @@ describe('Saved views (e2e)', () => {
 
     const sharedViewResponse = await request(app.getHttpServer())
       .get('/employees/saved-views')
-      .expect(200);
-    const sharedViews = sharedViewResponse.body as Array<{
-      id: string;
-      applicableConfiguration: {
-        filters: { customFieldFilters?: Record<string, string> };
-      };
-    }>;
-    const sharedView = sharedViews.find((view) => view.id === created.id);
-    expect(
-      sharedView?.applicableConfiguration.filters.customFieldFilters?.[
-        customFieldKey
-      ],
-    ).toBe('Senior');
+      .expect(403);
+    expect(sharedViewResponse.body).toMatchObject({
+      statusCode: 403,
+      error: 'COLLEAGUE_BROWSE_RESTRICTED',
+    });
 
     const recipientCatalogResponse = await request(app.getHttpServer())
       .get('/employees/field-catalog')

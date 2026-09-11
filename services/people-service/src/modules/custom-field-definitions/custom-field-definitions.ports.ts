@@ -10,7 +10,8 @@ import { ServiceTokenExchangeService } from '../auth/service-token-exchange.serv
 
 /**
  * Port for checking whether the acting user holds HR Admin write permission.
- * Resolved per-request via the actor's Keycloak sub; never cached across requests.
+ * Resolved per-request to the platform Person.id via RequestActorContext.resolveActorId();
+ * never cached across requests.
  *
  * The concrete implementation calls access-control-service's
  * POST /api/v1/permissions/check per AD-5 (BFF must not own authorization policy).

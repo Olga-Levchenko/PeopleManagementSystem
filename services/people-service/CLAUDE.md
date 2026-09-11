@@ -99,11 +99,13 @@ matching files.
 - Prisma 7: datasource `url` lives in `prisma.config.ts`, not in `schema.prisma`
 - **Every route is authenticated by default** — `JwtAuthGuard` is registered globally as
   `APP_GUARD` in `app.module.ts`. A route opts OUT via `@Public()` (`modules/auth/public.decorator.ts`),
-  never the other way around; only `/health` uses it today. `request.user` is always exactly
-  `{ sub }` — no role/permission claim is ever read from the token (access roles/functional-role
-  permissions are resolved by `access-control-service`, never sourced from Keycloak claims).
-  `RequestActorContext` (`modules/organisational-relationships/request-actor.context.ts`) reads
-  `request.user.sub` as the verified actor id for write operations.
+  never the other way around; only `/health` uses it today. `request.user` carries `{ sub, iss }`
+  from the validated JWT — no role/permission claim is ever read from the token (access roles/
+  functional-role permissions are resolved by `access-control-service`, never sourced from
+  Keycloak claims). `RequestActorContext`
+  (`modules/organisational-relationships/request-actor.context.ts`) resolves `iss`/`sub` to the
+  platform `Person.id` via `IdentityResolutionService` (`resolveActorId()`); controllers must not
+  use the raw Keycloak `sub` as a person id.
 - **`JwtStrategy` validates signature (real JWKS via `jwks-rsa`), issuer, audience
   (`bff-confidential`), and algorithm (`RS256`) — with a 5s `clockTolerance`**, mirroring the
   BFF's own already-reviewed strategy exactly. The audience is `bff-confidential` (not a

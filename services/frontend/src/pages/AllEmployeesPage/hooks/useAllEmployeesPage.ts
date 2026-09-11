@@ -19,6 +19,19 @@ import {
 } from '../savedViewState'
 
 const DEFAULT_COLUMNS = ['fullName', 'position', 'departmentName', 'countryCity']
+const COLLEAGUE_DEFAULT_COLUMNS = [
+  'fullName',
+  'position',
+  'departmentName',
+  'countryCity',
+  'workEmail',
+  'birthday',
+  'startDate',
+  'managerName',
+  'peoplePartnerName',
+  'leaveDates',
+  'projectName',
+]
 const DEFAULT_PAGE_SIZE = 50
 
 const createDefaultUiState = (): AllEmployeesUiState => ({
@@ -49,16 +62,23 @@ export const useAllEmployeesPage = () => {
   const [pickerOpen, setPickerOpen] = useState(false)
 
   const catalogQuery = useEmployeeFieldCatalog()
-  const showSavedViews = catalogQuery.data?.listAudienceLevel !== 'colleague'
+  const isColleagueBrowseMode = catalogQuery.data?.listAudienceLevel === 'colleague'
+  const showSavedViews = !isColleagueBrowseMode
   const savedViewsQuery = useSavedViews(showSavedViews)
 
   const listParams = {
     page,
     pageSize: uiState.pageSize,
     countryCity: uiState.countryCity.trim() || undefined,
-    departmentId: uiState.departmentId.trim() || undefined,
-    yearsWithCompanyMin: parseOptionalInt(uiState.yearsMin),
-    yearsWithCompanyMax: parseOptionalInt(uiState.yearsMax),
+    departmentId: isColleagueBrowseMode
+      ? undefined
+      : uiState.departmentId.trim() || undefined,
+    yearsWithCompanyMin: isColleagueBrowseMode
+      ? undefined
+      : parseOptionalInt(uiState.yearsMin),
+    yearsWithCompanyMax: isColleagueBrowseMode
+      ? undefined
+      : parseOptionalInt(uiState.yearsMax),
     customFieldFilters: uiState.customFieldFilters,
   }
 
@@ -105,12 +125,21 @@ export const useAllEmployeesPage = () => {
     [catalogQuery.data?.fields],
   )
 
+  const visibleColumnKeys = useMemo(() => {
+    if (!isColleagueBrowseMode || !catalogQuery.data) {
+      return uiState.visibleColumnKeys
+    }
+    return COLLEAGUE_DEFAULT_COLUMNS.filter(key =>
+      catalogQuery.data?.fields.some(field => field.key === key && field.columnable),
+    )
+  }, [catalogQuery.data, isColleagueBrowseMode, uiState.visibleColumnKeys])
+
   const visibleColumns = useMemo(
     () =>
       columnableFields.filter((field: EmployeeFieldCatalogEntry) =>
-        uiState.visibleColumnKeys.includes(field.key),
+        visibleColumnKeys.includes(field.key),
       ),
-    [columnableFields, uiState.visibleColumnKeys],
+    [columnableFields, visibleColumnKeys],
   )
 
   const applyUiState = useCallback((next: AllEmployeesUiState) => {
@@ -186,6 +215,9 @@ export const useAllEmployeesPage = () => {
   )
 
   const toggleColumn = (key: string) => {
+    if (isColleagueBrowseMode) {
+      return
+    }
     setUiState(current => ({
       ...current,
       visibleColumnKeys: current.visibleColumnKeys.includes(key)
@@ -293,7 +325,7 @@ export const useAllEmployeesPage = () => {
   }
 
   const exportCurrentView = async () => {
-    if (uiState.visibleColumnKeys.length === 0) {
+    if (visibleColumnKeys.length === 0) {
       setLiveMessage(t('allEmployees.export.noColumns'))
       return
     }
@@ -305,7 +337,7 @@ export const useAllEmployeesPage = () => {
         yearsWithCompanyMin: parseOptionalInt(uiState.yearsMin),
         yearsWithCompanyMax: parseOptionalInt(uiState.yearsMax),
         customFieldFilters: uiState.customFieldFilters,
-        columnKeys: uiState.visibleColumnKeys,
+        columnKeys: visibleColumnKeys,
       })
 
       const blob = response.data
@@ -340,6 +372,7 @@ export const useAllEmployeesPage = () => {
     setPage,
     totalPages,
     showSavedViews,
+    isColleagueBrowseMode,
     activeTabId,
     activeSavedView,
     isOwnedTabDirty,
@@ -358,6 +391,7 @@ export const useAllEmployeesPage = () => {
     setYearsMax: (value: string) =>
       setUiState(current => ({ ...current, yearsMax: value })),
     visibleColumns,
+    visibleColumnKeys,
     columnableFields,
     toggleColumn,
     pickerOpen,

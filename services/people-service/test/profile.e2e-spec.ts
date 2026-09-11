@@ -1,10 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import {
-  ExecutionContext,
-  INestApplication,
-  ValidationPipe,
-} from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
@@ -12,12 +8,17 @@ import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
-import { JwtAuthGuard } from '../src/modules/auth/jwt-auth.guard';
+import { IdentityResolutionService } from '../src/modules/identity-mappings/identity-resolution.service';
 import type {
   AccessRoleResolution,
   AccessRoleResolutionPort,
 } from '../src/modules/profile/profile.ports';
 import { PrismaService } from '../src/prisma/prisma.service';
+import {
+  E2E_JWT_ISSUER,
+  createIdentityResolutionStub,
+  installJwtAuthGuardBypass,
+} from './support/e2e-auth.helpers';
 
 /**
  * Proves Story 1.6's I/O matrix end-to-end against a real, migrated, ephemeral Postgres
@@ -34,7 +35,8 @@ import { PrismaService } from '../src/prisma/prisma.service';
  * proven end-to-end by `jwt-guard.e2e-spec.ts`), so instead it patches
  * `JwtAuthGuard.prototype.canActivate` directly -- the real guard instance Nest constructs still
  * inherits this prototype, so the patch takes effect without touching production DI wiring. The
- * fake implementation attaches `request.user.sub` from whatever `currentViewerId` a test sets.
+ * fake implementation attaches `request.user.iss`/`sub` while
+ * `IdentityResolutionService` maps the principal to whatever `currentViewerId` a test sets.
  */
 
 const SERVICE_ROOT = path.resolve(__dirname, '..');
@@ -76,6 +78,7 @@ describe('Profile (e2e)', () => {
       OUTBOX_PUBLISHER_INTERVAL_MS: '999999999',
       KEYCLOAK_BASE_URL: 'http://localhost:8080',
       KEYCLOAK_REALM: 'people-management',
+      OIDC_ALLOWED_ISSUERS: E2E_JWT_ISSUER,
       ACCESS_CONTROL_SERVICE_BASE_URL: 'http://stub-access-control:3007',
     };
 
@@ -97,15 +100,7 @@ describe('Profile (e2e)', () => {
       resolveBatch: resolveBatchMock,
     };
 
-    jest
-      .spyOn(JwtAuthGuard.prototype, 'canActivate')
-      .mockImplementation((context: ExecutionContext) => {
-        const httpRequest = context
-          .switchToHttp()
-          .getRequest<{ user?: { sub?: string } }>();
-        httpRequest.user = { sub: currentViewerId };
-        return true;
-      });
+    installJwtAuthGuardBypass();
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -122,6 +117,8 @@ describe('Profile (e2e)', () => {
           return value;
         },
       })
+      .overrideProvider(IdentityResolutionService)
+      .useValue(createIdentityResolutionStub(() => currentViewerId))
       .overrideProvider('AccessRoleResolutionPort')
       .useValue(fakeAccessRoleResolution)
       .compile();
@@ -643,12 +640,15 @@ describe('Profile (e2e)', () => {
     });
     currentViewerId = viewer.id;
 
-    await request(app.getHttpServer())
+    const response = await request(app.getHttpServer())
       .patch(`/people/${viewer.id}/profile/fields`)
       .send({ fieldKey: 'countryCity', value: 'Lviv' })
       .expect(403);
 
-    expect(resolveMock).not.toHaveBeenCalled();
+    expect(response.body).toMatchObject({
+      statusCode: 403,
+      error: 'COLLEAGUE_BROWSE_RESTRICTED',
+    });
   });
 
   it('PATCH profile field rejects R-only editor with 403', async () => {

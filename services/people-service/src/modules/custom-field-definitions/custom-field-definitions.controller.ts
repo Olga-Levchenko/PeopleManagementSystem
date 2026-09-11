@@ -35,8 +35,9 @@ export class CustomFieldDefinitionsController {
 
   /** POST /api/v1/custom-field-definitions — HR Admin only. */
   @Post()
-  create(@Body() dto: CreateCustomFieldDefinitionDto) {
-    return this.service.create(this.actor.actorId, dto);
+  async create(@Body() dto: CreateCustomFieldDefinitionDto) {
+    const actorId = await this.actor.resolveActorId();
+    return this.service.create(actorId, dto);
   }
 
   /**
@@ -45,18 +46,20 @@ export class CustomFieldDefinitionsController {
    * before the DTO even reaches the service.
    */
   @Patch(':id')
-  update(
+  async update(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateCustomFieldDefinitionDto,
     @Body() rawBody: Record<string, unknown>,
   ) {
     assertDataTypeNotPresent(rawBody);
-    return this.service.update(this.actor.actorId, id, dto);
+    const actorId = await this.actor.resolveActorId();
+    return this.service.update(actorId, id, dto);
   }
 
   /** DELETE /api/v1/custom-field-definitions/:id — HR Admin only; soft-delete (sets isActive=false). */
   @Delete(':id')
-  deactivate(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.service.deactivate(this.actor.actorId, id);
+  async deactivate(@Param('id', new ParseUUIDPipe()) id: string) {
+    const actorId = await this.actor.resolveActorId();
+    return this.service.deactivate(actorId, id);
   }
 }

@@ -1,4 +1,5 @@
 import { Users } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { InlineEditableCell } from './InlineEditableCell'
@@ -6,6 +7,7 @@ import { useAllEmployeesPage } from './hooks/useAllEmployeesPage'
 
 export const AllEmployeesPage = () => {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const {
     catalogQuery,
     listQuery,
@@ -14,6 +16,7 @@ export const AllEmployeesPage = () => {
     setPage,
     totalPages,
     showSavedViews,
+    isColleagueBrowseMode,
     activeTabId,
     activeSavedView,
     isOwnedTabDirty,
@@ -170,26 +173,30 @@ export const AllEmployeesPage = () => {
             onChange={event => setCountryCity(event.target.value)}
           />
         </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-muted-foreground">{t('allEmployees.filters.yearsMin')}</span>
-          <input
-            type="number"
-            min={0}
-            className="rounded-md border border-input bg-background px-3 py-2 text-foreground"
-            value={yearsMin}
-            onChange={event => setYearsMin(event.target.value)}
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-muted-foreground">{t('allEmployees.filters.yearsMax')}</span>
-          <input
-            type="number"
-            min={0}
-            className="rounded-md border border-input bg-background px-3 py-2 text-foreground"
-            value={yearsMax}
-            onChange={event => setYearsMax(event.target.value)}
-          />
-        </label>
+        {showSavedViews && (
+          <>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-muted-foreground">{t('allEmployees.filters.yearsMin')}</span>
+              <input
+                type="number"
+                min={0}
+                className="rounded-md border border-input bg-background px-3 py-2 text-foreground"
+                value={yearsMin}
+                onChange={event => setYearsMin(event.target.value)}
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-muted-foreground">{t('allEmployees.filters.yearsMax')}</span>
+              <input
+                type="number"
+                min={0}
+                className="rounded-md border border-input bg-background px-3 py-2 text-foreground"
+                value={yearsMax}
+                onChange={event => setYearsMax(event.target.value)}
+              />
+            </label>
+          </>
+        )}
         {filterableCustomFields.map(field => (
           <label key={field.key} className="flex flex-col gap-1 text-sm">
             <span className="text-muted-foreground">{field.label}</span>
@@ -259,7 +266,17 @@ export const AllEmployeesPage = () => {
               </thead>
               <tbody>
                 {(listQuery.data?.items ?? []).map(row => (
-                  <tr key={row.personId} className="border-t border-border">
+                  <tr
+                    key={row.personId}
+                    className={`border-t border-border ${
+                      isColleagueBrowseMode ? 'cursor-pointer hover:bg-muted/40' : ''
+                    }`}
+                    onClick={
+                      isColleagueBrowseMode
+                        ? () => navigate(`/people/${row.personId}`)
+                        : undefined
+                    }
+                  >
                     {visibleColumns.map(column => (
                       <td key={column.key} className="px-4 py-3 text-foreground">
                         <InlineEditableCell
