@@ -13,7 +13,7 @@ Managers and people partners browse, filter, configure columns, edit inline, sav
 - Story 2.3: Saved views — **done**
 - Story 2.4: Export respects the exporter's access — **done**
 - Story 2.5: Colleague mode on All Employees — **done**
-- Story 2.8: Management list row navigation to Employee Profile — **in-progress**
+- Story 2.8: Management list row navigation to Employee Profile — **done**
 - Story 2.6: Self-managed personal data
 - Story 2.7: Self-read of managed data and never own risk level
 

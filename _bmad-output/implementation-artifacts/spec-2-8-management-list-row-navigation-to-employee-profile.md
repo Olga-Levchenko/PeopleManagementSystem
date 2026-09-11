@@ -2,7 +2,7 @@
 title: 'Story 2.8: Management list row navigation to Employee Profile'
 type: 'feature'
 created: '2026-09-11'
-status: 'in-progress'
+status: 'done'
 review_loop_iteration: 0
 baseline_commit: ''
 context:
@@ -129,3 +129,8 @@ Registered 2026-09-11:
 - `epic-2-context.md` — story list + dependency note
 - `deferred-work.md` — Story 2.1 profile-navigation deferral claimed by Story 2.8
 - Jira **O4-168** — Story 2.8: Management list row navigation to Employee Profile (parent epic **O4-11**)
+
+## Spec Change Log
+
+- **2026-09-11 (done):** PR #77 merged to `main` (`5a702fb`); CI green; sprint/spec status → `done`; Jira O4-168 → Done.
+- **2026-09-11 (in-progress):** Implementation on `feature/2-8-management-list-row-navigation-to-employee-profile`; spec registered; Jira O4-168 created under Epic O4-11.

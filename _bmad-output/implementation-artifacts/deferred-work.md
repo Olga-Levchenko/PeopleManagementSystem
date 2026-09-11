@@ -662,7 +662,7 @@ Story 2.1 shipped in PR #65 (2026-09-10). Items below remain **open** follow-up 
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-1-universal-filter-column-engine-over-profile-fields.md`
   summary: Profile navigation link from All Employees list rows (management mode).
   evidence: bmad-code-review 2026-09-10; UX polish beyond 2.1 core ACs.
-  status: **claimed by Story 2.8** (`spec-2-8-management-list-row-navigation-to-employee-profile.md`, Jira O4-168, 2026-09-11). Colleague row-click shipped in Story 2.5; management browse deferred there via `MANAGEMENT_UNCHANGED`.
+  status: **resolved by Story 2.8** (PR #77 merged 2026-09-11; `spec-2-8-management-list-row-navigation-to-employee-profile.md`, Jira O4-168). Colleague row-click shipped in Story 2.5; management browse delivered in 2.8.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-1-universal-filter-column-engine-over-profile-fields.md`
   summary: Column picker persistence; `departmentId` filter UI.
