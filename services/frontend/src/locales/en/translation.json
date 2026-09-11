@@ -71,6 +71,8 @@
     "sections": {
       "identity": "Identity",
       "personalContacts": "Personal contacts",
+      "employment": "Employment",
+      "careerTimeline": "Career timeline",
       "leaves": "Leaves",
       "projects": "Projects",
       "customFields": "Custom fields"
@@ -89,7 +91,11 @@
       "peoplePartner": "People partner",
       "personalPhone": "Personal phone",
       "personalEmail": "Personal email",
-      "residentialAddress": "Residential address"
+      "residentialAddress": "Residential address",
+      "employmentType": "Employment type",
+      "grade": "Grade",
+      "seniority": "Seniority",
+      "englishLevel": "English level"
     }
   },
   "administration": {

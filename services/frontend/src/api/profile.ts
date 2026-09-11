@@ -31,6 +31,19 @@ export interface S2PersonalContacts {
   residentialAddress: string | null
 }
 
+export interface S4Employment {
+  employmentType: string | null
+  grade: string | null
+  seniority: string | null
+  englishLevel: string | null
+}
+
+export interface S9TimelineEntry {
+  occurredAt: string
+  eventType: string
+  summary: string
+}
+
 export interface S10Leave {
   startDate: string
   endDate: string
@@ -54,6 +67,8 @@ export interface EmployeeProfileResponse {
   isSelf: boolean
   s1?: S1IdentityCard
   s2?: S2PersonalContacts
+  s4?: S4Employment
+  s9?: S9TimelineEntry[]
   s10?: S10Leave[]
   s11?: S11ProjectEntry[]
   s16?: S16CustomField[]

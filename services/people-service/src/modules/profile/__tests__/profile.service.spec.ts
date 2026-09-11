@@ -17,6 +17,17 @@ const MGMT_FIELD_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const EMPLOYEE_FIELD_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const COLLEAGUE_FIELD_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
+const SELF_PROFILE_KEYS = [
+  'isSelf',
+  's1',
+  's10',
+  's11',
+  's16',
+  's2',
+  's4',
+  's9',
+];
+
 const FULL_PERSON_ROW = {
   fullName: 'Alex Ivanenko',
   photoUrl: 'https://example.test/photo.png',
@@ -30,6 +41,10 @@ const FULL_PERSON_ROW = {
   personalPhone: '+380111111111',
   personalEmail: 'alex.personal@example.test',
   residentialAddress: '1 Test Street, Lviv',
+  employmentType: 'FTE',
+  grade: 'L5',
+  seniority: 'Senior',
+  englishLevel: 'B2',
   manager: { id: MANAGER_ID, fullName: 'Manager Personenko' },
   peoplePartner: { id: PP_ID, fullName: 'PP Personenko' },
   department: { id: DEPARTMENT_ID, name: 'Engineering' },
@@ -46,6 +61,18 @@ const FULL_PERSON_ROW = {
       role: 'Member',
       startDate: new Date('2023-06-01T00:00:00.000Z'),
       endDate: new Date('2024-06-01T00:00:00.000Z'),
+    },
+  ],
+  careerTimelineEvents: [
+    {
+      occurredAt: new Date('2023-01-15T00:00:00.000Z'),
+      eventType: 'GRADE_CHANGE',
+      summary: 'Promoted to L5',
+    },
+    {
+      occurredAt: new Date('2022-01-10T00:00:00.000Z'),
+      eventType: 'JOINING',
+      summary: 'Joined the company',
     },
   ],
   customFieldValues: [
@@ -108,14 +135,7 @@ describe('ProfileService', () => {
 
     expect(resolve).toHaveBeenCalledWith(SUBJECT_ID, SUBJECT_ID);
     expect(result.isSelf).toBe(true);
-    expect(Object.keys(result).sort()).toEqual([
-      'isSelf',
-      's1',
-      's10',
-      's11',
-      's16',
-      's2',
-    ]);
+    expect(Object.keys(result).sort()).toEqual(SELF_PROFILE_KEYS);
     expect(result.s1).toMatchObject({
       fullName: FULL_PERSON_ROW.fullName,
       manager: FULL_PERSON_ROW.manager,
@@ -124,6 +144,21 @@ describe('ProfileService', () => {
     expect(result.s2).toMatchObject({
       personalEmail: FULL_PERSON_ROW.personalEmail,
     });
+    expect(result.s4).toMatchObject({
+      employmentType: 'FTE',
+      grade: 'L5',
+      seniority: 'Senior',
+      englishLevel: 'B2',
+    });
+    expect(result.s9).toHaveLength(2);
+    expect(result.s9![0]).toMatchObject({
+      eventType: 'GRADE_CHANGE',
+      summary: 'Promoted to L5',
+    });
+    expect(result.s9![0]!.occurredAt.getTime()).toBeGreaterThan(
+      result.s9![1]!.occurredAt.getTime(),
+    );
+    expect(result).not.toHaveProperty('s6');
     // Self sees full S10 data including leaveType
     expect(result.s10).toHaveLength(1);
     expect(result.s10![0]).toMatchObject({ leaveType: 'vacation' });
@@ -138,6 +173,48 @@ describe('ProfileService', () => {
     expect(s16FieldIds).not.toContain(MGMT_FIELD_ID);
     expect(s16FieldIds).toContain(EMPLOYEE_FIELD_ID);
     expect(s16FieldIds).toContain(COLLEAGUE_FIELD_ID);
+  });
+
+  it('Self: returns s9 as empty array when no career timeline events exist', async () => {
+    const resolve = jest.fn().mockResolvedValue(NEITHER_LINE_RESOLUTION);
+    const { service } = createService(
+      { resolve },
+      { ...FULL_PERSON_ROW, careerTimelineEvents: [] },
+    );
+
+    const result = await service.getProfile(SUBJECT_ID, SUBJECT_ID);
+
+    expect(result.s9).toEqual([]);
+    expect(result).not.toHaveProperty('s6');
+  });
+
+  it('Self: reporting-line manager viewing own profile still excludes s6', async () => {
+    const resolve = jest.fn().mockResolvedValue({
+      reportingLine: true,
+      projectLine: false,
+      peoplePartnerLine: false,
+      fullProfileAccessLine: false,
+      managerSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'Read' },
+        s4: { level: 'ReadWrite' },
+        s6: { level: 'ReadWrite' },
+        s9: { level: 'ReadWrite' },
+        s10: { level: 'Read' },
+        s11: { level: 'Read' },
+        s16: { level: 'ReadWrite' },
+      },
+      peoplePartnerSectionAccess: null,
+      fullProfileAccessSectionAccess: null,
+    });
+    const { service } = createService({ resolve });
+
+    const result = await service.getProfile(SUBJECT_ID, SUBJECT_ID);
+
+    expect(resolve).toHaveBeenCalledWith(SUBJECT_ID, SUBJECT_ID);
+    expect(result).not.toHaveProperty('s6');
+    expect(result.s4).toBeDefined();
+    expect(result.s9).toHaveLength(2);
   });
 
   it('Reporting line: reportingLine true with ReadWrite s1 / Read s2 / Read s10/s11 -> all four sections present with full field data; s16 has all three fields', async () => {
@@ -793,14 +870,10 @@ describe('ProfileService', () => {
     const result = await service.getProfile(VIEWER_ID, VIEWER_ID);
 
     // FPA path: all sections present and S16 includes management-level field
-    expect(Object.keys(result).sort()).toEqual([
-      'isSelf',
-      's1',
-      's10',
-      's11',
-      's16',
-      's2',
-    ]);
+    expect(Object.keys(result).sort()).toEqual(SELF_PROFILE_KEYS);
+    expect(result).not.toHaveProperty('s6');
+    expect(result.s4).toBeDefined();
+    expect(result.s9).toHaveLength(2);
     const s16FieldIds = (result.s16 as Array<{ fieldId: string }>).map(
       (f) => f.fieldId,
     );
@@ -825,14 +898,8 @@ describe('ProfileService', () => {
     const result = await service.getProfile(VIEWER_ID, VIEWER_ID);
 
     // Self-view path: S16 absent management field
-    expect(Object.keys(result).sort()).toEqual([
-      'isSelf',
-      's1',
-      's10',
-      's11',
-      's16',
-      's2',
-    ]);
+    expect(Object.keys(result).sort()).toEqual(SELF_PROFILE_KEYS);
+    expect(result).not.toHaveProperty('s6');
     const s16FieldIds = (result.s16 as Array<{ fieldId: string }>).map(
       (f) => f.fieldId,
     );
@@ -1001,6 +1068,19 @@ describe('ProfileService.patchProfileField', () => {
 
     await expect(
       service.patchProfileField(VIEWER_ID, VIEWER_ID, 'countryCity', 'Lviv'),
+    ).rejects.toMatchObject({
+      status: 403,
+      message: 'Self-edit is not permitted on All Employees.',
+    });
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
+  it('rejects self S4 field patch with deferral message', async () => {
+    const resolve = jest.fn();
+    const { service } = createPatchService({ resolve });
+
+    await expect(
+      service.patchProfileField(VIEWER_ID, VIEWER_ID, 'grade', 'L6'),
     ).rejects.toMatchObject({
       status: 403,
       message: 'Self-edit is not permitted on All Employees.',

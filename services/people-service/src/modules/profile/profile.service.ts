@@ -57,6 +57,21 @@ export interface S2PersonalContacts {
   residentialAddress: string | null;
 }
 
+/** S4: Employment snapshot (Story 2.7 MVP — position remains on S1). */
+export interface S4Employment {
+  employmentType: string | null;
+  grade: string | null;
+  seniority: string | null;
+  englishLevel: string | null;
+}
+
+/** S9: Career timeline entry (Story 2.7 read model). */
+export interface S9TimelineEntry {
+  occurredAt: Date;
+  eventType: string;
+  summary: string;
+}
+
 /** S10: Leave entry. `leaveType` is present for Self/Manager/PP; absent (stripped) for Colleague. */
 export interface S10Leave {
   startDate: Date;
@@ -83,6 +98,8 @@ export interface ProfileResponse {
   isSelf: boolean;
   s1?: S1IdentityCard;
   s2?: S2PersonalContacts;
+  s4?: S4Employment;
+  s9?: S9TimelineEntry[];
   s10?: S10Leave[];
   s11?: S11ProjectEntry[];
   s16: S16CustomField[];
@@ -136,12 +153,23 @@ type PersonWithRelations = {
   personalPhone: string | null;
   personalEmail: string | null;
   residentialAddress: string | null;
+  employmentType: string | null;
+  grade: string | null;
+  seniority: string | null;
+  englishLevel: string | null;
   manager: PersonSummary | null;
   peoplePartner: PersonSummary | null;
   department: DepartmentSummary | null;
   leaves: LeaveRow[];
   personProjectAssignments: ProjectAssignmentRow[];
+  careerTimelineEvents: CareerTimelineEventRow[];
   customFieldValues: CustomFieldValueRow[];
+};
+
+type CareerTimelineEventRow = {
+  occurredAt: Date;
+  eventType: string;
+  summary: string;
 };
 
 /**
@@ -198,6 +226,10 @@ export class ProfileService {
         personalPhone: true,
         personalEmail: true,
         residentialAddress: true,
+        employmentType: true,
+        grade: true,
+        seniority: true,
+        englishLevel: true,
         manager: { select: { id: true, fullName: true } },
         peoplePartner: { select: { id: true, fullName: true } },
         department: { select: { id: true, name: true } },
@@ -213,6 +245,14 @@ export class ProfileService {
             endDate: true,
           },
           orderBy: { startDate: 'asc' },
+        },
+        careerTimelineEvents: {
+          select: {
+            occurredAt: true,
+            eventType: true,
+            summary: true,
+          },
+          orderBy: { occurredAt: 'desc' },
         },
         customFieldValues: {
           select: {
@@ -239,8 +279,9 @@ export class ProfileService {
       subjectPersonId,
     );
 
+    const isSelf = viewerPersonId === subjectPersonId;
     const response: ProfileResponse = {
-      isSelf: viewerPersonId === subjectPersonId,
+      isSelf,
       s16: [],
     };
     if (this.grantsAccess(audience.s1)) {
@@ -248,6 +289,12 @@ export class ProfileService {
     }
     if (this.grantsAccess(audience.s2)) {
       response.s2 = this.toS2(person);
+    }
+    if (this.grantsAccess(audience.s4)) {
+      response.s4 = this.toS4(person);
+    }
+    if (this.grantsAccess(audience.s9)) {
+      response.s9 = this.toS9(person.careerTimelineEvents);
     }
     if (this.grantsAccess(audience.s10)) {
       response.s10 = audience.isColleague
@@ -265,6 +312,10 @@ export class ProfileService {
       person.customFieldValues,
       audience.customFieldAudienceLevel,
     );
+    // Story 2.7: Self must never receive S6 — defense in depth before Epic 4 risk assembly.
+    if (isSelf && 's6' in response) {
+      delete (response as { s6?: unknown }).s6;
+    }
     return response;
   }
 
@@ -624,6 +675,9 @@ export class ProfileService {
   ): Promise<{
     s1: SectionAccessLevel;
     s2: SectionAccessLevel;
+    s4: SectionAccessLevel;
+    s6: SectionAccessLevel;
+    s9: SectionAccessLevel;
     s10: SectionAccessLevel;
     s11: SectionAccessLevel;
     isColleague: boolean;
@@ -682,6 +736,23 @@ export class ProfileService {
       personalEmail: person.personalEmail,
       residentialAddress: person.residentialAddress,
     };
+  }
+
+  private toS4(person: PersonWithRelations): S4Employment {
+    return {
+      employmentType: person.employmentType,
+      grade: person.grade,
+      seniority: person.seniority,
+      englishLevel: person.englishLevel,
+    };
+  }
+
+  private toS9(events: CareerTimelineEventRow[]): S9TimelineEntry[] {
+    return events.map((event) => ({
+      occurredAt: event.occurredAt,
+      eventType: event.eventType,
+      summary: event.summary,
+    }));
   }
 
   /** Full S10 mapper (Self/Manager/PP): includes `leaveType`. */

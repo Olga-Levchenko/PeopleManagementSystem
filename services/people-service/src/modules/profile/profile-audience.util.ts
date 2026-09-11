@@ -36,6 +36,9 @@ export function resolveS16WriteAccess(
 export interface ResolvedProfileAudience {
   s1: SectionAccessLevel;
   s2: SectionAccessLevel;
+  s4: SectionAccessLevel;
+  s6: SectionAccessLevel;
+  s9: SectionAccessLevel;
   s10: SectionAccessLevel;
   s11: SectionAccessLevel;
   isColleague: boolean;
@@ -58,6 +61,35 @@ function mostPermissive(
   }, 'None');
 }
 
+const NO_SECTION_ACCESS: Pick<
+  ResolvedProfileAudience,
+  's4' | 's6' | 's9'
+> = {
+  s4: 'None',
+  s6: 'None',
+  s9: 'None',
+};
+
+/**
+ * Self-only section overrides merged at function exit (Story 2.7). Preserves FPA-first
+ * `customFieldAudienceLevel` and other section levels from the underlying resolution.
+ */
+function applySelfSectionOverrides(
+  audience: ResolvedProfileAudience,
+  viewerPersonId: string,
+  subjectPersonId: string,
+): ResolvedProfileAudience {
+  if (viewerPersonId !== subjectPersonId) {
+    return audience;
+  }
+  return {
+    ...audience,
+    s4: 'Read',
+    s9: 'Read',
+    s6: 'None',
+  };
+}
+
 /**
  * Derives per-subject profile audience from an already-resolved access-role payload.
  * Shared by profile assembly and the All Employees list (Story 2.1).
@@ -73,25 +105,37 @@ export function deriveAudienceFromResolution(
       ? resolution.fullProfileAccessSectionAccess
       : null;
   if (fullAccess) {
-    return {
-      s1: mostPermissive(fullAccess.s1?.level),
-      s2: mostPermissive(fullAccess.s2?.level),
-      s10: mostPermissive(fullAccess.s10?.level),
-      s11: mostPermissive(fullAccess.s11?.level),
-      isColleague: false,
-      customFieldAudienceLevel: 'management',
-    };
+    return applySelfSectionOverrides(
+      {
+        s1: mostPermissive(fullAccess.s1?.level),
+        s2: mostPermissive(fullAccess.s2?.level),
+        s10: mostPermissive(fullAccess.s10?.level),
+        s11: mostPermissive(fullAccess.s11?.level),
+        s4: mostPermissive(fullAccess.s4?.level),
+        s6: mostPermissive(fullAccess.s6?.level),
+        s9: mostPermissive(fullAccess.s9?.level),
+        isColleague: false,
+        customFieldAudienceLevel: 'management',
+      },
+      viewerPersonId,
+      subjectPersonId,
+    );
   }
 
   if (viewerPersonId === subjectPersonId) {
-    return {
-      s1: 'ReadWrite',
-      s2: 'ReadWrite',
-      s10: 'ReadWrite',
-      s11: 'ReadWrite',
-      isColleague: false,
-      customFieldAudienceLevel: 'employee',
-    };
+    return applySelfSectionOverrides(
+      {
+        s1: 'ReadWrite',
+        s2: 'ReadWrite',
+        s10: 'ReadWrite',
+        s11: 'ReadWrite',
+        ...NO_SECTION_ACCESS,
+        isColleague: false,
+        customFieldAudienceLevel: 'employee',
+      },
+      viewerPersonId,
+      subjectPersonId,
+    );
   }
 
   const managerAccess =
@@ -103,22 +147,32 @@ export function deriveAudienceFromResolution(
     : null;
 
   if (!managerAccess && !ppAccess) {
-    return {
-      s1: 'Read',
-      s2: 'None',
-      s10: 'Read',
-      s11: 'Read',
-      isColleague: true,
-      customFieldAudienceLevel: 'colleague',
-    };
+    return applySelfSectionOverrides(
+      {
+        s1: 'Read',
+        s2: 'None',
+        s10: 'Read',
+        s11: 'Read',
+        ...NO_SECTION_ACCESS,
+        isColleague: true,
+        customFieldAudienceLevel: 'colleague',
+      },
+      viewerPersonId,
+      subjectPersonId,
+    );
   }
 
-  return {
-    s1: mostPermissive(managerAccess?.s1?.level, ppAccess?.s1?.level),
-    s2: mostPermissive(managerAccess?.s2?.level, ppAccess?.s2?.level),
-    s10: mostPermissive(managerAccess?.s10?.level, ppAccess?.s10?.level),
-    s11: mostPermissive(managerAccess?.s11?.level, ppAccess?.s11?.level),
-    isColleague: false,
-    customFieldAudienceLevel: 'management',
-  };
+  return applySelfSectionOverrides(
+    {
+      s1: mostPermissive(managerAccess?.s1?.level, ppAccess?.s1?.level),
+      s2: mostPermissive(managerAccess?.s2?.level, ppAccess?.s2?.level),
+      s10: mostPermissive(managerAccess?.s10?.level, ppAccess?.s10?.level),
+      s11: mostPermissive(managerAccess?.s11?.level, ppAccess?.s11?.level),
+      ...NO_SECTION_ACCESS,
+      isColleague: false,
+      customFieldAudienceLevel: 'management',
+    },
+    viewerPersonId,
+    subjectPersonId,
+  );
 }
