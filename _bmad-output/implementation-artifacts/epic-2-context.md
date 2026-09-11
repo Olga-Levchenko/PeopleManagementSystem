@@ -15,7 +15,7 @@ Managers and people partners browse, filter, configure columns, edit inline, sav
 - Story 2.5: Colleague mode on All Employees — **done**
 - Story 2.8: Management list row navigation to Employee Profile — **done**
 - Story 2.6: Self-managed personal data — **done**
-- Story 2.7: Self-read of managed data and never own risk level
+- Story 2.7: Self-read of managed data and never own risk level — **done**
 
 ## Requirements & Constraints
 
