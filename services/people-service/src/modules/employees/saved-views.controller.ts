@@ -13,6 +13,7 @@ import {
 import type { Response } from 'express';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { RequestActorContext } from '../organisational-relationships/request-actor.context';
+import { ColleagueBrowseGateService } from './colleague-browse.gate.service';
 import {
   CreateSavedViewDto,
   ShareSavedViewDto,
@@ -26,15 +27,19 @@ export class SavedViewsController {
   constructor(
     private readonly service: SavedViewsService,
     private readonly actor: RequestActorContext,
+    private readonly colleagueBrowseGate: ColleagueBrowseGateService,
   ) {}
 
   @Get()
-  listSavedViews() {
+  async listSavedViews() {
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(
+      this.actor.actorId,
+    );
     return this.service.listSavedViews(this.actor.actorId);
   }
 
   @Post()
-  createSavedView(
+  async createSavedView(
     @Body(
       new ValidationPipe({
         whitelist: true,
@@ -44,11 +49,14 @@ export class SavedViewsController {
     )
     body: CreateSavedViewDto,
   ) {
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(
+      this.actor.actorId,
+    );
     return this.service.createSavedView(this.actor.actorId, body);
   }
 
   @Patch(':viewId')
-  updateSavedView(
+  async updateSavedView(
     @Param('viewId') viewId: string,
     @Body(
       new ValidationPipe({
@@ -59,12 +67,18 @@ export class SavedViewsController {
     )
     body: UpdateSavedViewDto,
   ) {
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(
+      this.actor.actorId,
+    );
     return this.service.updateSavedView(this.actor.actorId, viewId, body);
   }
 
   @Delete(':viewId')
   @HttpCode(204)
   async deleteSavedView(@Param('viewId') viewId: string) {
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(
+      this.actor.actorId,
+    );
     await this.service.deleteSavedView(this.actor.actorId, viewId);
   }
 
@@ -81,6 +95,9 @@ export class SavedViewsController {
     body: ShareSavedViewDto,
     @Res({ passthrough: true }) response: Response,
   ) {
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(
+      this.actor.actorId,
+    );
     const result = await this.service.shareSavedView(
       this.actor.actorId,
       viewId,
@@ -96,6 +113,9 @@ export class SavedViewsController {
     @Param('viewId') viewId: string,
     @Param('recipientPersonId') recipientPersonId: string,
   ) {
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(
+      this.actor.actorId,
+    );
     await this.service.revokeShare(
       this.actor.actorId,
       viewId,

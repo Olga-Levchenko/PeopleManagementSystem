@@ -61,6 +61,31 @@
       "readOnly": "Read-only shared view"
     }
   },
+  "colleagueProfile": {
+    "title": "Colleague profile",
+    "description": "Limited profile view based on your access.",
+    "backToList": "Back to All Employees",
+    "loading": "Loading profile...",
+    "error": "Unable to load this profile.",
+    "empty": "No records to show.",
+    "sections": {
+      "identity": "Identity",
+      "leaves": "Leaves",
+      "projects": "Projects",
+      "customFields": "Custom fields"
+    },
+    "fields": {
+      "position": "Position",
+      "department": "Department",
+      "countryCity": "Country / city",
+      "workEmail": "Work email",
+      "workPhone": "Work phone",
+      "birthday": "Birthday",
+      "startDate": "Start date",
+      "manager": "Manager",
+      "peoplePartner": "People partner"
+    }
+  },
   "administration": {
     "title": "Functional role administration",
     "description": "Manage runtime functional roles, permissions, and active assignments.",

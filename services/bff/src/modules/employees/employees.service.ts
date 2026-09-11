@@ -18,6 +18,18 @@ export class EmployeesService {
     return this.request('/employees/field-catalog', 'GET', undefined, context);
   }
 
+  getProfile(
+    subjectPersonId: string,
+    context: ProxyContext,
+  ): Promise<UpstreamResponse> {
+    return this.request(
+      `/people/${encodeURIComponent(subjectPersonId)}/profile`,
+      'GET',
+      undefined,
+      context,
+    );
+  }
+
   patchField(
     subjectPersonId: string,
     body: unknown,
@@ -177,7 +189,7 @@ export class EmployeesService {
                   message: this.safeErrorMessage(response.status),
                 };
           throw new HttpException(
-            errorBody as string | Record<string, unknown>,
+            errorBody,
             this.safeErrorStatus(response.status),
           );
         } catch (error) {

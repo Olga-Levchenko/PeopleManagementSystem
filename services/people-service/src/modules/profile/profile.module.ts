@@ -1,12 +1,13 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { EmployeesModule } from '../employees/employees.module';
 import { RequestActorContext } from '../organisational-relationships/request-actor.context';
 import { ProfileController } from './profile.controller';
 import { HttpAccessRoleResolutionAdapter } from './profile.ports';
 import { ProfileService } from './profile.service';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, forwardRef(() => EmployeesModule)],
   controllers: [ProfileController],
   providers: [
     ProfileService,

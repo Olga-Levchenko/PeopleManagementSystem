@@ -18,6 +18,7 @@ import {
   parseExportColumnKeys,
 } from './employees-query.util';
 import { EmployeesService } from './employees.service';
+import { ColleagueBrowseGateService } from './colleague-browse.gate.service';
 
 @ApiBearerAuth()
 @Controller('employees')
@@ -25,6 +26,7 @@ export class EmployeesController {
   constructor(
     private readonly service: EmployeesService,
     private readonly actor: RequestActorContext,
+    private readonly colleagueBrowseGate: ColleagueBrowseGateService,
   ) {}
 
   @Get('field-catalog')
@@ -45,6 +47,9 @@ export class EmployeesController {
     @Req() request: Request,
     @Res() response: Response,
   ) {
+    await this.colleagueBrowseGate.assertManagementBrowseAllowed(
+      this.actor.actorId,
+    );
     const columnKeys = parseExportColumnKeys(query.columns);
     const { buffer, filename } = await this.service.exportEmployeesToXlsx(
       this.actor.actorId,

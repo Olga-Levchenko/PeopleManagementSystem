@@ -2,7 +2,7 @@
 title: 'Story 2.5: Colleague mode on All Employees'
 type: 'feature'
 created: '2026-09-11'
-status: 'approved'
+status: 'in-review'
 review_loop_iteration: 1
 baseline_commit: '8f15868'
 context:
@@ -76,13 +76,13 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `employees.service.ts` — normative colleague catalog whitelist; list row projection for S10/S11 + extended S1 keys; `assertColleagueBrowseAllowed()`; fix tests that expect `yearsWithCompany` on colleague catalog rows
-- [ ] `saved-views.controller.ts` + `employees.controller.ts` + `profile.controller.ts` — 403 when colleague catalog audience
-- [ ] `employees.service.spec.ts` + export/saved-view/profile PATCH specs — catalog whitelist, negative assertions, 403 gates, S10/S11 row value rules
-- [ ] `bff/.../employees` — GET profile proxy + controller route + unit test
-- [ ] `ColleagueProfilePage` + router — render only keys returned by API; no client-side section matrix; wire row click only when `listAudienceLevel === 'colleague'`
-- [ ] `AllEmployeesPage` — colleague column picker defaults per whitelist table
-- [ ] `all-employees-colleague.spec.ts` — Playwright smoke (hidden export, row opens limited profile toward another subject)
+- [x] `employees.service.ts` — normative colleague catalog whitelist; list row projection for S10/S11 + extended S1 keys; `assertColleagueBrowseAllowed()`; fix tests that expect `yearsWithCompany` on colleague catalog rows
+- [x] `saved-views.controller.ts` + `employees.controller.ts` + `profile.controller.ts` — 403 when colleague catalog audience
+- [x] `employees.service.spec.ts` + export/saved-view/profile PATCH specs — catalog whitelist, negative assertions, 403 gates, S10/S11 row value rules
+- [x] `bff/.../employees` — GET profile proxy + controller route + unit test
+- [x] `ColleagueProfilePage` + router — render only keys returned by API; no client-side section matrix; wire row click only when `listAudienceLevel === 'colleague'`
+- [x] `AllEmployeesPage` — colleague column picker defaults per whitelist table
+- [x] `all-employees-colleague.spec.ts` — Playwright smoke (hidden export, row opens limited profile toward another subject)
 
 **Acceptance Criteria:**
 - Given a viewer whose resolved catalog audience is colleague-tier, when they open All Employees, then the field catalog contains **exactly** the normative whitelist keys (stored + derived list keys + colleague-visible custom fields) and **excludes** `yearsWithCompany`, `startDate`-as-derived-filter-only keys, and all management-only custom fields

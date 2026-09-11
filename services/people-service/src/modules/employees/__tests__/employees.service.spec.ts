@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import type { AccessRoleResolutionPort } from '../../profile/profile.ports';
 import { NEITHER_LINE_RESOLUTION } from '../../profile/profile.ports';
+import { COLLEAGUE_CATALOG_FIELDS } from '../employees-colleague.util';
 import {
   EmployeesService,
   computeYearsWithCompany,
@@ -52,6 +53,21 @@ describe('EmployeesService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    resolve.mockResolvedValue(NEITHER_LINE_RESOLUTION);
+    resolveBatch.mockImplementation(
+      (_viewer: string, subjectPersonIds: readonly string[]) => {
+        const managementResolution = {
+          ...NEITHER_LINE_RESOLUTION,
+          reportingLine: true,
+          managerSectionAccess: { s1: { level: 'ReadWrite' as const } },
+        };
+        const results = new Map<string, typeof managementResolution>();
+        for (const subjectPersonId of subjectPersonIds) {
+          results.set(subjectPersonId, managementResolution);
+        }
+        return Promise.resolve(results);
+      },
+    );
     prisma.person.findMany.mockImplementation(
       (args: { where?: { managerId?: string } }) => {
         if (args.where?.managerId) {
@@ -166,7 +182,24 @@ describe('EmployeesService', () => {
     expect(keys).toContain('custom:cf-colleague');
   });
 
-  it('listEmployees calls resolveBatch once per page and projects S1 fields for colleague audience', async () => {
+  it('getFieldCatalog returns normative colleague whitelist without yearsWithCompany', async () => {
+    prisma.customFieldDefinition.findMany.mockResolvedValue([]);
+    resolve.mockResolvedValue(NEITHER_LINE_RESOLUTION);
+    resolveBatch.mockResolvedValue(new Map());
+
+    const catalog = await service.getFieldCatalog(viewerId);
+
+    expect(catalog.listAudienceLevel).toBe('colleague');
+    const keys = catalog.fields.map((field) => field.key);
+    expect(keys).toEqual([
+      ...COLLEAGUE_CATALOG_FIELDS.map((field) => field.key),
+    ]);
+    expect(keys).not.toContain('yearsWithCompany');
+  });
+
+  it('listEmployees calls resolveBatch once per page and projects colleague whitelist rows', async () => {
+    prisma.customFieldDefinition.findMany.mockResolvedValue([]);
+    resolve.mockResolvedValue(NEITHER_LINE_RESOLUTION);
     prisma.person.count.mockResolvedValue(1);
     prisma.person.findMany.mockResolvedValue([
       {
@@ -174,8 +207,29 @@ describe('EmployeesService', () => {
         fullName: 'Subject Person',
         position: 'Engineer',
         countryCity: 'Kyiv',
+        workEmail: 'subject@example.com',
+        workPhone: '+380000000',
+        birthdayMonth: 3,
+        birthdayDay: 15,
         startDate: new Date('2020-01-01T00:00:00.000Z'),
         department: { name: 'Platform' },
+        manager: { fullName: 'Manager Person' },
+        peoplePartner: { fullName: 'PP Person' },
+        leaves: [
+          {
+            startDate: new Date('2026-06-01T00:00:00.000Z'),
+            endDate: new Date('2026-06-10T00:00:00.000Z'),
+            leaveType: 'vacation',
+          },
+        ],
+        personProjectAssignments: [
+          {
+            projectName: 'Project Alpha',
+            role: 'Member',
+            startDate: new Date('2026-01-01T00:00:00.000Z'),
+            endDate: new Date('2026-12-31T00:00:00.000Z'),
+          },
+        ],
         customFieldValues: [],
       },
     ]);
@@ -194,8 +248,165 @@ describe('EmployeesService', () => {
     expect(resolveBatch).toHaveBeenCalledWith(viewerId, [subjectId]);
     expect(result.totalCount).toBe(1);
     expect(result.items[0]?.values.fullName).toBe('Subject Person');
-    expect(result.items[0]?.values.yearsWithCompany).not.toBeNull();
+    expect(result.items[0]?.values.yearsWithCompany).toBeUndefined();
+    expect(result.items[0]?.values.leaveDates).toBe('2026-06-01 – 2026-06-10');
+    expect(result.items[0]?.values.projectName).toBe('Project Alpha');
+    expect(result.items[0]?.values).not.toHaveProperty('leaveType');
+    expect(result.items[0]?.values).not.toHaveProperty('role');
     expect(result.items[0]?.editableFields).toEqual([]);
+  });
+
+  it('listEmployees projects colleague whitelist for viewer own row under colleague catalog', async () => {
+    prisma.customFieldDefinition.findMany.mockResolvedValue([]);
+    resolve.mockResolvedValue(NEITHER_LINE_RESOLUTION);
+    resolveBatch.mockResolvedValue(new Map());
+    prisma.person.count.mockResolvedValue(1);
+    prisma.person.findMany.mockResolvedValue([
+      {
+        id: viewerId,
+        fullName: 'Viewer Person',
+        position: 'Engineer',
+        countryCity: 'Kyiv',
+        workEmail: 'viewer@example.com',
+        workPhone: null,
+        birthdayMonth: 4,
+        birthdayDay: 20,
+        startDate: new Date('2019-05-01T00:00:00.000Z'),
+        department: { name: 'Platform' },
+        manager: { fullName: 'Manager Person' },
+        peoplePartner: { fullName: 'PP Person' },
+        leaves: [
+          {
+            startDate: new Date('2026-07-01T00:00:00.000Z'),
+            endDate: new Date('2026-07-05T00:00:00.000Z'),
+          },
+        ],
+        personProjectAssignments: [
+          {
+            projectName: 'Project Beta',
+            role: 'Member',
+            startDate: new Date('2026-01-01T00:00:00.000Z'),
+            endDate: new Date('2026-12-31T00:00:00.000Z'),
+          },
+        ],
+        customFieldValues: [],
+      },
+    ]);
+    prisma.$transaction.mockImplementation(async (operations) =>
+      Promise.all(operations as Array<Promise<unknown>>),
+    );
+    resolveBatch.mockResolvedValue(
+      new Map([[viewerId, NEITHER_LINE_RESOLUTION]]),
+    );
+
+    const result = await service.listEmployees(viewerId, {
+      page: 1,
+      pageSize: 50,
+    });
+
+    expect(result.items[0]?.values.yearsWithCompany).toBeUndefined();
+    expect(result.items[0]?.values.leaveDates).toBe('2026-07-01 – 2026-07-05');
+    expect(result.items[0]?.values.projectName).toBe('Project Beta');
+  });
+
+  it('listEmployees rejects departmentId filter for colleague catalog audience', async () => {
+    prisma.customFieldDefinition.findMany.mockResolvedValue([]);
+    resolve.mockResolvedValue(NEITHER_LINE_RESOLUTION);
+    resolveBatch.mockResolvedValue(new Map());
+
+    await expect(
+      service.listEmployees(viewerId, {
+        page: 1,
+        pageSize: 50,
+        departmentId: 'dept-123',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('listEmployees hybrid catalog projects management rows and colleague whitelist rows on same page', async () => {
+    const managementResolution = {
+      ...NEITHER_LINE_RESOLUTION,
+      reportingLine: true,
+      managerSectionAccess: { s1: { level: 'ReadWrite' as const } },
+    };
+    const personRowBase = {
+      position: 'Engineer',
+      countryCity: 'Kyiv',
+      startDate: new Date('2020-01-01T00:00:00.000Z'),
+      department: { name: 'Platform' },
+      workEmail: 'person@example.com',
+      workPhone: null,
+      birthdayMonth: 1,
+      birthdayDay: 1,
+      manager: { fullName: 'Manager Person' },
+      peoplePartner: { fullName: 'PP Person' },
+      leaves: [],
+      personProjectAssignments: [],
+      customFieldValues: [],
+    };
+
+    prisma.customFieldDefinition.findMany.mockResolvedValue([]);
+    resolve.mockResolvedValue(managementResolution);
+    prisma.person.count.mockResolvedValue(2);
+    prisma.person.findMany.mockResolvedValue([
+      {
+        id: managementSubjectId,
+        fullName: 'Report Person',
+        ...personRowBase,
+      },
+      {
+        id: colleagueSubjectId,
+        fullName: 'Colleague Person',
+        ...personRowBase,
+      },
+    ]);
+    prisma.$transaction.mockImplementation(async (operations) =>
+      Promise.all(operations as Array<Promise<unknown>>),
+    );
+    resolveBatch.mockImplementation(
+      (_viewer: string, subjectPersonIds: readonly string[]) => {
+        const results = new Map();
+        for (const subjectPersonId of subjectPersonIds) {
+          results.set(
+            subjectPersonId,
+            subjectPersonId === colleagueSubjectId
+              ? NEITHER_LINE_RESOLUTION
+              : managementResolution,
+          );
+        }
+        return Promise.resolve(results);
+      },
+    );
+
+    const result = await service.listEmployees(viewerId, {
+      page: 1,
+      pageSize: 50,
+    });
+
+    const reportRow = result.items.find(
+      (item) => item.personId === managementSubjectId,
+    );
+    const colleagueRow = result.items.find(
+      (item) => item.personId === colleagueSubjectId,
+    );
+
+    expect(reportRow?.values.yearsWithCompany).not.toBeNull();
+    expect(colleagueRow?.values.yearsWithCompany).toBeUndefined();
+    expect(colleagueRow?.values.workEmail).toBe('person@example.com');
+  });
+
+  it('listEmployees rejects management-only filters for colleague catalog audience', async () => {
+    prisma.customFieldDefinition.findMany.mockResolvedValue([]);
+    resolve.mockResolvedValue(NEITHER_LINE_RESOLUTION);
+    resolveBatch.mockResolvedValue(new Map());
+
+    await expect(
+      service.listEmployees(viewerId, {
+        page: 1,
+        pageSize: 50,
+        yearsWithCompanyMin: 2,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('listEmployees includes editableFields for RW manager audience on other subjects', async () => {
@@ -378,11 +589,23 @@ describe('EmployeesService', () => {
     jest.spyOn(Date, 'now').mockReturnValue(fixedNow);
 
     prisma.person.count.mockResolvedValue(0);
-    prisma.person.findMany.mockResolvedValue([]);
+    prisma.person.findMany.mockImplementation(
+      (args: {
+        where?: { managerId?: string; startDate?: unknown };
+        skip?: number;
+      }) => {
+        if (args.where?.managerId) {
+          return Promise.resolve([{ id: managementSubjectId }]);
+        }
+        if (args.skip !== undefined) {
+          return Promise.resolve([]);
+        }
+        return Promise.resolve([]);
+      },
+    );
     prisma.$transaction.mockImplementation(async (operations) =>
       Promise.all(operations as Array<Promise<unknown>>),
     );
-    resolveBatch.mockResolvedValue(new Map());
 
     await service.listEmployees(viewerId, {
       page: 1,
@@ -391,10 +614,13 @@ describe('EmployeesService', () => {
     });
 
     const findManyCalls = prisma.person.findMany.mock.calls as unknown[][];
-    const findManyArgs = findManyCalls[0]?.[0] as {
-      where?: { startDate?: { lte?: Date; gte?: Date } };
-    };
-    expect(findManyArgs.where?.startDate?.lte).toEqual(
+    const findManyArgs = findManyCalls
+      .map(
+        (call) =>
+          call[0] as { where?: { startDate?: { lte?: Date; gte?: Date } } },
+      )
+      .find((args) => args.where?.startDate !== undefined);
+    expect(findManyArgs?.where?.startDate?.lte).toEqual(
       new Date(fixedNow - 3 * 365.25 * 24 * 60 * 60 * 1000),
     );
 
@@ -406,11 +632,23 @@ describe('EmployeesService', () => {
     jest.spyOn(Date, 'now').mockReturnValue(fixedNow);
 
     prisma.person.count.mockResolvedValue(0);
-    prisma.person.findMany.mockResolvedValue([]);
+    prisma.person.findMany.mockImplementation(
+      (args: {
+        where?: { managerId?: string; startDate?: unknown };
+        skip?: number;
+      }) => {
+        if (args.where?.managerId) {
+          return Promise.resolve([{ id: managementSubjectId }]);
+        }
+        if (args.skip !== undefined) {
+          return Promise.resolve([]);
+        }
+        return Promise.resolve([]);
+      },
+    );
     prisma.$transaction.mockImplementation(async (operations) =>
       Promise.all(operations as Array<Promise<unknown>>),
     );
-    resolveBatch.mockResolvedValue(new Map());
 
     await service.listEmployees(viewerId, {
       page: 1,
@@ -420,13 +658,16 @@ describe('EmployeesService', () => {
     });
 
     const findManyCalls = prisma.person.findMany.mock.calls as unknown[][];
-    const findManyArgs = findManyCalls[0]?.[0] as {
-      where?: { startDate?: { lte?: Date; gte?: Date } };
-    };
-    expect(findManyArgs.where?.startDate?.lte).toEqual(
+    const findManyArgs = findManyCalls
+      .map(
+        (call) =>
+          call[0] as { where?: { startDate?: { lte?: Date; gte?: Date } } },
+      )
+      .find((args) => args.where?.startDate !== undefined);
+    expect(findManyArgs?.where?.startDate?.lte).toEqual(
       new Date(fixedNow - 2 * 365.25 * 24 * 60 * 60 * 1000),
     );
-    expect(findManyArgs.where?.startDate?.gte).toEqual(
+    expect(findManyArgs?.where?.startDate?.gte).toEqual(
       new Date(fixedNow - (5 + 1) * 365.25 * 24 * 60 * 60 * 1000),
     );
 

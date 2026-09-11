@@ -30,6 +30,19 @@ const emptyList = {
   totalCount: 0,
 }
 
+const managementList = {
+  items: [
+    {
+      personId: '22222222-2222-4222-8222-222222222222',
+      values: { fullName: 'Managed Person', position: 'Engineer' },
+      editableFields: ['countryCity'],
+    },
+  ],
+  page: 1,
+  pageSize: 50,
+  totalCount: 1,
+}
+
 test.describe('All Employees export', () => {
   test.beforeEach(async ({ page }) => {
     await mockAuthenticatedSession(page)
@@ -79,5 +92,22 @@ test.describe('All Employees export', () => {
     const download = await downloadPromise
 
     expect(download.suggestedFilename()).toContain('employees-export.xlsx')
+  })
+
+  test('management catalog row click does not navigate to colleague profile', async ({
+    page,
+  }) => {
+    await page.route('**/api/v1/employees?**', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(managementList),
+      }),
+    )
+
+    await page.goto('/all-employees')
+    await page.getByRole('cell', { name: 'Managed Person' }).click()
+
+    await expect(page).toHaveURL('/all-employees')
   })
 })
