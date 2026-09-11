@@ -900,9 +900,7 @@ export class EmployeesService {
     const candidateIds =
       await this.collectCatalogAudienceCandidateSubjectIds(viewerPersonId);
     if (candidateIds.length === 0) {
-      return selfAudience.customFieldAudienceLevel === 'management'
-        ? 'management'
-        : 'colleague';
+      return 'colleague';
     }
 
     const resolutions = await this.resolveBatchChunked(
