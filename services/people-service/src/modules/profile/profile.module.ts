@@ -4,8 +4,10 @@ import { EmployeesModule } from '../employees/employees.module';
 import { IdentityMappingsModule } from '../identity-mappings/identity-mappings.module';
 import { RequestActorContext } from '../organisational-relationships/request-actor.context';
 import { ProfileController } from './profile.controller';
+import { ProfileMutationsService } from './profile-mutations.service';
 import { HttpAccessRoleResolutionAdapter } from './profile.ports';
 import { ProfileService } from './profile.service';
+import { UploadStorageService } from './upload-storage.service';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { ProfileService } from './profile.service';
   controllers: [ProfileController],
   providers: [
     ProfileService,
+    ProfileMutationsService,
+    UploadStorageService,
     RequestActorContext,
     HttpAccessRoleResolutionAdapter,
     {

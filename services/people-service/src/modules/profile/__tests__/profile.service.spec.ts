@@ -24,7 +24,9 @@ const SELF_PROFILE_KEYS = [
   's11',
   's16',
   's2',
+  's3',
   's4',
+  's5',
   's9',
 ];
 
@@ -85,6 +87,8 @@ const FULL_PERSON_ROW = {
       summary: 'Joined the company',
     },
   ],
+  emergencyContacts: [],
+  personCertificates: [],
   customFieldValues: [
     {
       value: 'mgmt-value',
@@ -878,6 +882,11 @@ describe('ProfileService', () => {
       fullProfileAccessSectionAccess: {
         s1: { level: 'ReadWrite' },
         s2: { level: 'ReadWrite' },
+        s3: { level: 'ReadWrite' },
+        s4: { level: 'ReadWrite' },
+        s5: { level: 'ReadWrite' },
+        s6: { level: 'ReadWrite' },
+        s9: { level: 'ReadWrite' },
         s10: { level: 'ReadWrite' },
         s11: { level: 'ReadWrite' },
         s16: { level: 'ReadWrite' },

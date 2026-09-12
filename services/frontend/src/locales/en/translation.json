@@ -73,9 +73,25 @@
       "personalContacts": "Personal contacts",
       "employment": "Employment",
       "careerTimeline": "Career timeline",
+      "emergencyContacts": "Emergency contacts",
+      "certificates": "Certificates",
+      "photo": "Profile photo",
       "leaves": "Leaves",
       "projects": "Projects",
       "customFields": "Custom fields"
+    },
+    "emergencyContacts": {
+      "add": "Add contact",
+      "delete": "Remove",
+      "promptName": "Emergency contact name"
+    },
+    "certificates": {
+      "upload": "Upload certificate",
+      "delete": "Remove"
+    },
+    "photo": {
+      "upload": "Upload photo",
+      "empty": "No photo uploaded yet."
     },
     "saveSuccess": "Saved {{field}}.",
     "saveError": "Failed to save {{field}}.",

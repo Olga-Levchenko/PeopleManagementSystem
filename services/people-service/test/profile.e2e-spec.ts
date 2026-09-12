@@ -41,6 +41,19 @@ import {
 
 const SERVICE_ROOT = path.resolve(__dirname, '..');
 
+const SELF_PROFILE_RESPONSE_KEYS = [
+  'isSelf',
+  's1',
+  's10',
+  's11',
+  's16',
+  's2',
+  's3',
+  's4',
+  's5',
+  's9',
+];
+
 describe('Profile (e2e)', () => {
   jest.setTimeout(180_000);
 
@@ -285,19 +298,12 @@ describe('Profile (e2e)', () => {
       .get(`/people/${subject.id}/profile`)
       .expect(200);
 
-    expect(Object.keys(res.body as object).sort()).toEqual([
-      'isSelf',
-      's1',
-      's10',
-      's11',
-      's16',
-      's2',
-      's4',
-      's9',
-    ]);
+    expect(Object.keys(res.body as object).sort()).toEqual(SELF_PROFILE_RESPONSE_KEYS);
     expect(res.body).not.toHaveProperty('s6');
     const body = res.body as {
       isSelf: boolean;
+      s3: Array<{ contactName: string }>;
+      s5: Array<{ fileName: string }>;
       s4: {
         employmentType: string;
         grade: string;
@@ -937,5 +943,66 @@ describe('Profile (e2e)', () => {
       select: { countryCity: true },
     });
     expect(updated?.countryCity).toBe('Lviv');
+  });
+
+  it('Self: emergency contact CRUD and profile GET includes s3', async () => {
+    const { subject } = await seedSubject();
+    currentViewerId = subject.id;
+    resolveMock.mockResolvedValue({
+      reportingLine: false,
+      projectLine: false,
+      managerSectionAccess: null,
+    });
+
+    const created = await request(app.getHttpServer())
+      .post(`/people/${subject.id}/profile/emergency-contacts`)
+      .send({
+        contactName: 'Emergency Person',
+        relationship: 'Sibling',
+        phone: '+380991111111',
+      })
+      .expect(201);
+
+    const contactId = (created.body as { id: string }).id;
+    expect(contactId).toBeTruthy();
+
+    const profile = await request(app.getHttpServer())
+      .get(`/people/${subject.id}/profile`)
+      .expect(200);
+    expect((profile.body as { s3: Array<{ contactName: string }> }).s3).toEqual([
+      {
+        id: contactId,
+        contactName: 'Emergency Person',
+        relationship: 'Sibling',
+        phone: '+380991111111',
+      },
+    ]);
+
+    await request(app.getHttpServer())
+      .delete(`/people/${subject.id}/profile/emergency-contacts/${contactId}`)
+      .expect(204);
+  });
+
+  it('Manager cannot mutate another person S3 emergency contacts', async () => {
+    const { subject, manager } = await seedSubject();
+    currentViewerId = manager.id;
+    resolveMock.mockResolvedValue({
+      reportingLine: true,
+      projectLine: false,
+      managerSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'Read' },
+        s4: { level: 'ReadWrite' },
+        s9: { level: 'ReadWrite' },
+        s10: { level: 'Read' },
+        s11: { level: 'Read' },
+        s16: { level: 'ReadWrite' },
+      },
+    });
+
+    await request(app.getHttpServer())
+      .post(`/people/${subject.id}/profile/emergency-contacts`)
+      .send({ contactName: 'Blocked Contact' })
+      .expect(403);
   });
 });

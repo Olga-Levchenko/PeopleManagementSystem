@@ -39,4 +39,13 @@ export const envValidationSchema = Joi.object({
   SERVICE_AUTH_PRIVATE_KEY_PATH: Joi.string().optional(),
   SERVICE_AUTH_KEY_ID: Joi.string().optional(),
   SERVICE_AUTH_SIGNING_ALG: Joi.string().valid('RS256').default('RS256'),
+  UPLOAD_STORAGE_PATH: Joi.string().min(1).default('./uploads'),
+  MAX_PHOTO_UPLOAD_BYTES: Joi.number()
+    .integer()
+    .min(1)
+    .default(5 * 1024 * 1024),
+  MAX_CERTIFICATE_UPLOAD_BYTES: Joi.number()
+    .integer()
+    .min(1)
+    .default(10 * 1024 * 1024),
 });

@@ -63,7 +63,9 @@ describe('HttpAccessRoleResolutionAdapter', () => {
       managerSectionAccess: {
         s1: { level: 'ReadWrite', restriction: null },
         s2: { level: 'Read', restriction: null },
+        s3: { level: 'None' },
         s4: { level: 'None' },
+        s5: { level: 'None' },
         s6: { level: 'None' },
         s9: { level: 'None' },
         s10: { level: 'None' },

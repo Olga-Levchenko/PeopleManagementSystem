@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useEmployeeProfile } from '@/api/hooks/useEmployeeProfile'
 import { usePatchProfileField } from '@/api/hooks/usePatchProfileField'
 import { ProfileInlineEditableField } from './ProfileInlineEditableField'
+import { ProfileSelfServiceSection } from './ProfileSelfServiceSection'
 
 const formatDate = (value: string | null | undefined): string => {
   if (!value) {
@@ -190,6 +191,10 @@ export const EmployeeProfilePage = () => {
                 </ul>
               )}
             </section>
+          )}
+
+          {isSelfProfile && profileQuery.data && personId && (
+            <ProfileSelfServiceSection personId={personId} profile={profileQuery.data} />
           )}
 
           {profileQuery.data?.s2 && (

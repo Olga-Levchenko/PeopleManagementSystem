@@ -36,7 +36,9 @@ export function resolveS16WriteAccess(
 export interface ResolvedProfileAudience {
   s1: SectionAccessLevel;
   s2: SectionAccessLevel;
+  s3: SectionAccessLevel;
   s4: SectionAccessLevel;
+  s5: SectionAccessLevel;
   s6: SectionAccessLevel;
   s9: SectionAccessLevel;
   s10: SectionAccessLevel;
@@ -63,9 +65,11 @@ function mostPermissive(
 
 const NO_SECTION_ACCESS: Pick<
   ResolvedProfileAudience,
-  's4' | 's6' | 's9'
+  's3' | 's4' | 's5' | 's6' | 's9'
 > = {
+  s3: 'None',
   s4: 'None',
+  s5: 'None',
   s6: 'None',
   s9: 'None',
 };
@@ -109,9 +113,11 @@ export function deriveAudienceFromResolution(
       {
         s1: mostPermissive(fullAccess.s1?.level),
         s2: mostPermissive(fullAccess.s2?.level),
+        s3: mostPermissive(fullAccess.s3?.level),
         s10: mostPermissive(fullAccess.s10?.level),
         s11: mostPermissive(fullAccess.s11?.level),
         s4: mostPermissive(fullAccess.s4?.level),
+        s5: mostPermissive(fullAccess.s5?.level),
         s6: mostPermissive(fullAccess.s6?.level),
         s9: mostPermissive(fullAccess.s9?.level),
         isColleague: false,
@@ -127,9 +133,13 @@ export function deriveAudienceFromResolution(
       {
         s1: 'ReadWrite',
         s2: 'ReadWrite',
+        s3: 'ReadWrite',
+        s5: 'ReadWrite',
         s10: 'ReadWrite',
         s11: 'ReadWrite',
-        ...NO_SECTION_ACCESS,
+        s4: 'None',
+        s6: 'None',
+        s9: 'None',
         isColleague: false,
         customFieldAudienceLevel: 'employee',
       },
@@ -168,7 +178,9 @@ export function deriveAudienceFromResolution(
       s2: mostPermissive(managerAccess?.s2?.level, ppAccess?.s2?.level),
       s10: mostPermissive(managerAccess?.s10?.level, ppAccess?.s10?.level),
       s11: mostPermissive(managerAccess?.s11?.level, ppAccess?.s11?.level),
+      s3: 'None',
       s4: mostPermissive(managerAccess?.s4?.level, ppAccess?.s4?.level),
+      s5: 'None',
       s6: 'None',
       s9: mostPermissive(managerAccess?.s9?.level, ppAccess?.s9?.level),
       isColleague: false,

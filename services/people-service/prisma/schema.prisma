@@ -94,6 +94,12 @@ model Person {
   // S9 -- Career timeline read model (Story 2.7 MVP; Epic 8 owns generation).
   careerTimelineEvents CareerTimelineEvent[]
 
+  // S3 -- Emergency contacts (Story 2.6b).
+  emergencyContacts EmergencyContact[]
+
+  // S5 -- Self-uploaded certificates (Story 2.6b).
+  personCertificates PersonCertificate[]
+
   // S16 -- Custom field values (Story 1.10).
   customFieldValues CustomFieldValue[]
 
@@ -159,6 +165,32 @@ model Leave {
   person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@map("leaves")
+}
+
+// S3 -- Emergency contacts (Story 2.6b).
+model EmergencyContact {
+  id           String  @id @default(uuid()) @db.Uuid
+  personId     String  @db.Uuid
+  contactName  String
+  relationship String?
+  phone        String?
+  person       Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([personId])
+  @@map("emergency_contacts")
+}
+
+// S5 -- Self-uploaded certificates (Story 2.6b).
+model PersonCertificate {
+  id          String   @id @default(uuid()) @db.Uuid
+  personId    String   @db.Uuid
+  fileName    String
+  storageKey  String
+  uploadedAt  DateTime @default(now())
+  person      Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([personId])
+  @@map("person_certificates")
 }
 
 // S9 -- Career timeline events (Story 2.7 read model).

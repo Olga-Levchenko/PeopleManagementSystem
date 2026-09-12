@@ -31,6 +31,20 @@ export interface S2PersonalContacts {
   residentialAddress: string | null
 }
 
+export interface S3EmergencyContact {
+  id: string
+  contactName: string
+  relationship: string | null
+  phone: string | null
+}
+
+export interface S5Certificate {
+  id: string
+  fileName: string
+  uploadedAt: string
+  downloadUrl: string
+}
+
 export interface S4Employment {
   employmentType: string | null
   grade: string | null
@@ -67,7 +81,9 @@ export interface EmployeeProfileResponse {
   isSelf: boolean
   s1?: S1IdentityCard
   s2?: S2PersonalContacts
+  s3?: S3EmergencyContact[]
   s4?: S4Employment
+  s5?: S5Certificate[]
   s9?: S9TimelineEntry[]
   s10?: S10Leave[]
   s11?: S11ProjectEntry[]
@@ -102,6 +118,57 @@ export const patchProfileFieldApiCall = (
   apiClient.patch<PatchProfileFieldResponse>(
     `/api/v1/people/${personId}/profile/fields`,
     body,
+  )
+
+export interface CreateEmergencyContactRequest {
+  contactName: string
+  relationship?: string | null
+  phone?: string | null
+}
+
+export const createEmergencyContactApiCall = (
+  personId: string,
+  body: CreateEmergencyContactRequest,
+) =>
+  apiClient.post<S3EmergencyContact>(
+    `/api/v1/people/${personId}/profile/emergency-contacts`,
+    body,
+  )
+
+export const deleteEmergencyContactApiCall = (
+  personId: string,
+  contactId: string,
+) =>
+  apiClient.delete<void>(
+    `/api/v1/people/${personId}/profile/emergency-contacts/${contactId}`,
+  )
+
+export const uploadProfilePhotoApiCall = (personId: string, file: File) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return apiClient.post<{ photoUrl: string }>(
+    `/api/v1/people/${personId}/profile/photo`,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  )
+}
+
+export const uploadProfileCertificateApiCall = (personId: string, file: File) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return apiClient.post<S5Certificate>(
+    `/api/v1/people/${personId}/profile/certificates`,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  )
+}
+
+export const deleteProfileCertificateApiCall = (
+  personId: string,
+  certificateId: string,
+) =>
+  apiClient.delete<void>(
+    `/api/v1/people/${personId}/profile/certificates/${certificateId}`,
   )
 
 /** @deprecated Use getEmployeeProfileApiCall */
