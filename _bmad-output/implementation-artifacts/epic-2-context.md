@@ -18,7 +18,7 @@ Managers and people partners browse, filter, configure columns, edit inline, sav
 - Story 2.7: Self-read of managed data and never own risk level — **done**
 - Story 2.6b: S3 emergency contacts and self uploads (photo + certificates) — **done**
 - Story 2.9: Manager/PP read S4 and S9 on employee profile — **done**
-- Story 2.10: Manager/PP read S3, S5, and S1 photo on employee profile — **review** (depends on 2.6b)
+- Story 2.10: Manager/PP read S3, S5, and S1 photo on employee profile — **done**
 
 ## Requirements & Constraints
 
