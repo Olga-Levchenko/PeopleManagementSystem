@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-30-2026 12:52
-last_updated: 09-12-2026 12:15
+last_updated: 09-12-2026 12:22
 project: PeopleManagementSystem
 project_key: NOKEY
 tracking_system: file-system
@@ -423,7 +423,7 @@ action_items:
     id: epic-2-retro-item-3-epic-done-bmad-gate
     action: "BMAD gate: set epic-N done only when all epic story keys are done in sprint-status.yaml"
     owner: process
-    status: open
+    status: done  # PR #93 merged 2026-09-12
     ref: "_bmad-output/implementation-artifacts/epic-2-retro-09-12-2026.md"
   - epic: 2
     id: epic-2-retro-item-4-s5-filter-epic-16
