@@ -28,6 +28,16 @@ const SELF_PROFILE_KEYS = [
   's9',
 ];
 
+const MANAGER_SECTION_ACCESS_WITH_S4_S9 = {
+  s1: { level: 'ReadWrite' },
+  s2: { level: 'Read' },
+  s4: { level: 'ReadWrite' },
+  s9: { level: 'ReadWrite' },
+  s10: { level: 'Read' },
+  s11: { level: 'Read' },
+  s16: { level: 'ReadWrite' },
+};
+
 const FULL_PERSON_ROW = {
   fullName: 'Alex Ivanenko',
   photoUrl: 'https://example.test/photo.png',
@@ -222,13 +232,7 @@ describe('ProfileService', () => {
       reportingLine: true,
       projectLine: false,
       peoplePartnerLine: false,
-      managerSectionAccess: {
-        s1: { level: 'ReadWrite' },
-        s2: { level: 'Read' },
-        s10: { level: 'Read' },
-        s11: { level: 'Read' },
-        s16: { level: 'ReadWrite' },
-      },
+      managerSectionAccess: MANAGER_SECTION_ACCESS_WITH_S4_S9,
       peoplePartnerSectionAccess: null,
     });
     const { service } = createService({ resolve });
@@ -243,7 +247,16 @@ describe('ProfileService', () => {
       's11',
       's16',
       's2',
+      's4',
+      's9',
     ]);
+    expect(result.s4).toMatchObject({
+      employmentType: 'FTE',
+      grade: 'L5',
+      seniority: 'Senior',
+      englishLevel: 'B2',
+    });
+    expect(result.s9).toHaveLength(2);
     expect(result.s1?.manager).toEqual(FULL_PERSON_ROW.manager);
     expect(result.s1?.peoplePartner).toEqual(FULL_PERSON_ROW.peoplePartner);
     // Manager sees full S10 with leaveType present
@@ -265,6 +278,8 @@ describe('ProfileService', () => {
       managerSectionAccess: {
         s1: { level: 'ReadWrite' },
         s2: { level: 'None' },
+        s4: { level: 'ReadWrite' },
+        s9: { level: 'ReadWrite' },
         s10: { level: 'Read' },
         s11: { level: 'Read' },
         s16: { level: 'ReadWrite' },
@@ -280,6 +295,8 @@ describe('ProfileService', () => {
       's10',
       's11',
       's16',
+      's4',
+      's9',
     ]);
     expect(result.s2).toBeUndefined();
     // Project-line viewer is NOT a colleague (isColleague: false) so gets full S10/S11 data
@@ -300,7 +317,7 @@ describe('ProfileService', () => {
 
     const result = await service.getProfile(VIEWER_ID, SUBJECT_ID);
 
-    // COLLEAGUE_WHITELIST_KEYS: exactly s1, s10, s11, s16 -- no s2 or any other key
+    // COLLEAGUE_WHITELIST_KEYS: exactly s1, s10, s11, s16 -- no s2/s4/s9 or any other key
     expect(Object.keys(result).sort()).toEqual([
       'isSelf',
       's1',
@@ -308,6 +325,8 @@ describe('ProfileService', () => {
       's11',
       's16',
     ]);
+    expect(result).not.toHaveProperty('s4');
+    expect(result).not.toHaveProperty('s9');
     expect(result.s2).toBeUndefined();
     expect(result.s1?.manager).toEqual(FULL_PERSON_ROW.manager);
     expect(result.s1?.peoplePartner).toEqual(FULL_PERSON_ROW.peoplePartner);

@@ -74,6 +74,19 @@ const managementProfile = {
       endDate: null,
     },
   ],
+  s4: {
+    employmentType: 'FTE',
+    grade: 'L5',
+    seniority: 'Senior',
+    englishLevel: 'B2',
+  },
+  s9: [
+    {
+      occurredAt: '2023-01-15T00:00:00.000Z',
+      eventType: 'GRADE_CHANGE',
+      summary: 'Promoted to L5',
+    },
+  ],
   s16: [{ fieldId: 'cf-1', name: 'Certification', value: 'AWS SA' }],
 }
 
@@ -127,5 +140,13 @@ test.describe('All Employees management profile navigation', () => {
     await expect(page.getByText('Platform Revamp')).toBeVisible()
     await expect(page.getByText('Tech Lead')).toBeVisible()
     await expect(page.getByText('Certification')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Employment' })).toBeVisible()
+    await expect(page.locator('dd', { hasText: 'L5' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Career timeline' })).toBeVisible()
+    await expect(page.getByText('Promoted to L5')).toBeVisible()
+    const personalContactsSection = page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { name: 'Personal contacts' }) })
+    await expect(personalContactsSection.getByRole('button')).toHaveCount(0)
   })
 })

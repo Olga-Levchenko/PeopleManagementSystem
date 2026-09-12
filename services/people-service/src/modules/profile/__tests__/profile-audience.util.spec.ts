@@ -127,6 +127,68 @@ describe('deriveAudienceFromResolution', () => {
     expect(audience.isColleague).toBe(true);
   });
 
+  const managerSectionAccessRw = {
+    s1: { level: 'ReadWrite' as const },
+    s2: { level: 'Read' as const },
+    s4: { level: 'ReadWrite' as const },
+    s6: { level: 'ReadWrite' as const },
+    s9: { level: 'ReadWrite' as const },
+    s10: { level: 'Read' as const },
+    s11: { level: 'Read' as const },
+    s16: { level: 'ReadWrite' as const },
+  };
+
+  it('grants manager S4/S9 from ACS on reporting line toward another subject', () => {
+    const audience = deriveAudienceFromResolution(
+      {
+        ...NEITHER_LINE_RESOLUTION,
+        reportingLine: true,
+        managerSectionAccess: managerSectionAccessRw,
+      },
+      VIEWER_ID,
+      SUBJECT_ID,
+    );
+
+    expect(audience.s4).toBe('ReadWrite');
+    expect(audience.s9).toBe('ReadWrite');
+    expect(audience.s6).toBe('None');
+    expect(audience.isColleague).toBe(false);
+  });
+
+  it('grants PP S4/S9 from peoplePartnerSectionAccess when PP line only', () => {
+    const audience = deriveAudienceFromResolution(
+      {
+        ...NEITHER_LINE_RESOLUTION,
+        peoplePartnerLine: true,
+        peoplePartnerSectionAccess: managerSectionAccessRw,
+      },
+      VIEWER_ID,
+      SUBJECT_ID,
+    );
+
+    expect(audience.s4).toBe('ReadWrite');
+    expect(audience.s9).toBe('ReadWrite');
+  });
+
+  it('project-line-only manager still receives S4/S9 when ACS grants RW', () => {
+    const audience = deriveAudienceFromResolution(
+      {
+        ...NEITHER_LINE_RESOLUTION,
+        projectLine: true,
+        managerSectionAccess: {
+          ...managerSectionAccessRw,
+          s2: { level: 'None' },
+        },
+      },
+      VIEWER_ID,
+      SUBJECT_ID,
+    );
+
+    expect(audience.s2).toBe('None');
+    expect(audience.s4).toBe('ReadWrite');
+    expect(audience.s9).toBe('ReadWrite');
+  });
+
   it('merges s6 None on self-view when resolution reports reporting line with s6 ReadWrite', () => {
     const audience = deriveAudienceFromResolution(
       {

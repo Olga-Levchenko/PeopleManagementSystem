@@ -385,18 +385,37 @@ describe('Profile (e2e)', () => {
   });
 
   it('Reporting line: ReadWrite s1 / Read s2 / Read s10/s11 -> all four sections + s16 present; both management and colleague fields visible', async () => {
-    const { subject } = await seedSubject();
+    const { subject } = await seedSubject({
+      employmentType: 'FTE',
+      grade: 'L4',
+      seniority: 'Middle',
+      englishLevel: 'B1',
+    });
+    await prisma.careerTimelineEvent.create({
+      data: {
+        personId: subject.id,
+        occurredAt: new Date('2024-01-01T00:00:00.000Z'),
+        eventType: 'GRADE_CHANGE',
+        summary: 'Promoted to L4',
+      },
+    });
     currentViewerId = 'viewer-reporting-line';
     resolveMock.mockResolvedValue({
       reportingLine: true,
       projectLine: false,
+      peoplePartnerLine: false,
+      fullProfileAccessLine: false,
       managerSectionAccess: {
         s1: { level: 'ReadWrite' },
         s2: { level: 'Read' },
+        s4: { level: 'ReadWrite' },
+        s9: { level: 'ReadWrite' },
         s10: { level: 'Read' },
         s11: { level: 'Read' },
         s16: { level: 'ReadWrite' },
       },
+      peoplePartnerSectionAccess: null,
+      fullProfileAccessSectionAccess: null,
     });
 
     const res = await request(app.getHttpServer())
@@ -406,6 +425,8 @@ describe('Profile (e2e)', () => {
     const body = res.body as {
       s1: { manager: unknown };
       s2: unknown;
+      s4: Record<string, unknown>;
+      s9: Array<{ summary: string }>;
       s10: Array<Record<string, unknown>>;
       s11: Array<Record<string, unknown>>;
       s16: Array<{ fieldId: string; name: string; value: string }>;
@@ -417,7 +438,17 @@ describe('Profile (e2e)', () => {
       's11',
       's16',
       's2',
+      's4',
+      's9',
     ]);
+    expect(body.s4).toMatchObject({
+      employmentType: 'FTE',
+      grade: 'L4',
+      seniority: 'Middle',
+      englishLevel: 'B1',
+    });
+    expect(body.s9).toHaveLength(1);
+    expect(body.s9[0]).toMatchObject({ summary: 'Promoted to L4' });
     expect(body.s1.manager).toMatchObject({ fullName: 'Manager Testenko' });
     // Manager sees full S10 with leaveType
     expect(body.s10[0]).toHaveProperty('leaveType', 'vacation');
@@ -435,12 +466,26 @@ describe('Profile (e2e)', () => {
   });
 
   it('PP line: peoplePartnerLine true with ReadWrite s1/s2 and Read s10/s11 -> all four sections + s16 present; management field visible', async () => {
-    const { subject } = await seedSubject();
+    const { subject } = await seedSubject({
+      employmentType: 'FTE',
+      grade: 'L5',
+      seniority: 'Senior',
+      englishLevel: 'B2',
+    });
+    await prisma.careerTimelineEvent.create({
+      data: {
+        personId: subject.id,
+        occurredAt: new Date('2024-02-01T00:00:00.000Z'),
+        eventType: 'DEPARTMENT_CHANGE',
+        summary: 'Moved to Engineering',
+      },
+    });
     currentViewerId = 'viewer-pp-line';
     resolveMock.mockResolvedValue({
       reportingLine: false,
       projectLine: false,
       peoplePartnerLine: true,
+      fullProfileAccessLine: false,
       managerSectionAccess: null,
       // PP is ReadWrite on S2 even though an unnarrowed Reporting-line viewer is only Read --
       // docs/access-control/section-matrix.md's PP column, confirmed by
@@ -448,10 +493,13 @@ describe('Profile (e2e)', () => {
       peoplePartnerSectionAccess: {
         s1: { level: 'ReadWrite' },
         s2: { level: 'ReadWrite' },
+        s4: { level: 'ReadWrite' },
+        s9: { level: 'ReadWrite' },
         s10: { level: 'Read' },
         s11: { level: 'Read' },
         s16: { level: 'ReadWrite' },
       },
+      fullProfileAccessSectionAccess: null,
     });
 
     const res = await request(app.getHttpServer())
@@ -461,6 +509,8 @@ describe('Profile (e2e)', () => {
     const body = res.body as {
       s1: { manager: unknown };
       s2: unknown;
+      s4: Record<string, unknown>;
+      s9: Array<{ summary: string }>;
       s10: Array<Record<string, unknown>>;
       s11: Array<Record<string, unknown>>;
       s16: Array<{ fieldId: string; name: string; value: string }>;
@@ -472,7 +522,11 @@ describe('Profile (e2e)', () => {
       's11',
       's16',
       's2',
+      's4',
+      's9',
     ]);
+    expect(body.s4.grade).toBe('L5');
+    expect(body.s9[0]).toMatchObject({ summary: 'Moved to Engineering' });
     expect(body.s1.manager).toMatchObject({ fullName: 'Manager Testenko' });
     // PP sees full S10/S11 data (isColleague: false)
     expect(body.s10[0]).toHaveProperty('leaveType', 'vacation');

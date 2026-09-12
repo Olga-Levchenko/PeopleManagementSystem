@@ -2,7 +2,7 @@
 title: 'Story 2.9: Manager/PP read S4 and S9 on employee profile'
 type: 'feature'
 created: '2026-09-12'
-status: 'ready-for-dev'
+status: 'review'
 review_loop_iteration: 2
 baseline_commit: '84233ec'
 context:
@@ -70,11 +70,11 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `profile-audience.util.ts` — wire manager/PP `s4`/`s9` levels; keep `s6` None
-- [ ] Unit tests — audience util + profile.service manager/colleague/self regression
-- [ ] E2E — manager profile includes s4/s9 when ACS grants access
-- [ ] Playwright — management profile navigation shows Employment/Career when present
-- [ ] `section-matrix.md` — coverage trace update
+- [x] `profile-audience.util.ts` — wire manager/PP `s4`/`s9` levels; keep `s6` None
+- [x] Unit tests — audience util + profile.service manager/colleague/self regression
+- [x] E2E — manager profile includes s4/s9 when ACS grants access
+- [x] Playwright — management profile navigation shows Employment/Career when present
+- [x] `section-matrix.md` — coverage trace update
 
 **Acceptance Criteria:**
 - Given a manager or PP with Manager or PP access over a subject, when they GET that subject's profile, then `s4` and `s9` are present when ACS section levels are Read or ReadWrite
