@@ -729,6 +729,11 @@ photo on management profile UI — scoped in
 
 - WMS e2e suites excluded from CI (`run_e2e` not set in `work-management-service-ci.yml`) — pre-existing gap shared with Story 3.1; enabling requires Testcontainers Postgres or equivalent CI database wiring.
 
+## Deferred from: code review of spec-3-4-self-complete-action-item (2026-09-12)
+
+- OpenAPI composite decorators + `entities/action-item.entity.ts` for `GET /action-items/mine` — pre-existing gap from Story 3.1/3.3 pattern; not required for Story 3.4 ACs.
+- Expired-token e2e specifically for `GET /action-items/mine` — global `JwtAuthGuard` applies; missing-token `401` covered; expired-token path exercised on management-notes routes.
+
 ## Deferred from: code review of spec-3-3-action-item-lifecycle-and-overdue-display (2026-09-12)
 
 - OpenAPI composite decorators + `entities/action-item.entity.ts` for `isOverdue` on action-items PATCH responses — pre-existing gap from Story 3.1 pattern; not required for Story 3.3 ACs.

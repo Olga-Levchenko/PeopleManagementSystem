@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -20,6 +21,12 @@ export class ActionItemsController {
     private readonly service: ActionItemsService,
     private readonly actor: RequestActorContext,
   ) {}
+
+  @Get('mine')
+  async listMyActionItems() {
+    const viewerPersonId = await this.actor.resolveActorId();
+    return this.service.listMyActionItems(viewerPersonId);
+  }
 
   @Post()
   async createActionItem(@Body() dto: CreateActionItemDto) {

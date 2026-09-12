@@ -84,6 +84,14 @@ export class ActionItemsService {
     return this.toView(item);
   }
 
+  async listMyActionItems(viewerPersonId: string): Promise<ActionItemView[]> {
+    const items = await this.prisma.actionItem.findMany({
+      where: { assigneePersonId: viewerPersonId },
+      orderBy: { dueDate: 'asc' },
+    });
+    return items.map((item) => this.toView(item));
+  }
+
   async completeActionItem(
     viewerPersonId: string,
     actionItemId: string,
