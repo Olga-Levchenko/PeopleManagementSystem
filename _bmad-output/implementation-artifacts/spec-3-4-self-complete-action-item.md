@@ -2,7 +2,7 @@
 title: 'Story 3.4: Self-complete action item'
 type: 'feature'
 created: '2026-09-12'
-status: 'in-review'
+status: 'done'
 review_loop_iteration: 1
 baseline_commit: 'be56e94d4d3fc13b78b5a776ed724085d0b19ff1'
 context:
@@ -128,3 +128,4 @@ context:
 - 2026-09-12 — `bmad-code-review` pass 1: 7 patch findings (I/O matrix e2e gaps, `isOverdue` assertions, fake timers); 2 defer (OpenAPI, expired JWT route-specific).
 - 2026-09-12 — `bmad-code-review` pass 1 fixes applied: expanded AC1 list e2e (2 own + 1 other), mixed statuses, sort order, `isOverdue` journey assertions, `jest.useFakeTimers` in unit tests.
 - 2026-09-12 — `bmad-code-review` pass 2: clean — all I/O matrix rows covered; 2 defer items unchanged (OpenAPI, expired JWT route-specific).
+- 2026-09-12 (done): PR #102 merged to `main` (`e7e81bb`); sprint/spec status → `done`; Jira O4-45 → Done.
