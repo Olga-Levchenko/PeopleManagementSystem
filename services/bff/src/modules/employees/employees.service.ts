@@ -9,6 +9,7 @@ import type {
   UpstreamBinaryResponse,
   UpstreamResponse,
 } from '../custom-field-definitions/custom-field-definitions.service';
+import { decodeMultipartFileName } from './decode-upload-filename.util';
 
 @Injectable()
 export class EmployeesService {
@@ -247,7 +248,11 @@ export class EmployeesService {
   ): Promise<UpstreamResponse> {
     const formData = new FormData();
     const blob = new Blob([Uint8Array.from(file.buffer)], { type: file.mimetype });
-    formData.append('file', blob, file.originalname);
+    formData.append(
+      'file',
+      blob,
+      decodeMultipartFileName(file.originalname),
+    );
 
     const headers: Record<string, string> = {
       accept: 'application/json',

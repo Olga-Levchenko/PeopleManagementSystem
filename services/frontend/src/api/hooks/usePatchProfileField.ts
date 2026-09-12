@@ -3,6 +3,7 @@ import {
   patchProfileFieldApiCall,
   type PatchProfileFieldRequest,
 } from '@/api/profile'
+import { employeeProfileQueryKey } from '@/api/hooks/useEmployeeProfile'
 
 export const usePatchProfileField = (personId: string | undefined) => {
   const queryClient = useQueryClient()
@@ -16,7 +17,7 @@ export const usePatchProfileField = (personId: string | undefined) => {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: ['people', 'profile', personId],
+        queryKey: employeeProfileQueryKey(personId),
       })
     },
   })

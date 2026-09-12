@@ -80,6 +80,7 @@
       "projects": "Projects",
       "customFields": "Custom fields"
     },
+    "mutationError": "Something went wrong. Please try again.",
     "emergencyContacts": {
       "add": "Add contact",
       "delete": "Remove",
@@ -87,11 +88,19 @@
     },
     "certificates": {
       "upload": "Upload certificate",
-      "delete": "Remove"
+      "uploading": "Uploading…",
+      "uploadError": "Certificate upload failed. Check the file type (PDF, JPEG, or PNG).",
+      "tooLarge": "Certificate is too large. Maximum size is 10 MB.",
+      "delete": "Remove",
+      "hint": "PDF, JPEG, or PNG up to 10 MB."
     },
     "photo": {
       "upload": "Upload photo",
-      "empty": "No photo uploaded yet."
+      "uploading": "Uploading…",
+      "uploadError": "Photo upload failed. Use JPEG or PNG.",
+      "tooLarge": "Photo is too large. Maximum size is 5 MB.",
+      "empty": "No photo",
+      "hint": "JPEG or PNG up to 5 MB."
     },
     "saveSuccess": "Saved {{field}}.",
     "saveError": "Failed to save {{field}}.",

@@ -21,6 +21,7 @@ import {
   parseGatedStorageReference,
   toGatedStorageReference,
 } from './upload.constants';
+import { decodeMultipartFileName } from './upload-filename.util';
 import {
   extensionForMime,
   validateCertificateUpload,
@@ -210,7 +211,9 @@ export class ProfileMutationsService {
     const certificate = await this.prisma.personCertificate.create({
       data: {
         personId: subjectPersonId,
-        fileName: file.originalname || `certificate.${extensionForMime(mimeType)}`,
+        fileName:
+          decodeMultipartFileName(file.originalname) ||
+          `certificate.${extensionForMime(mimeType)}`,
         storageKey,
       },
     });
