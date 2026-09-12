@@ -2,7 +2,7 @@
 title: 'Story 3.3: Action item lifecycle and overdue display'
 type: 'feature'
 created: '2026-09-12'
-status: 'in-review'
+status: 'done'
 review_loop_iteration: 0
 baseline_commit: '878885e3956405441f78077b608175dc797e4254'
 context:
