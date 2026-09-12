@@ -35,7 +35,7 @@ export function validatePhotoUpload(
     return false;
   }
   const detected = detectMimeFromMagic(buffer);
-  return detected !== null && ALLOWED_PHOTO_MIME_TYPES.has(detected);
+  return detected === declaredMime;
 }
 
 export function validateCertificateUpload(
@@ -46,7 +46,7 @@ export function validateCertificateUpload(
     return false;
   }
   const detected = detectMimeFromMagic(buffer);
-  return detected !== null && ALLOWED_CERTIFICATE_MIME_TYPES.has(detected);
+  return detected === declaredMime;
 }
 
 export function extensionForMime(mime: string): string {
