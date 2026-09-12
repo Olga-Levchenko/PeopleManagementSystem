@@ -520,5 +520,31 @@ def test_validate_missing_file_and_bad_yaml(tmp_path, capsys):
     assert result["valid"] is False and any("not a mapping" in p for p in result["problems"])
 
 
+def test_validate_epic_done_gate(tmp_path, capsys):
+    broken = (STATUS_FIXTURE
+              .replace("epic-2: backlog", "epic-2: done")
+              .replace("1-2-account-management: drafted", "1-2-account-management: backlog"))
+    result = run_validate(tmp_path, capsys, broken)
+    assert result["valid"] is False
+    assert any("epic-2 is done but" in p and "2-1-personality-system (backlog)" in p for p in result["problems"])
+
+
+def test_validate_epic_done_gate_allows_all_stories_done(tmp_path, capsys):
+    fixture = (STATUS_FIXTURE
+               .replace("epic-1: in-progress", "epic-1: done")
+               .replace("1-2-account-management: drafted", "1-2-account-management: done")
+               .replace("epic-2: backlog", "epic-2: done")
+               .replace("2-1-personality-system: backlog", "2-1-personality-system: done"))
+    result = run_validate(tmp_path, capsys, fixture)
+    assert result["valid"] is True
+    assert not any("epic-" in p and "is done but" in p for p in result["problems"])
+
+
+def test_status_epic_done_gate_risk(tmp_path, capsys):
+    fixture = STATUS_FIXTURE.replace("epic-1: in-progress", "epic-1: done")
+    result = run_status(tmp_path, capsys, fixture=fixture)
+    assert any("epic-1 is done but" in r and "1-2-account-management" in r for r in result["risks"])
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))
