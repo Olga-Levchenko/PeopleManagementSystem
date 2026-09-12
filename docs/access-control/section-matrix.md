@@ -41,9 +41,9 @@ Consumers of this doc: `.claude/rules/access-control-invariants.md`,
 |---|---|---|---|---|---|---|---|---|---|
 | S1 | Identity card | Full name, photo, position, department/unit, country/city, work email/phone, birthday (day+month), start date, manager, people partner, mentor, current project(s) | R (photo RW) | RW¹ | RW¹ | RW¹ | R | on by default | partial |
 | S2 | Personal contacts | Personal phone/email, messengers, residential address, current place of stay | RW | R | **—** | RW | — | cfg | partial |
-| S3 | Emergency contacts | Contact person, relationship, phone | RW | R | **—** | RW | — | — (never shareable) | partial |
+| S3 | Emergency contacts | Contact person, relationship, phone | RW | R | **—** | RW | — | — (never shareable) | partial (Story 2.6b: Self S3 CRUD + profile GET — `profile.e2e-spec` / `profile-mutations.service`) |
 | S4 | Employment | Employee type (FTE/Subcontractor), grade, seniority, position history, English level, probation status, employment status, contract type | R | RW | RW | RW | — | cfg | partial (Story 2.7: Self read; Story 2.9: Manager/PP read on profile GET — `profile-audience.util.spec` / `profile.service.spec` / `profile.e2e-spec`) |
-| S5 | Documents | Contract, W8, cooperation form, Diia City, CV, certificates | R (own) + upload certificates | R | **R, CV + certificates only** | RW | — | cfg | partial |
+| S5 | Documents | Contract, W8, cooperation form, Diia City, CV, certificates | R (own) + upload certificates | R | **R, CV + certificates only** | RW | — | cfg | partial (Story 2.6b: Self certificate upload + profile GET metadata — `profile.e2e-spec`; manager read deferred to Story 2.10) |
 | S6 | Risks | Current level, trend, description, details, date, full history — no closed/terminal state (4.6) | — | RW | RW | RW | — | cfg | partial (Story 2.7: Self never receives `s6` — negative tests in `profile.service.spec` / `profile.e2e-spec`) |
 | S7 | Management notes | Free-form notes by managers and PP, per-record visibility flags | R — only records flagged visible for employee | RW | RW; **PM exception**: R, only records flagged visible for PM² | RW | — | — (never shareable) | full |
 | S8 | Feedbacks | Structured feedback records (4.15), including joining-interview feedback (moved here from S5 in v1.5) | R — only records flagged shared with employee | RW | RW | RW | — | cfg | partial |

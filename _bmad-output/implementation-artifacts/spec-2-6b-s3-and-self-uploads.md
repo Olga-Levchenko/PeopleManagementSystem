@@ -2,7 +2,7 @@
 title: 'Story 2.6b: S3 emergency contacts and self uploads (photo + certificates)'
 type: 'feature'
 created: '2026-09-12'
-status: 'ready-for-dev'
+status: 'review'
 review_loop_iteration: 3
 baseline_commit: '84233ec'
 context:
@@ -93,17 +93,17 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Prisma models + migration + seed-safe defaults
-- [ ] Upload storage config + docker volume + frozen size/MIME constants
-- [ ] `profile.ports.ts` — parse `s3`/`s5` from ACS wire shape
-- [ ] `profile-audience.util.ts` — `s3`/`s5` on `ResolvedProfileAudience` (self, FPA, colleague; manager/PP placeholder `None`)
-- [ ] Self S3 CRUD API + profile GET assembly (`s3`/`s5` when entitled)
-- [ ] Photo + certificate upload endpoints + persistence + replace/delete file lifecycle
-- [ ] Auth-gated download route(s) — 404 for unauthenticated or wrong audience
-- [ ] `profile.controller.ts` — colleague-gate bypass on self S3/upload mutations
-- [ ] BFF proxy routes + auth forwarding + body-size limits
-- [ ] Frontend sections + Playwright smoke
-- [ ] Unit/e2e tests; negative 403 non-self mutations; negative 404 download leaks
+- [x] Prisma models + migration + seed-safe defaults
+- [x] Upload storage config + docker volume + frozen size/MIME constants
+- [x] `profile.ports.ts` — parse `s3`/`s5` from ACS wire shape
+- [x] `profile-audience.util.ts` — `s3`/`s5` on `ResolvedProfileAudience` (self, FPA, colleague; manager/PP placeholder `None`)
+- [x] Self S3 CRUD API + profile GET assembly (`s3`/`s5` when entitled)
+- [x] Photo + certificate upload endpoints + persistence + replace/delete file lifecycle
+- [x] Auth-gated download route(s) — 404 for unauthenticated or wrong audience
+- [x] `profile.controller.ts` — colleague-gate bypass on self S3/upload mutations
+- [x] BFF proxy routes + auth forwarding + body-size limits
+- [x] Frontend sections + Playwright smoke
+- [x] Unit/e2e tests; negative 403 non-self mutations; negative 404 download leaks
 
 **Acceptance Criteria:**
 - Given an employee on their own profile, when they add or edit emergency contacts (S3), then changes persist without manager/PP involvement

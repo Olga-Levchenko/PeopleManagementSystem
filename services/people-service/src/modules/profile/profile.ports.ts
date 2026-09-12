@@ -15,7 +15,9 @@ export interface SectionAccess {
 export interface ProfileSectionAccessGroup {
   s1: SectionAccess;
   s2: SectionAccess;
+  s3: SectionAccess;
   s4: SectionAccess;
+  s5: SectionAccess;
   s6: SectionAccess;
   s9: SectionAccess;
   s10: SectionAccess;
@@ -93,7 +95,9 @@ export function parseAccessRoleResolution(raw: unknown): AccessRoleResolution {
     return {
       s1: parseSectionAccess(o['s1']),
       s2: parseSectionAccess(o['s2']),
+      s3: parseSectionAccess(o['s3']),
       s4: parseSectionAccess(o['s4']),
+      s5: parseSectionAccess(o['s5']),
       s6: parseSectionAccess(o['s6']),
       s9: parseSectionAccess(o['s9']),
       s10: parseSectionAccess(o['s10']),

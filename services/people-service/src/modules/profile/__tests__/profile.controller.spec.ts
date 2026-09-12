@@ -2,7 +2,9 @@ import { ForbiddenException } from '@nestjs/common';
 import { ColleagueBrowseGateService } from '../../employees/colleague-browse.gate.service';
 import { RequestActorContext } from '../../organisational-relationships/request-actor.context';
 import { ProfileController } from '../profile.controller';
+import { ProfileMutationsService } from '../profile-mutations.service';
 import { ProfileService } from '../profile.service';
+
 describe('ProfileController colleague browse gate', () => {
   const subjectPersonId = '22222222-2222-4222-8222-222222222222';
   const viewerId = '11111111-1111-4111-8111-111111111111';
@@ -12,6 +14,13 @@ describe('ProfileController colleague browse gate', () => {
     patchProfileField: jest.fn(),
   } as unknown as jest.Mocked<
     Pick<ProfileService, 'getProfile' | 'patchProfileField'>
+  >;
+
+  const mutations = {
+    createEmergencyContact: jest.fn(),
+    uploadPhoto: jest.fn(),
+  } as unknown as jest.Mocked<
+    Pick<ProfileMutationsService, 'createEmergencyContact' | 'uploadPhoto'>
   >;
 
   const actor = {
@@ -26,6 +35,7 @@ describe('ProfileController colleague browse gate', () => {
 
   const controller = new ProfileController(
     profileService as unknown as ProfileService,
+    mutations as unknown as ProfileMutationsService,
     actor,
     colleagueBrowseGate as unknown as ColleagueBrowseGateService,
   );
@@ -90,5 +100,45 @@ describe('ProfileController colleague browse gate', () => {
       'personalPhone',
       '+380111111111',
     );
+  });
+
+  it('POST emergency contact bypasses colleague browse gate when viewer is subject', async () => {
+    mutations.createEmergencyContact.mockResolvedValue({
+      id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      contactName: 'Contact',
+      relationship: null,
+      phone: null,
+    });
+
+    await controller.createEmergencyContact(viewerId, {
+      contactName: 'Contact',
+    });
+
+    expect(
+      colleagueBrowseGate.assertManagementBrowseAllowed,
+    ).not.toHaveBeenCalled();
+    expect(mutations.createEmergencyContact).toHaveBeenCalledWith(
+      viewerId,
+      viewerId,
+      { contactName: 'Contact' },
+    );
+  });
+
+  it('POST emergency contact enforces colleague browse gate for non-self viewer', async () => {
+    colleagueBrowseGate.assertManagementBrowseAllowed.mockRejectedValue(
+      new ForbiddenException({
+        statusCode: 403,
+        error: 'COLLEAGUE_BROWSE_RESTRICTED',
+        message: 'blocked',
+      }),
+    );
+
+    await expect(
+      controller.createEmergencyContact(subjectPersonId, {
+        contactName: 'Blocked',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(mutations.createEmergencyContact).not.toHaveBeenCalled();
   });
 });

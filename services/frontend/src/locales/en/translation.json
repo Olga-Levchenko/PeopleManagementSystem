@@ -73,9 +73,34 @@
       "personalContacts": "Personal contacts",
       "employment": "Employment",
       "careerTimeline": "Career timeline",
+      "emergencyContacts": "Emergency contacts",
+      "certificates": "Certificates",
+      "photo": "Profile photo",
       "leaves": "Leaves",
       "projects": "Projects",
       "customFields": "Custom fields"
+    },
+    "mutationError": "Something went wrong. Please try again.",
+    "emergencyContacts": {
+      "add": "Add contact",
+      "delete": "Remove",
+      "promptName": "Emergency contact name"
+    },
+    "certificates": {
+      "upload": "Upload certificate",
+      "uploading": "Uploading…",
+      "uploadError": "Certificate upload failed. Check the file type (PDF, JPEG, or PNG).",
+      "tooLarge": "Certificate is too large. Maximum size is 10 MB.",
+      "delete": "Remove",
+      "hint": "PDF, JPEG, or PNG up to 10 MB."
+    },
+    "photo": {
+      "upload": "Upload photo",
+      "uploading": "Uploading…",
+      "uploadError": "Photo upload failed. Use JPEG or PNG.",
+      "tooLarge": "Photo is too large. Maximum size is 5 MB.",
+      "empty": "No photo",
+      "hint": "JPEG or PNG up to 5 MB."
     },
     "saveSuccess": "Saved {{field}}.",
     "saveError": "Failed to save {{field}}.",

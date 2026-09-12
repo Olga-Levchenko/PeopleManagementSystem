@@ -1,9 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { getEmployeeProfileApiCall } from '@/api/profile'
 
+export const employeeProfileQueryKey = (personId: string | undefined) =>
+  ['people', 'profile', personId] as const
+
 export const useEmployeeProfile = (personId: string | undefined) =>
   useQuery({
-    queryKey: ['people', 'profile', personId],
+    queryKey: employeeProfileQueryKey(personId),
     queryFn: ({ signal }) => {
       if (!personId) {
         throw new Error('personId is required')

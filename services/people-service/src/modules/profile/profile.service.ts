@@ -11,6 +11,7 @@ import {
   grantsSectionWriteAccess,
   resolveS16WriteAccess,
   type CustomFieldAudienceLevel,
+  type ResolvedProfileAudience,
 } from './profile-audience.util';
 import {
   DERIVED_FIELD_KEYS,
@@ -25,6 +26,11 @@ import type {
   S16CustomField,
   SectionAccessLevel,
 } from './profile.ports';
+import {
+  buildCertificateDownloadPath,
+  buildPhotoDownloadPath,
+  isGatedStorageReference,
+} from './upload.constants';
 
 export interface PersonSummary {
   id: string;
@@ -65,6 +71,22 @@ export interface S4Employment {
   englishLevel: string | null;
 }
 
+/** S3: Emergency contact (Story 2.6b). */
+export interface S3EmergencyContact {
+  id: string;
+  contactName: string;
+  relationship: string | null;
+  phone: string | null;
+}
+
+/** S5: Self-uploaded certificate metadata (Story 2.6b). */
+export interface S5Certificate {
+  id: string;
+  fileName: string;
+  uploadedAt: Date;
+  downloadUrl: string;
+}
+
 /** S9: Career timeline entry (Story 2.7 read model). */
 export interface S9TimelineEntry {
   occurredAt: Date;
@@ -98,7 +120,9 @@ export interface ProfileResponse {
   isSelf: boolean;
   s1?: S1IdentityCard;
   s2?: S2PersonalContacts;
+  s3?: S3EmergencyContact[];
   s4?: S4Employment;
+  s5?: S5Certificate[];
   s9?: S9TimelineEntry[];
   s10?: S10Leave[];
   s11?: S11ProjectEntry[];
@@ -163,7 +187,22 @@ type PersonWithRelations = {
   leaves: LeaveRow[];
   personProjectAssignments: ProjectAssignmentRow[];
   careerTimelineEvents: CareerTimelineEventRow[];
+  emergencyContacts: EmergencyContactRow[];
+  personCertificates: PersonCertificateRow[];
   customFieldValues: CustomFieldValueRow[];
+};
+
+type EmergencyContactRow = {
+  id: string;
+  contactName: string;
+  relationship: string | null;
+  phone: string | null;
+};
+
+type PersonCertificateRow = {
+  id: string;
+  fileName: string;
+  uploadedAt: Date;
 };
 
 type CareerTimelineEventRow = {
@@ -254,6 +293,23 @@ export class ProfileService {
           },
           orderBy: { occurredAt: 'desc' },
         },
+        emergencyContacts: {
+          select: {
+            id: true,
+            contactName: true,
+            relationship: true,
+            phone: true,
+          },
+          orderBy: { contactName: 'asc' },
+        },
+        personCertificates: {
+          select: {
+            id: true,
+            fileName: true,
+            uploadedAt: true,
+          },
+          orderBy: { uploadedAt: 'desc' },
+        },
         customFieldValues: {
           select: {
             value: true,
@@ -285,13 +341,22 @@ export class ProfileService {
       s16: [],
     };
     if (this.grantsAccess(audience.s1)) {
-      response.s1 = this.toS1(person);
+      response.s1 = this.toS1(person, subjectPersonId);
     }
     if (this.grantsAccess(audience.s2)) {
       response.s2 = this.toS2(person);
     }
+    if (this.grantsAccess(audience.s3)) {
+      response.s3 = this.toS3(person.emergencyContacts ?? []);
+    }
     if (this.grantsAccess(audience.s4)) {
       response.s4 = this.toS4(person);
+    }
+    if (this.grantsAccess(audience.s5)) {
+      response.s5 = this.toS5(
+        subjectPersonId,
+        person.personCertificates ?? [],
+      );
     }
     if (this.grantsAccess(audience.s9)) {
       response.s9 = this.toS9(person.careerTimelineEvents);
@@ -672,17 +737,7 @@ export class ProfileService {
   private async resolveAudience(
     viewerPersonId: string,
     subjectPersonId: string,
-  ): Promise<{
-    s1: SectionAccessLevel;
-    s2: SectionAccessLevel;
-    s4: SectionAccessLevel;
-    s6: SectionAccessLevel;
-    s9: SectionAccessLevel;
-    s10: SectionAccessLevel;
-    s11: SectionAccessLevel;
-    isColleague: boolean;
-    customFieldAudienceLevel: CustomFieldAudienceLevel;
-  }> {
+  ): Promise<ResolvedProfileAudience> {
     const resolution = await this.accessRoleResolution.resolve(
       viewerPersonId,
       subjectPersonId,
@@ -713,10 +768,17 @@ export class ProfileService {
       }));
   }
 
-  private toS1(person: PersonWithRelations): S1IdentityCard {
+  private toS1(
+    person: PersonWithRelations,
+    subjectPersonId: string,
+  ): S1IdentityCard {
+    const photoUrl =
+      person.photoUrl && isGatedStorageReference(person.photoUrl)
+        ? buildPhotoDownloadPath(subjectPersonId)
+        : null;
     return {
       fullName: person.fullName,
-      photoUrl: person.photoUrl,
+      photoUrl,
       position: person.position,
       department: person.department,
       countryCity: person.countryCity,
@@ -728,6 +790,30 @@ export class ProfileService {
       manager: person.manager,
       peoplePartner: person.peoplePartner,
     };
+  }
+
+  private toS3(contacts: EmergencyContactRow[]): S3EmergencyContact[] {
+    return contacts.map((contact) => ({
+      id: contact.id,
+      contactName: contact.contactName,
+      relationship: contact.relationship,
+      phone: contact.phone,
+    }));
+  }
+
+  private toS5(
+    subjectPersonId: string,
+    certificates: PersonCertificateRow[],
+  ): S5Certificate[] {
+    return certificates.map((certificate) => ({
+      id: certificate.id,
+      fileName: certificate.fileName,
+      uploadedAt: certificate.uploadedAt,
+      downloadUrl: buildCertificateDownloadPath(
+        subjectPersonId,
+        certificate.id,
+      ),
+    }));
   }
 
   private toS2(person: PersonWithRelations): S2PersonalContacts {

@@ -14,6 +14,11 @@ yarn-error.log*
 # OS
 .DS_Store
 
+# Local upload storage (Story 2.6b)
+/uploads
+/uploads-e2e
+/uploads-test
+
 # Environment variables (keep .env.example in git)
 .env
 .env.local

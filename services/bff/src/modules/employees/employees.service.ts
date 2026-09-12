@@ -9,6 +9,7 @@ import type {
   UpstreamBinaryResponse,
   UpstreamResponse,
 } from '../custom-field-definitions/custom-field-definitions.service';
+import { decodeMultipartFileName } from './decode-upload-filename.util';
 
 @Injectable()
 export class EmployeesService {
@@ -41,6 +42,108 @@ export class EmployeesService {
       body,
       context,
       true,
+    );
+  }
+
+  createEmergencyContact(
+    subjectPersonId: string,
+    body: unknown,
+    context: ProxyContext,
+  ): Promise<UpstreamResponse> {
+    return this.request(
+      `/people/${encodeURIComponent(subjectPersonId)}/profile/emergency-contacts`,
+      'POST',
+      body,
+      context,
+      true,
+    );
+  }
+
+  updateEmergencyContact(
+    subjectPersonId: string,
+    contactId: string,
+    body: unknown,
+    context: ProxyContext,
+  ): Promise<UpstreamResponse> {
+    return this.request(
+      `/people/${encodeURIComponent(subjectPersonId)}/profile/emergency-contacts/${encodeURIComponent(contactId)}`,
+      'PATCH',
+      body,
+      context,
+      true,
+    );
+  }
+
+  deleteEmergencyContact(
+    subjectPersonId: string,
+    contactId: string,
+    context: ProxyContext,
+  ): Promise<UpstreamResponse> {
+    return this.request(
+      `/people/${encodeURIComponent(subjectPersonId)}/profile/emergency-contacts/${encodeURIComponent(contactId)}`,
+      'DELETE',
+      undefined,
+      context,
+      true,
+    );
+  }
+
+  uploadProfilePhoto(
+    subjectPersonId: string,
+    file: Express.Multer.File,
+    context: ProxyContext,
+  ): Promise<UpstreamResponse> {
+    return this.requestMultipart(
+      `/people/${encodeURIComponent(subjectPersonId)}/profile/photo`,
+      file,
+      context,
+    );
+  }
+
+  uploadProfileCertificate(
+    subjectPersonId: string,
+    file: Express.Multer.File,
+    context: ProxyContext,
+  ): Promise<UpstreamResponse> {
+    return this.requestMultipart(
+      `/people/${encodeURIComponent(subjectPersonId)}/profile/certificates`,
+      file,
+      context,
+    );
+  }
+
+  deleteProfileCertificate(
+    subjectPersonId: string,
+    certificateId: string,
+    context: ProxyContext,
+  ): Promise<UpstreamResponse> {
+    return this.request(
+      `/people/${encodeURIComponent(subjectPersonId)}/profile/certificates/${encodeURIComponent(certificateId)}`,
+      'DELETE',
+      undefined,
+      context,
+      true,
+    );
+  }
+
+  downloadProfilePhoto(
+    subjectPersonId: string,
+    context: ProxyContext,
+  ): Promise<UpstreamBinaryResponse> {
+    return this.requestBinary(
+      `/people/${encodeURIComponent(subjectPersonId)}/profile/photo`,
+      context,
+    );
+  }
+
+  downloadProfileCertificate(
+    subjectPersonId: string,
+    certificateId: string,
+    context: ProxyContext,
+  ): Promise<UpstreamBinaryResponse> {
+    return this.requestBinary(
+      `/people/${encodeURIComponent(subjectPersonId)}/profile/certificates/${encodeURIComponent(certificateId)}/download`,
+      context,
     );
   }
 
@@ -138,13 +241,74 @@ export class EmployeesService {
     return this.requestBinary(`/employees/export${suffix}`, context);
   }
 
+  private async requestMultipart(
+    path: string,
+    file: Express.Multer.File,
+    context: ProxyContext,
+  ): Promise<UpstreamResponse> {
+    const formData = new FormData();
+    const blob = new Blob([Uint8Array.from(file.buffer)], { type: file.mimetype });
+    formData.append(
+      'file',
+      blob,
+      decodeMultipartFileName(file.originalname),
+    );
+
+    const headers: Record<string, string> = {
+      accept: 'application/json',
+      'x-correlation-id': context.correlationId,
+    };
+    if (context.authorization) {
+      headers.authorization = context.authorization;
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(
+        `${this.config.getOrThrow<string>('PEOPLE_SERVICE_URL')}/api/v1${path}`,
+        {
+          method: 'POST',
+          headers,
+          body: formData,
+        },
+      );
+    } catch {
+      throw new ServiceUnavailableException('People service is unavailable.');
+    }
+
+    const bodyText = await response.text();
+    let body: unknown = bodyText;
+    const contentType = response.headers.get('content-type') ?? '';
+    if (contentType.includes('application/json') && bodyText.length > 0) {
+      try {
+        body = JSON.parse(bodyText) as unknown;
+      } catch {
+        body = bodyText;
+      }
+    }
+
+    if (!response.ok) {
+      throw new HttpException(
+        typeof body === 'object' && body !== null
+          ? (body as Record<string, unknown>)
+          : {
+              statusCode: this.safeErrorStatus(response.status),
+              message: this.safeErrorMessage(response.status),
+            },
+        this.safeErrorStatus(response.status),
+      );
+    }
+
+    return { status: response.status, body };
+  }
+
   private async requestBinary(
     path: string,
     context: ProxyContext,
+    accept = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   ): Promise<UpstreamBinaryResponse> {
     const headers: Record<string, string> = {
-      accept:
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      accept,
       'x-correlation-id': context.correlationId,
     };
     if (context.authorization) {

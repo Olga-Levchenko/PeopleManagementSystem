@@ -83,6 +83,8 @@ describe('deriveAudienceFromResolution', () => {
       SUBJECT_ID,
     );
 
+    expect(audience.s3).toBe('ReadWrite');
+    expect(audience.s5).toBe('ReadWrite');
     expect(audience.s4).toBe('Read');
     expect(audience.s9).toBe('Read');
     expect(audience.s6).toBe('None');
@@ -122,6 +124,8 @@ describe('deriveAudienceFromResolution', () => {
       SUBJECT_ID,
     );
 
+    expect(audience.s3).toBe('None');
+    expect(audience.s5).toBe('None');
     expect(audience.s4).toBe('None');
     expect(audience.s9).toBe('None');
     expect(audience.isColleague).toBe(true);

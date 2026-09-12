@@ -1,4 +1,6 @@
 import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -41,6 +43,22 @@ import {
 
 const SERVICE_ROOT = path.resolve(__dirname, '..');
 
+const MINIMAL_JPEG = Buffer.from([0xff, 0xd8, 0xff, 0x00]);
+const MINIMAL_PDF = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]);
+
+const SELF_PROFILE_RESPONSE_KEYS = [
+  'isSelf',
+  's1',
+  's10',
+  's11',
+  's16',
+  's2',
+  's3',
+  's4',
+  's5',
+  's9',
+];
+
 describe('Profile (e2e)', () => {
   jest.setTimeout(180_000);
 
@@ -49,8 +67,15 @@ describe('Profile (e2e)', () => {
   let prisma: PrismaService;
   let currentViewerId: string;
   let resolveMock: jest.Mock;
+  let uploadStoragePath: string;
 
   beforeAll(async () => {
+    uploadStoragePath = path.join(
+      os.tmpdir(),
+      `people-service-e2e-uploads-${process.pid}`,
+    );
+    fs.mkdirSync(uploadStoragePath, { recursive: true });
+
     container = await new PostgreSqlContainer('postgres:18-alpine')
       .withDatabase('people_service_e2e')
       .start();
@@ -80,6 +105,7 @@ describe('Profile (e2e)', () => {
       KEYCLOAK_REALM: 'people-management',
       OIDC_ALLOWED_ISSUERS: E2E_JWT_ISSUER,
       ACCESS_CONTROL_SERVICE_BASE_URL: 'http://stub-access-control:3007',
+      UPLOAD_STORAGE_PATH: uploadStoragePath,
     };
 
     resolveMock = jest.fn();
@@ -140,6 +166,7 @@ describe('Profile (e2e)', () => {
     await prisma?.$disconnect();
     await app?.close();
     await container?.stop();
+    fs.rmSync(uploadStoragePath, { recursive: true, force: true });
   });
 
   afterEach(() => {
@@ -285,19 +312,12 @@ describe('Profile (e2e)', () => {
       .get(`/people/${subject.id}/profile`)
       .expect(200);
 
-    expect(Object.keys(res.body as object).sort()).toEqual([
-      'isSelf',
-      's1',
-      's10',
-      's11',
-      's16',
-      's2',
-      's4',
-      's9',
-    ]);
+    expect(Object.keys(res.body as object).sort()).toEqual(SELF_PROFILE_RESPONSE_KEYS);
     expect(res.body).not.toHaveProperty('s6');
     const body = res.body as {
       isSelf: boolean;
+      s3: Array<{ contactName: string }>;
+      s5: Array<{ fileName: string }>;
       s4: {
         employmentType: string;
         grade: string;
@@ -937,5 +957,209 @@ describe('Profile (e2e)', () => {
       select: { countryCity: true },
     });
     expect(updated?.countryCity).toBe('Lviv');
+  });
+
+  it('Self: emergency contact CRUD and profile GET includes s3', async () => {
+    const { subject } = await seedSubject();
+    currentViewerId = subject.id;
+    resolveMock.mockResolvedValue({
+      reportingLine: false,
+      projectLine: false,
+      managerSectionAccess: null,
+    });
+
+    const created = await request(app.getHttpServer())
+      .post(`/people/${subject.id}/profile/emergency-contacts`)
+      .send({
+        contactName: 'Emergency Person',
+        relationship: 'Sibling',
+        phone: '+380991111111',
+      })
+      .expect(201);
+
+    const contactId = (created.body as { id: string }).id;
+    expect(contactId).toBeTruthy();
+
+    const profile = await request(app.getHttpServer())
+      .get(`/people/${subject.id}/profile`)
+      .expect(200);
+    expect((profile.body as { s3: Array<{ contactName: string }> }).s3).toEqual([
+      {
+        id: contactId,
+        contactName: 'Emergency Person',
+        relationship: 'Sibling',
+        phone: '+380991111111',
+      },
+    ]);
+
+    await request(app.getHttpServer())
+      .delete(`/people/${subject.id}/profile/emergency-contacts/${contactId}`)
+      .expect(204);
+  });
+
+  it('Manager cannot mutate another person S3 emergency contacts', async () => {
+    const { subject, manager } = await seedSubject();
+    currentViewerId = manager.id;
+    resolveMock.mockResolvedValue({
+      reportingLine: true,
+      projectLine: false,
+      managerSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'Read' },
+        s4: { level: 'ReadWrite' },
+        s9: { level: 'ReadWrite' },
+        s10: { level: 'Read' },
+        s11: { level: 'Read' },
+        s16: { level: 'ReadWrite' },
+      },
+    });
+
+    await request(app.getHttpServer())
+      .post(`/people/${subject.id}/profile/emergency-contacts`)
+      .send({ contactName: 'Blocked Contact' })
+      .expect(403);
+  });
+
+  it('Legacy external photoUrl is omitted from profile GET and photo download returns 404', async () => {
+    const { subject } = await seedSubject();
+    currentViewerId = subject.id;
+    resolveMock.mockResolvedValue({
+      reportingLine: false,
+      projectLine: false,
+      managerSectionAccess: null,
+    });
+
+    const profile = await request(app.getHttpServer())
+      .get(`/people/${subject.id}/profile`)
+      .expect(200);
+
+    expect((profile.body as { s1?: { photoUrl: string | null } }).s1?.photoUrl).toBeNull();
+
+    await request(app.getHttpServer())
+      .get(`/people/${subject.id}/profile/photo`)
+      .expect(404);
+  });
+
+  it('Manager with S1 access can download gated photo but not S5 certificate until Story 2.10', async () => {
+    const { subject, manager } = await seedSubject(
+      { photoUrl: null },
+      { seedRecords: false },
+    );
+    currentViewerId = subject.id;
+    resolveMock.mockResolvedValue({
+      reportingLine: false,
+      projectLine: false,
+      managerSectionAccess: null,
+    });
+
+    await request(app.getHttpServer())
+      .post(`/people/${subject.id}/profile/photo`)
+      .attach('file', MINIMAL_JPEG, {
+        filename: 'photo.jpg',
+        contentType: 'image/jpeg',
+      })
+      .expect(201);
+
+    const certResponse = await request(app.getHttpServer())
+      .post(`/people/${subject.id}/profile/certificates`)
+      .attach('file', MINIMAL_PDF, {
+        filename: 'cert.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(201);
+
+    const certificateId = (certResponse.body as { id: string }).id;
+
+    currentViewerId = manager.id;
+    resolveMock.mockResolvedValue({
+      reportingLine: true,
+      projectLine: false,
+      managerSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'Read' },
+        s4: { level: 'ReadWrite' },
+        s9: { level: 'ReadWrite' },
+        s10: { level: 'Read' },
+        s11: { level: 'Read' },
+        s16: { level: 'ReadWrite' },
+      },
+    });
+
+    await request(app.getHttpServer())
+      .get(`/people/${subject.id}/profile/photo`)
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .get(
+        `/people/${subject.id}/profile/certificates/${certificateId}/download`,
+      )
+      .expect(404);
+  });
+
+  it('Colleague cannot download another person certificate bytes', async () => {
+    const { subject } = await seedSubject(
+      { photoUrl: null },
+      { seedRecords: false },
+    );
+    const colleague = await prisma.person.create({
+      data: { fullName: 'Colleague Viewer' },
+    });
+
+    currentViewerId = subject.id;
+    resolveMock.mockResolvedValue({
+      reportingLine: false,
+      projectLine: false,
+      managerSectionAccess: null,
+    });
+
+    const certResponse = await request(app.getHttpServer())
+      .post(`/people/${subject.id}/profile/certificates`)
+      .attach('file', MINIMAL_PDF, {
+        filename: 'cert.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(201);
+
+    const certificateId = (certResponse.body as { id: string }).id;
+
+    currentViewerId = colleague.id;
+    resolveMock.mockResolvedValue({
+      reportingLine: false,
+      projectLine: false,
+      managerSectionAccess: null,
+    });
+
+    await request(app.getHttpServer())
+      .get(
+        `/people/${subject.id}/profile/certificates/${certificateId}/download`,
+      )
+      .expect(404);
+  });
+
+  it('Certificate download returns 404 for invalid storageKey (path traversal guard)', async () => {
+    const { subject } = await seedSubject(
+      { photoUrl: null },
+      { seedRecords: false },
+    );
+    const certificate = await prisma.personCertificate.create({
+      data: {
+        personId: subject.id,
+        fileName: 'evil.pdf',
+        storageKey: `p/${subject.id}/certificates/../../outside.pdf`,
+      },
+    });
+
+    currentViewerId = subject.id;
+    resolveMock.mockResolvedValue({
+      reportingLine: false,
+      projectLine: false,
+      managerSectionAccess: null,
+    });
+
+    await request(app.getHttpServer())
+      .get(
+        `/people/${subject.id}/profile/certificates/${certificate.id}/download`,
+      )
+      .expect(404);
   });
 });
