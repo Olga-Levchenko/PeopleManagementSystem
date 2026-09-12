@@ -81,6 +81,7 @@ node "$SET_DOTENV" "$PEOPLE_DIR/.env" SERVICE_AUTH_PRIVATE_KEY_PATH "$PEOPLE_PEM
 node "$SET_DOTENV" "$PEOPLE_DIR/.env" SERVICE_AUTH_KEY_ID local-people-key
 node "$SET_DOTENV" "$REPO_ROOT/services/work-management-service/.env" SERVICE_AUTH_PRIVATE_KEY_PATH "$WORK_MANAGEMENT_PEM"
 node "$SET_DOTENV" "$REPO_ROOT/services/work-management-service/.env" SERVICE_AUTH_KEY_ID local-work-management-key
+node "$SET_DOTENV" "$REPO_ROOT/services/work-management-service/.env" PEOPLE_SERVICE_BASE_URL http://localhost:3002
 
 for library_dir in "$REPO_ROOT/libs/config" "$REPO_ROOT/libs/contracts"; do
   (

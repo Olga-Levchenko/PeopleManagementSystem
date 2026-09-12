@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-30-2026 12:52
-last_updated: 09-12-2026 12:24
+last_updated: 09-12-2026 12:52
 project: PeopleManagementSystem
 project_key: NOKEY
 tracking_system: file-system
@@ -72,7 +72,7 @@ development_status:
   epic-2-retrospective: done  # retro 09-12-2026; verdict accepted-with-open-items
 
   epic-3: in-progress  # Story 3.1 spec ready 2026-09-12
-  3-1-manual-action-item-creation-scoped-to-creator-s-access: ready-for-dev
+  3-1-manual-action-item-creation-scoped-to-creator-s-access: in-progress  # Jira O4-42; PR #95 spec merged 2026-09-12
   3-2-campaign-generated-action-items: backlog
   3-3-action-item-lifecycle-and-overdue-display: backlog
   3-4-self-complete-action-item: backlog

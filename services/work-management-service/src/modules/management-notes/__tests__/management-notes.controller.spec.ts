@@ -1,4 +1,4 @@
-import { extractBearerToken } from '../management-notes.controller';
+import { extractBearerToken } from '../../auth/bearer-token.util';
 
 describe('extractBearerToken', () => {
   it.each(['Bearer token-value', 'bearer token-value', 'BEARER token-value'])(

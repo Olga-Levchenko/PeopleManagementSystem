@@ -16,8 +16,37 @@ const TOKEN_EXCHANGE_TIMEOUT_MS = 5_000;
 export class ServiceTokenExchangeService {
   constructor(private readonly config: ConfigService) {}
 
+  async exchangeForPeopleService(
+    subjectToken: string,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    return this.exchangeForAudience(
+      subjectToken,
+      'people-service',
+      'people-service-audience',
+      'work-management-service',
+      signal,
+    );
+  }
+
   async exchangeForAccessControl(
     subjectToken: string,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    return this.exchangeForAudience(
+      subjectToken,
+      'access-control-service',
+      'access-control-service-audience',
+      'work-management-service',
+      signal,
+    );
+  }
+
+  private async exchangeForAudience(
+    subjectToken: string,
+    audience: string,
+    scope: string,
+    clientId: string,
     signal?: AbortSignal,
   ): Promise<string> {
     const baseUrl = this.config
@@ -53,9 +82,9 @@ export class ServiceTokenExchangeService {
           subject_token: subjectToken,
           subject_token_type: ACCESS_TOKEN_TYPE,
           requested_token_type: ACCESS_TOKEN_TYPE,
-          audience: 'access-control-service',
-          scope: 'access-control-service-audience',
-          client_id: 'work-management-service',
+          audience,
+          scope,
+          client_id: clientId,
           client_assertion_type:
             'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
           client_assertion: assertion,

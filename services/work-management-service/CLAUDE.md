@@ -51,6 +51,9 @@ matching files.
   practice — this service is not meant to be called directly from the browser)
 - `.env` is gitignored; `.env.example` is the committed template
 - Local Postgres comes from the shared `infra/docker-compose.yml`, not a per-service compose file
+- `PEOPLE_SERVICE_BASE_URL` (default `http://localhost:3002`) — required for JWT `iss`+`sub` →
+  platform `Person.id` resolution via people-service's internal identity-mappings API. Bootstrap
+  sets this when the key is empty.
 
 ## Gotchas
 

@@ -129,7 +129,8 @@ run more than once.
 
 Bootstrap runs database migrations only on first setup (when core tables are still missing). After
 you pull changes that add migrations — for example All Employees **saved views** (Story 2.3, stored
-in **People Service**, not a separate app) — apply pending migrations yourself:
+in **People Service**) or manual **action items** (Story 3.1, stored in **Work Management
+Service**) — apply pending migrations yourself:
 
 Windows PowerShell:
 
@@ -148,6 +149,18 @@ npm run db:deploy
 Repeat `npm run db:deploy` in any other service folder whose `prisma/migrations/` directory changed
 (`resourcing-service`, `work-management-service`, and so on). Then restart the affected service
 windows if they were already running.
+
+For Story 3.1 action items:
+
+```powershell
+cd services/work-management-service
+npm run db:deploy
+```
+
+Work Management Service also calls People Service to resolve JWT principals to platform
+`Person.id`. Bootstrap sets `PEOPLE_SERVICE_BASE_URL=http://localhost:3002` in
+`services/work-management-service/.env` when the key is empty. If you created that `.env` before
+this was added, set the variable manually or re-run the bootstrap script.
 
 ### Saved views return 503 or 500
 

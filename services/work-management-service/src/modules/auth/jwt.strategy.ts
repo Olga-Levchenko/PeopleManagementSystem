@@ -22,6 +22,7 @@ const BFF_CLIENT_ID = 'bff-confidential';
  */
 export interface JwtPayload {
   sub: string;
+  iss?: string;
   [claim: string]: unknown;
 }
 
@@ -33,6 +34,7 @@ export interface JwtPayload {
  */
 export interface AuthenticatedUser {
   sub: string;
+  iss: string;
 }
 
 /**
@@ -107,6 +109,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (typeof payload.sub !== 'string' || payload.sub.trim().length === 0) {
       throw new UnauthorizedException('Token is missing a sub claim.');
     }
-    return { sub: payload.sub };
+    if (typeof payload.iss !== 'string' || payload.iss.trim().length === 0) {
+      throw new UnauthorizedException('Token is missing an iss claim.');
+    }
+    return { sub: payload.sub, iss: payload.iss };
   }
 }

@@ -716,3 +716,7 @@ Manager/PP read of `s3`/`s5` on profile GET (and manager certificate download), 
 photo on management profile UI — scoped in
 `_bmad-output/implementation-artifacts/spec-2-10-manager-pp-s3-s5-read-on-employee-profile.md`
 (Jira O4-171), depending on Story 2.6b models/upload infrastructure.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-1-manual-action-item-creation-scoped-to-creator-s-access.md`
+  summary: Add a thin BFF proxy module for `action-items` (POST forwarding to `work-management-service`, mirroring the existing `management-notes` / `organisational-relationships` proxy pattern).
+  evidence: Split from Story 3.1's scope note at planning — none of Story 3.1's acceptance criteria require going through the BFF; all are verifiable directly against `work-management-service`'s own API, matching Story 1.7's precedent for `management-notes`.
