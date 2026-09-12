@@ -338,6 +338,24 @@ describe('JWT guard (e2e)', () => {
     expect(resolveMock).not.toHaveBeenCalled();
   });
 
+  it('missing token on PATCH action-items complete: 401', async () => {
+    await request(app.getHttpServer())
+      .patch(`/action-items/${SOME_SUBJECT_ID}/complete`)
+      .send({})
+      .expect(401);
+
+    expect(resolveMock).not.toHaveBeenCalled();
+  });
+
+  it('missing token on PATCH action-items cancel: 401', async () => {
+    await request(app.getHttpServer())
+      .patch(`/action-items/${SOME_SUBJECT_ID}/cancel`)
+      .send({ cancelReason: 'x' })
+      .expect(401);
+
+    expect(resolveMock).not.toHaveBeenCalled();
+  });
+
   it('valid token: reaches the controller, RequestActorContext resolves, and fails at the access-role check -- not at authentication', async () => {
     const { access_token: accessToken } = await obtainToken();
 
