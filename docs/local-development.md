@@ -162,6 +162,30 @@ Work Management Service also calls People Service to resolve JWT principals to p
 `services/work-management-service/.env` when the key is empty. If you created that `.env` before
 this was added, set the variable manually or re-run the bootstrap script.
 
+### Manual smoke test — Story 3.1 action items
+
+There is no BFF proxy yet; call **Work Management Service** directly on port **3004**.
+
+1. Ensure migrations are applied (`npm run db:deploy` in `services/work-management-service`).
+2. If `realm-export.json` changed recently, recreate Keycloak (not just restart):
+
+   ```powershell
+   docker compose --project-directory infra --env-file infra/.env up -d --force-recreate keycloak
+   ```
+
+3. Run the smoke script (enables local-only Keycloak password grant, obtains a token, exercises
+   create / self-assign / out-of-scope):
+
+   ```powershell
+   powershell -File infra/scripts/manual-test-story-3-1-action-items.ps1
+   ```
+
+   Swagger UI: `http://localhost:3004/api/docs` — use the same bearer token the script prints
+   (re-run the script or copy from Keycloak token response).
+
+   Seeded **Unit Manager** used by the script: `olena.romaniuk@altexsoft.com` / `DevPassword1!`
+   (person id `cccccccc-0000-0000-0000-000000000006`).
+
 ### Saved views return 503 or 500
 
 All Employees saved views are served by **People Service** (port 3002) and proxied through the **BFF**

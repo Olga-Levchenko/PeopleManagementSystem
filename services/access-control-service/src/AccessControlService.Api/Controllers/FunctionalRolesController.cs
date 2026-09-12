@@ -289,7 +289,7 @@ public sealed class FunctionalRolesController : ControllerBase
     }
 
     [HttpPost("permissions/check")]
-    [Authorize(Policy = "PeopleServiceJwt")]
+    [Authorize(Policy = "AccessRoleResolutionJwt")]
     public async Task<ActionResult<PermissionCheckResponse>> CheckPermission(
         PermissionCheckRequest request,
         CancellationToken cancellationToken)

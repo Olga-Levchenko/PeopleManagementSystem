@@ -5,10 +5,14 @@ import {
   IsOptional,
   IsString,
   IsUrl,
-  IsUUID,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
+
+/** Platform Person.id values are UUID-shaped but not always RFC-4122 versioned (seed uses `0000`). */
+export const PLATFORM_PERSON_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const ACTION_ITEM_TITLE_MAX_LENGTH = 500;
 export const ACTION_ITEM_DESCRIPTION_MAX_LENGTH = 10_000;
@@ -25,7 +29,9 @@ export class CreateActionItemDto {
   title!: string;
 
   @ApiProperty({ format: 'uuid' })
-  @IsUUID()
+  @Matches(PLATFORM_PERSON_ID_PATTERN, {
+    message: 'assigneePersonId must be a UUID',
+  })
   assigneePersonId!: string;
 
   @ApiProperty({ type: String, format: 'date-time' })

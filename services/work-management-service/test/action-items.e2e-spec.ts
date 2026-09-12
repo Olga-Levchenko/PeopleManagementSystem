@@ -197,6 +197,26 @@ describe('Action items (e2e)', () => {
       .expect(403);
   });
 
+  it('accepts seeded platform Person.id shape for assigneePersonId', async () => {
+    const viewerPersonId = 'cccccccc-0000-0000-0000-000000000006';
+    const assigneeId = 'cccccccc-0000-0000-0000-00000000000b';
+    currentViewerSub = 'c772d28a-1442-41a9-ac6f-af4cc14af5ae';
+    currentViewerPersonId = viewerPersonId;
+    resolveMock.mockResolvedValue(resolution({ reportingLine: true }));
+
+    const res = await authedPost('/action-items')
+      .send({
+        title: 'Seeded person id shape',
+        assigneePersonId: assigneeId,
+        dueDate: '2026-10-15T00:00:00.000Z',
+      })
+      .expect(201);
+
+    expect((res.body as { assigneePersonId: string }).assigneePersonId).toBe(
+      assigneeId,
+    );
+  });
+
   it('returns 400 when required body fields are missing', async () => {
     currentViewerSub = randomUUID();
     currentViewerPersonId = randomUUID();

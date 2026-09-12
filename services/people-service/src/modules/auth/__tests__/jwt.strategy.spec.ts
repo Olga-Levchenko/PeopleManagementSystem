@@ -118,19 +118,21 @@ describe('JwtStrategy', () => {
     );
   });
 
-  it('allows the Access Control caller only on identity resolution', () => {
+  it('allows trusted internal callers on identity resolution', () => {
     const strategy = new JwtStrategy(config);
 
-    expect(
-      strategy.validate(internalRequest, {
+    for (const azp of ['access-control-service', 'work-management-service']) {
+      expect(
+        strategy.validate(internalRequest, {
+          sub: 'service-sub',
+          azp,
+          iss: 'https://localhost:8080/realms/people-management',
+        }),
+      ).toEqual({
         sub: 'service-sub',
-        azp: 'access-control-service',
         iss: 'https://localhost:8080/realms/people-management',
-      }),
-    ).toEqual({
-      sub: 'service-sub',
-      iss: 'https://localhost:8080/realms/people-management',
-    });
+      });
+    }
   });
 
   it('rejects an unauthorized caller on identity resolution', () => {

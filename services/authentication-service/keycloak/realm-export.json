@@ -89,6 +89,28 @@
       ]
     },
     {
+      "name": "work-management-service-audience",
+      "description": "Opt-in audience for BFF and downstream token exchange to work-management-service.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "work-management-service-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "work-management-service",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
       "name": "access-control-service-audience",
       "description": "Opt-in audience for BFF and people-service token exchange to access-control-service.",
       "protocol": "openid-connect",
@@ -140,7 +162,8 @@
       "defaultClientScopes": ["web-origins", "acr", "profile", "email", "basic"],
       "optionalClientScopes": [
         "people-service-audience",
-        "access-control-service-audience"
+        "access-control-service-audience",
+        "work-management-service-audience"
       ],
       "protocolMappers": [
         {
@@ -218,7 +241,10 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
       "fullScopeAllowed": false,
-      "optionalClientScopes": ["access-control-service-audience"],
+      "optionalClientScopes": [
+        "access-control-service-audience",
+        "people-service-audience"
+      ],
       "attributes": {
         "use.jwks.url": "true",
         "token.endpoint.auth.signing.alg": "RS256",
