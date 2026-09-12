@@ -2,7 +2,7 @@
 title: 'Story 2.9: Manager/PP read S4 and S9 on employee profile'
 type: 'feature'
 created: '2026-09-12'
-status: 'in-progress'
+status: 'review'
 review_loop_iteration: 2
 baseline_commit: '84233ec'
 context:
