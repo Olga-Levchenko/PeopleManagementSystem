@@ -173,15 +173,22 @@ There is no BFF proxy yet; call **Work Management Service** directly on port **3
    docker compose --project-directory infra --env-file infra/.env up -d --force-recreate keycloak
    ```
 
-3. Run the smoke script (enables local-only Keycloak password grant, obtains a token, exercises
-   create / self-assign / out-of-scope):
+3. Run the smoke script (uses the dedicated `local-api-smoke` Keycloak client — **not**
+   `bff-confidential`, which must stay `client-jwt` for browser login):
 
    ```powershell
    powershell -File infra/scripts/manual-test-story-3-1-action-items.ps1
    ```
 
-   Swagger UI: `http://localhost:3004/api/docs` — use the same bearer token the script prints
-   (re-run the script or copy from Keycloak token response).
+   Swagger UI: `http://localhost:3004/api/docs` — bearer token from the script's `local-api-smoke`
+   client only (tokens from the website login flow are not interchangeable for direct WMS calls).
+
+   **Login returns 500 after an old smoke script?** An earlier version mutated `bff-confidential`
+   in the running Keycloak container. Recreate Keycloak to restore the realm import:
+
+   ```powershell
+   docker compose --project-directory infra --env-file infra/.env up -d --force-recreate keycloak
+   ```
 
    Seeded **Unit Manager** used by the script: `olena.romaniuk@altexsoft.com` / `DevPassword1!`
    (person id `cccccccc-0000-0000-0000-000000000006`).

@@ -212,6 +212,27 @@
       "defaultClientScopes": ["profile", "email", "basic"]
     },
     {
+      "clientId": "local-api-smoke",
+      "name": "Local API smoke test client",
+      "description": "Dev-only password-grant client for manual API/Swagger testing. Never mutates bff-confidential (which must stay client-jwt for the browser login flow).",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "local-dev-api-smoke-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["profile", "email", "basic"],
+      "optionalClientScopes": [
+        "people-service-audience",
+        "access-control-service-audience",
+        "work-management-service-audience"
+      ]
+    },
+    {
       "clientId": "people-service",
       "name": "People service",
       "enabled": true,
