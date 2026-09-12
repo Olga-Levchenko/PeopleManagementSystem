@@ -728,3 +728,8 @@ photo on management profile UI — scoped in
 ## Deferred from: code review of spec-3-2-campaign-generated-action-items (2026-09-12)
 
 - WMS e2e suites excluded from CI (`run_e2e` not set in `work-management-service-ci.yml`) — pre-existing gap shared with Story 3.1; enabling requires Testcontainers Postgres or equivalent CI database wiring.
+
+## Deferred from: code review of spec-3-3-action-item-lifecycle-and-overdue-display (2026-09-12)
+
+- OpenAPI composite decorators + `entities/action-item.entity.ts` for `isOverdue` on action-items PATCH responses — pre-existing gap from Story 3.1 pattern; not required for Story 3.3 ACs.
+- `ActionItemView.status` / `source` typed as `string` instead of Prisma enums — pre-existing from Story 3.1; tightening types is a cross-story refactor.

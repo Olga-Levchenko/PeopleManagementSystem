@@ -1,7 +1,16 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { RequestActorContext } from '../identity/request-actor.context';
 import { ActionItemsService } from './action-items.service';
+import { CancelActionItemDto } from './dto/cancel-action-item.dto';
+import { CompleteActionItemBodyDto } from './dto/complete-action-item.dto';
 import { CreateActionItemDto } from './dto/create-action-item.dto';
 
 @ApiBearerAuth()
@@ -20,5 +29,24 @@ export class ActionItemsController {
       dto,
       this.actor.accessToken,
     );
+  }
+
+  @Patch(':id/complete')
+  async completeActionItem(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: CompleteActionItemBodyDto,
+  ) {
+    void body;
+    const viewerPersonId = await this.actor.resolveActorId();
+    return this.service.completeActionItem(viewerPersonId, id);
+  }
+
+  @Patch(':id/cancel')
+  async cancelActionItem(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: CancelActionItemDto,
+  ) {
+    const viewerPersonId = await this.actor.resolveActorId();
+    return this.service.cancelActionItem(viewerPersonId, id, dto);
   }
 }
