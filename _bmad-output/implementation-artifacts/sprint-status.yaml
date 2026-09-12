@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-30-2026 12:52
-last_updated: 09-11-2026 20:50
+last_updated: 09-12-2026 09:30
 project: PeopleManagementSystem
 project_key: NOKEY
 tracking_system: file-system
@@ -57,7 +57,7 @@ development_status:
   o4-90-batch-access-role-resolution-endpoint: done  # ADR-004 Decision 1 prerequisite for Story 2.1; spec done on main
   epic-1-retrospective: optional
 
-  epic-2: in-progress
+  epic-2: done  # all stories 2.1–2.8 merged; Jira O4-35..O4-41 + O4-168
   2-1-universal-filter-column-engine-over-profile-fields: done  # Jira O4-35; PR #65 merged 2026-09-10
   2-2-inline-editing-writes-through-to-the-profile-subject-to-acce: done  # Jira O4-36; PR #67 merged 2026-09-10
   2-3-saved-views: done  # Jira O4-37; PR #69 merged 2026-09-10
