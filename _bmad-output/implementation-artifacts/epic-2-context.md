@@ -16,7 +16,7 @@ Managers and people partners browse, filter, configure columns, edit inline, sav
 - Story 2.8: Management list row navigation to Employee Profile — **done**
 - Story 2.6: Self-managed personal data — **done**
 - Story 2.7: Self-read of managed data and never own risk level — **done**
-- Story 2.6b: S3 emergency contacts and self uploads (photo + certificates) — **ready-for-dev**
+- Story 2.6b: S3 emergency contacts and self uploads (photo + certificates) — **done**
 - Story 2.9: Manager/PP read S4 and S9 on employee profile — **done**
 - Story 2.10: Manager/PP read S3 and S5 on employee profile — **ready-for-dev** (depends on 2.6b)
 

@@ -2,9 +2,9 @@
 title: 'Story 2.6b: S3 emergency contacts and self uploads (photo + certificates)'
 type: 'feature'
 created: '2026-09-12'
-status: 'review'
+status: 'done'
 review_loop_iteration: 3
-baseline_commit: '84233ec'
+baseline_commit: 'c8b8014'
 context:
   - '{project-root}/.claude/rules/access-control-invariants.md'
   - '{project-root}/docs/access-control/section-matrix.md'
