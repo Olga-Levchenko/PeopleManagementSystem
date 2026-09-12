@@ -119,13 +119,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (typeof payload.azp !== 'string' || payload.azp.trim().length === 0) {
       throw new UnauthorizedException('Token is missing an azp claim.');
     }
-    const isAccessControlResolver =
-      request.path.startsWith('/api/v1/internal/identity-mappings') ||
-      request.path.startsWith('/api/v1/internal/bootstrap/identity-mappings');
-    const expectedAzp = isAccessControlResolver
-      ? 'access-control-service'
-      : 'bff-confidential';
-    if (payload.azp !== expectedAzp) {
+    const isIdentityResolver = request.path.startsWith(
+      '/api/v1/internal/identity-mappings',
+    );
+    const isBootstrapIdentityResolver = request.path.startsWith(
+      '/api/v1/internal/bootstrap/identity-mappings',
+    );
+    const allowedAzp = isBootstrapIdentityResolver
+      ? ['access-control-service']
+      : isIdentityResolver
+        ? ['access-control-service', 'work-management-service']
+        : ['bff-confidential'];
+    if (!allowedAzp.includes(payload.azp)) {
       throw new ForbiddenException('Token caller is not authorized.');
     }
     if (typeof payload.iss !== 'string' || payload.iss.trim().length === 0) {

@@ -6,6 +6,7 @@ import { envValidationSchema } from './config/env.validation';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 import { HealthModule } from './modules/health/health.module';
+import { ActionItemsModule } from './modules/action-items/action-items.module';
 import { ManagementNotesModule } from './modules/management-notes/management-notes.module';
 import { PrismaModule } from './prisma/prisma.module';
 
@@ -19,6 +20,7 @@ import { PrismaModule } from './prisma/prisma.module';
     AuthModule,
     HealthModule,
     ManagementNotesModule,
+    ActionItemsModule,
   ],
   providers: [
     {

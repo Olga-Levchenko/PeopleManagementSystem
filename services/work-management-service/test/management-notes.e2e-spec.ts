@@ -1,20 +1,19 @@
-import {
-  ExecutionContext,
-  INestApplication,
-  ValidationPipe,
-} from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { randomUUID } from 'crypto';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
-import { JwtAuthGuard } from '../src/modules/auth/jwt-auth.guard';
 import {
   NO_ACCESS_RESOLUTION,
   type AccessRoleResolution,
   type AccessRoleResolutionPort,
 } from '../src/modules/management-notes/access-control-client';
 import { PrismaService } from '../src/prisma/prisma.service';
+import {
+  createIdentityResolutionStub,
+  installJwtAuthGuardBypass,
+} from './support/e2e-auth.helpers';
 
 /**
  * Proves spec-1-7's six ACs end-to-end against real Prisma (the shared `infra/docker-compose.yml`
@@ -28,15 +27,18 @@ import { PrismaService } from '../src/prisma/prisma.service';
  * outside. This suite instead patches `JwtAuthGuard.prototype.canActivate` directly (same technique
  * `profile.e2e-spec.ts` uses) -- the real guard instance Nest constructs still inherits the patched
  * prototype, so production DI wiring is untouched. The fake implementation attaches
- * `request.user.sub` from whatever `currentViewerId` a test sets.
+ * `request.user.sub` from whatever `currentViewerId` a test sets, then
+ * `RequestActorContext` resolves it to the same platform person id via the faked identity port.
  */
 describe('Management notes (e2e)', () => {
   jest.setTimeout(60_000);
 
   let app: INestApplication<App>;
   let prisma: PrismaService;
-  let currentViewerId: string;
+  let currentViewerId = '';
   let resolveMock: jest.Mock;
+
+  const E2E_AUTH = 'Bearer e2e-test-token';
 
   beforeAll(async () => {
     resolveMock = jest.fn();
@@ -44,21 +46,15 @@ describe('Management notes (e2e)', () => {
       resolve: resolveMock,
     };
 
-    jest
-      .spyOn(JwtAuthGuard.prototype, 'canActivate')
-      .mockImplementation((context: ExecutionContext) => {
-        const httpRequest = context
-          .switchToHttp()
-          .getRequest<{ user?: { sub?: string } }>();
-        httpRequest.user = { sub: currentViewerId };
-        return true;
-      });
+    installJwtAuthGuardBypass(() => currentViewerId);
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
       .overrideProvider('AccessRoleResolutionPort')
       .useValue(fakeAccessRoleResolution)
+      .overrideProvider('IdentityResolutionPort')
+      .useValue(createIdentityResolutionStub(() => currentViewerId))
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -103,6 +99,7 @@ describe('Management notes (e2e)', () => {
 
     const res = await request(app.getHttpServer())
       .post('/management-notes')
+      .set('Authorization', E2E_AUTH)
       .send({ subjectPersonId, content: 'A note with no flags set' })
       .expect(201);
 
@@ -128,12 +125,14 @@ describe('Management notes (e2e)', () => {
     resolveMock.mockResolvedValue(resolution({ reportingLine: true }));
     await request(app.getHttpServer())
       .post('/management-notes')
+      .set('Authorization', E2E_AUTH)
       .send({ subjectPersonId, content: 'Unflagged note' })
       .expect(201);
 
     currentViewerId = subjectPersonId;
     const res = await request(app.getHttpServer())
       .get(`/management-notes?subjectPersonId=${subjectPersonId}`)
+      .set('Authorization', E2E_AUTH)
       .expect(200);
 
     expect(res.body).toEqual([]);
@@ -145,6 +144,7 @@ describe('Management notes (e2e)', () => {
     resolveMock.mockResolvedValue(resolution({ reportingLine: true }));
     await request(app.getHttpServer())
       .post('/management-notes')
+      .set('Authorization', E2E_AUTH)
       .send({ subjectPersonId, content: 'Unflagged note' })
       .expect(201);
 
@@ -154,6 +154,7 @@ describe('Management notes (e2e)', () => {
     );
     const res = await request(app.getHttpServer())
       .get(`/management-notes?subjectPersonId=${subjectPersonId}`)
+      .set('Authorization', E2E_AUTH)
       .expect(200);
 
     expect(res.body).toEqual([]);
@@ -168,17 +169,20 @@ describe('Management notes (e2e)', () => {
 
     const createRes = await request(app.getHttpServer())
       .post('/management-notes')
+      .set('Authorization', E2E_AUTH)
       .send({ subjectPersonId, content: 'Full RW note' })
       .expect(201);
     const noteId = (createRes.body as { id: string }).id;
 
     const listRes = await request(app.getHttpServer())
       .get(`/management-notes?subjectPersonId=${subjectPersonId}`)
+      .set('Authorization', E2E_AUTH)
       .expect(200);
     expect((listRes.body as unknown[]).length).toBe(1);
 
     await request(app.getHttpServer())
       .patch(`/management-notes/${noteId}`)
+      .set('Authorization', E2E_AUTH)
       .send({ content: 'Edited by UM' })
       .expect(200);
   });
@@ -190,6 +194,7 @@ describe('Management notes (e2e)', () => {
 
     await request(app.getHttpServer())
       .post('/management-notes')
+      .set('Authorization', E2E_AUTH)
       .send({ subjectPersonId, content: 'PP-created note' })
       .expect(201);
   });
@@ -203,6 +208,7 @@ describe('Management notes (e2e)', () => {
 
     await request(app.getHttpServer())
       .post('/management-notes')
+      .set('Authorization', E2E_AUTH)
       .send({ subjectPersonId, content: 'DM-created note' })
       .expect(201);
   });
@@ -214,17 +220,20 @@ describe('Management notes (e2e)', () => {
 
     const createRes = await request(app.getHttpServer())
       .post('/management-notes')
+      .set('Authorization', E2E_AUTH)
       .send({ subjectPersonId, content: 'FPA-created note' })
       .expect(201);
     const noteId = (createRes.body as { id: string }).id;
 
     const listRes = await request(app.getHttpServer())
       .get(`/management-notes?subjectPersonId=${subjectPersonId}`)
+      .set('Authorization', E2E_AUTH)
       .expect(200);
     expect((listRes.body as unknown[]).length).toBe(1);
 
     await request(app.getHttpServer())
       .patch(`/management-notes/${noteId}`)
+      .set('Authorization', E2E_AUTH)
       .send({ content: 'Edited by FPA holder' })
       .expect(200);
   });
@@ -239,6 +248,7 @@ describe('Management notes (e2e)', () => {
     resolveMock.mockResolvedValue(resolution({ reportingLine: true }));
     await request(app.getHttpServer())
       .post('/management-notes')
+      .set('Authorization', E2E_AUTH)
       .send({
         subjectPersonId,
         content: 'Employee-only note',
@@ -247,6 +257,7 @@ describe('Management notes (e2e)', () => {
       .expect(201);
     await request(app.getHttpServer())
       .post('/management-notes')
+      .set('Authorization', E2E_AUTH)
       .send({
         subjectPersonId,
         content: 'PM-only note',
@@ -260,6 +271,7 @@ describe('Management notes (e2e)', () => {
     );
     const pmListRes = await request(app.getHttpServer())
       .get(`/management-notes?subjectPersonId=${subjectPersonId}`)
+      .set('Authorization', E2E_AUTH)
       .expect(200);
     const pmNotes = pmListRes.body as Array<{ content: string }>;
     expect(pmNotes).toHaveLength(1);
@@ -268,6 +280,7 @@ describe('Management notes (e2e)', () => {
     currentViewerId = subjectPersonId;
     const employeeListRes = await request(app.getHttpServer())
       .get(`/management-notes?subjectPersonId=${subjectPersonId}`)
+      .set('Authorization', E2E_AUTH)
       .expect(200);
     const employeeNotes = employeeListRes.body as Array<{ content: string }>;
     expect(employeeNotes).toHaveLength(1);
@@ -283,6 +296,7 @@ describe('Management notes (e2e)', () => {
     resolveMock.mockResolvedValue(resolution({ reportingLine: true }));
     const createRes = await request(app.getHttpServer())
       .post('/management-notes')
+      .set('Authorization', E2E_AUTH)
       .send({ subjectPersonId, content: 'Some note' })
       .expect(201);
     const noteId = (createRes.body as { id: string }).id;
@@ -291,10 +305,12 @@ describe('Management notes (e2e)', () => {
 
     await request(app.getHttpServer())
       .post('/management-notes')
+      .set('Authorization', E2E_AUTH)
       .send({ subjectPersonId, content: 'Self attempting to create' })
       .expect(403);
     await request(app.getHttpServer())
       .patch(`/management-notes/${noteId}`)
+      .set('Authorization', E2E_AUTH)
       .send({ content: 'Self attempting to edit' })
       .expect(403);
   });
@@ -307,6 +323,7 @@ describe('Management notes (e2e)', () => {
     resolveMock.mockResolvedValue(resolution({ reportingLine: true }));
     await request(app.getHttpServer())
       .post('/management-notes')
+      .set('Authorization', E2E_AUTH)
       .send({
         subjectPersonId,
         content: 'Visible to PM',
@@ -315,6 +332,7 @@ describe('Management notes (e2e)', () => {
       .expect(201);
     await request(app.getHttpServer())
       .post('/management-notes')
+      .set('Authorization', E2E_AUTH)
       .send({ subjectPersonId, content: 'Not visible to PM' })
       .expect(201);
 
@@ -325,6 +343,7 @@ describe('Management notes (e2e)', () => {
 
     const listRes = await request(app.getHttpServer())
       .get(`/management-notes?subjectPersonId=${subjectPersonId}`)
+      .set('Authorization', E2E_AUTH)
       .expect(200);
     const notes = listRes.body as Array<{ content: string }>;
     expect(notes).toHaveLength(1);
@@ -332,6 +351,7 @@ describe('Management notes (e2e)', () => {
 
     await request(app.getHttpServer())
       .post('/management-notes')
+      .set('Authorization', E2E_AUTH)
       .send({ subjectPersonId, content: 'PM attempting to create' })
       .expect(403);
   });
@@ -348,11 +368,13 @@ describe('Management notes (e2e)', () => {
 
     await request(app.getHttpServer())
       .post('/management-notes')
+      .set('Authorization', E2E_AUTH)
       .send({ subjectPersonId, content: 'Multi-path note' })
       .expect(201);
 
     const listRes = await request(app.getHttpServer())
       .get(`/management-notes?subjectPersonId=${subjectPersonId}`)
+      .set('Authorization', E2E_AUTH)
       .expect(200);
     expect((listRes.body as unknown[]).length).toBe(1);
   });
@@ -366,6 +388,7 @@ describe('Management notes (e2e)', () => {
 
     const createRes = await request(app.getHttpServer())
       .post('/management-notes')
+      .set('Authorization', E2E_AUTH)
       .send({ subjectPersonId, content: 'Original content' })
       .expect(201);
     const created = createRes.body as {
@@ -376,6 +399,7 @@ describe('Management notes (e2e)', () => {
 
     const updateRes = await request(app.getHttpServer())
       .patch(`/management-notes/${created.id}`)
+      .set('Authorization', E2E_AUTH)
       .send({ visibleForEmployee: true })
       .expect(200);
     const updated = updateRes.body as {
@@ -390,6 +414,7 @@ describe('Management notes (e2e)', () => {
     currentViewerId = subjectPersonId;
     const employeeListRes = await request(app.getHttpServer())
       .get(`/management-notes?subjectPersonId=${subjectPersonId}`)
+      .set('Authorization', E2E_AUTH)
       .expect(200);
     const employeeNotes = employeeListRes.body as Array<{ content: string }>;
     expect(employeeNotes).toHaveLength(1);
@@ -404,6 +429,7 @@ describe('Management notes (e2e)', () => {
     resolveMock.mockResolvedValue(resolution({ reportingLine: true }));
     const createRes = await request(app.getHttpServer())
       .post('/management-notes')
+      .set('Authorization', E2E_AUTH)
       .send({ subjectPersonId, content: 'Some note' })
       .expect(201);
     const noteId = (createRes.body as { id: string }).id;
@@ -413,13 +439,16 @@ describe('Management notes (e2e)', () => {
 
     await request(app.getHttpServer())
       .get(`/management-notes?subjectPersonId=${subjectPersonId}`)
+      .set('Authorization', E2E_AUTH)
       .expect(403);
     await request(app.getHttpServer())
       .post('/management-notes')
+      .set('Authorization', E2E_AUTH)
       .send({ subjectPersonId, content: 'Colleague attempting to create' })
       .expect(403);
     await request(app.getHttpServer())
       .patch(`/management-notes/${noteId}`)
+      .set('Authorization', E2E_AUTH)
       .send({ content: 'Colleague attempting to edit' })
       .expect(403);
   });

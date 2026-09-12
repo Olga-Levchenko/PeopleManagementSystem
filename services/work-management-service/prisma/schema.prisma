@@ -26,3 +26,32 @@ model ManagementNote {
 
   @@map("management_notes")
 }
+
+enum ActionItemStatus {
+  open
+  completed
+  cancelled
+}
+
+enum ActionItemSource {
+  manual
+  campaign
+}
+
+model ActionItem {
+  id               String           @id @default(uuid())
+  title            String
+  description      String?
+  assigneePersonId String
+  authorPersonId   String
+  dueDate          DateTime
+  linkUrl          String?
+  status           ActionItemStatus @default(open)
+  source           ActionItemSource @default(manual)
+  completionDate   DateTime?
+  cancelReason     String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@map("action_items")
+}

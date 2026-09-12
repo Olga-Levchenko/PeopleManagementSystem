@@ -9,6 +9,10 @@ import { AppModule } from '../src/app.module';
 import type { AccessRoleResolutionPort } from '../src/modules/management-notes/access-control-client';
 import { NO_ACCESS_RESOLUTION } from '../src/modules/management-notes/access-control-client';
 import { PrismaService } from '../src/prisma/prisma.service';
+import {
+  STORY_1_11_PERSON_ID,
+  createStory111IdentityResolutionStub,
+} from './support/e2e-auth.helpers';
 
 /**
  * Proves this service's own JWT guard end-to-end against a real, ephemeral Keycloak
@@ -72,6 +76,7 @@ describe('JWT guard (e2e)', () => {
       client_secret: CLIENT_SECRET,
       username: TEST_USERNAME,
       password: TEST_PASSWORD,
+      scope: 'openid people-service-audience',
     });
 
     const res = await fetch(
@@ -117,6 +122,52 @@ describe('JWT guard (e2e)', () => {
 
     const json = (await res.json()) as TokenResponse;
     return json.access_token;
+  }
+
+  async function configureDirectGrantClient(): Promise<void> {
+    const adminToken = await obtainAdminToken();
+    const clientsResponse = await fetch(
+      `${baseUrl}/admin/realms/${REALM}/clients?clientId=${CLIENT_ID}`,
+      {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      },
+    );
+    if (!clientsResponse.ok) {
+      throw new Error(
+        `Failed to find direct-grant client: ${clientsResponse.status} ${await clientsResponse.text()}`,
+      );
+    }
+
+    const clients = (await clientsResponse.json()) as Array<
+      Record<string, unknown>
+    >;
+    const client = clients[0];
+    const clientId = client?.id;
+    if (typeof clientId !== 'string') {
+      throw new Error('Direct-grant client was not imported into Keycloak.');
+    }
+
+    const updateResponse = await fetch(
+      `${baseUrl}/admin/realms/${REALM}/clients/${clientId}`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...client,
+          clientAuthenticatorType: 'client-secret',
+          directAccessGrantsEnabled: true,
+          secret: CLIENT_SECRET,
+        }),
+      },
+    );
+    if (!updateResponse.ok) {
+      throw new Error(
+        `Failed to configure direct-grant client: ${updateResponse.status} ${await updateResponse.text()}`,
+      );
+    }
   }
 
   /**
@@ -193,6 +244,7 @@ describe('JWT guard (e2e)', () => {
     const host =
       container.getHost() === 'localhost' ? '127.0.0.1' : container.getHost();
     baseUrl = `http://${host}:${container.getMappedPort(8080)}`;
+    await configureDirectGrantClient();
 
     // See the module-level comment: overriding ConfigService (rather than process.env) is what
     // actually gets the container's real KEYCLOAK_BASE_URL/KEYCLOAK_REALM into JwtStrategy.
@@ -207,6 +259,7 @@ describe('JWT guard (e2e)', () => {
       CORS_ORIGIN: 'http://localhost:4200',
       DATABASE_URL: 'postgresql://stub:stub@localhost:5432/stub',
       ACCESS_CONTROL_SERVICE_BASE_URL: 'http://stub-access-control:3007',
+      PEOPLE_SERVICE_BASE_URL: 'http://stub-people:3002',
     };
 
     resolveMock = jest.fn().mockResolvedValue(NO_ACCESS_RESOLUTION);
@@ -233,6 +286,8 @@ describe('JWT guard (e2e)', () => {
       .useValue(fakePrismaService())
       .overrideProvider('AccessRoleResolutionPort')
       .useValue(fakeAccessRoleResolution)
+      .overrideProvider('IdentityResolutionPort')
+      .useValue(createStory111IdentityResolutionStub())
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -283,11 +338,8 @@ describe('JWT guard (e2e)', () => {
     expect(resolveMock).not.toHaveBeenCalled();
   });
 
-  it('valid token: reaches the controller, actor id resolves, and fails at the access-role check -- not at authentication', async () => {
+  it('valid token: reaches the controller, RequestActorContext resolves, and fails at the access-role check -- not at authentication', async () => {
     const { access_token: accessToken } = await obtainToken();
-    const payload = JSON.parse(
-      Buffer.from(accessToken.split('.')[1], 'base64').toString('utf8'),
-    ) as { sub: string };
 
     // No qualifying line at all -- the fake resolver's default NO_ACCESS_RESOLUTION -- so the
     // request reaches ManagementNotesService.resolveAccess and is rejected there (403), proving
@@ -297,10 +349,13 @@ describe('JWT guard (e2e)', () => {
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(403);
 
-    // Not just "was called" -- proves the controller resolved *this* token's real sub claim as
-    // the viewer id, not some other value (e.g. a stale mock, an empty string that happened to
-    // still fail, or a swapped argument position).
-    expect(resolveMock).toHaveBeenCalledWith(payload.sub, SOME_SUBJECT_ID);
+    // Not just "was called" -- proves RequestActorContext mapped the token's Keycloak principal
+    // to the seeded platform Person.id, not the raw sub claim.
+    expect(resolveMock).toHaveBeenCalledWith(
+      STORY_1_11_PERSON_ID,
+      SOME_SUBJECT_ID,
+      accessToken,
+    );
   });
 
   it('malformed token: 401', async () => {

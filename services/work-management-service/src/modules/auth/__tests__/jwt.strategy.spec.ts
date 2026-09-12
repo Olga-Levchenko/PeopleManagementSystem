@@ -30,10 +30,11 @@ describe('JwtStrategy', () => {
     KEYCLOAK_REALM: 'people-management',
   });
 
-  it('returns exactly { sub }, discarding every other claim on the payload', () => {
+  it('returns exactly { sub, iss }, discarding every other claim on the payload', () => {
     const strategy = new JwtStrategy(config);
     const payload = {
       sub: 'a1b2c3-employee-id',
+      iss: 'http://localhost:8080/realms/people-management',
       email: 'story1-11.test-user@peoplemanagement.local',
       preferred_username: 'story1-11.test-user',
       realm_access: { roles: ['some-role'] },
@@ -42,22 +43,38 @@ describe('JwtStrategy', () => {
 
     const result = strategy.validate(payload);
 
-    expect(result).toEqual({ sub: 'a1b2c3-employee-id' });
-    expect(Object.keys(result)).toEqual(['sub']);
+    expect(result).toEqual({
+      sub: 'a1b2c3-employee-id',
+      iss: 'http://localhost:8080/realms/people-management',
+    });
+    expect(Object.keys(result)).toEqual(['sub', 'iss']);
   });
+
+  const validIss = 'http://localhost:8080/realms/people-management';
 
   it('rejects a payload with no sub claim', () => {
     const strategy = new JwtStrategy(config);
 
     expect(() =>
-      strategy.validate({ sub: undefined as unknown as string }),
+      strategy.validate({
+        sub: undefined as unknown as string,
+        iss: validIss,
+      }),
     ).toThrow(UnauthorizedException);
   });
 
   it('rejects a payload with a blank/whitespace-only sub claim', () => {
     const strategy = new JwtStrategy(config);
 
-    expect(() => strategy.validate({ sub: '   ' })).toThrow(
+    expect(() => strategy.validate({ sub: '   ', iss: validIss })).toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it('rejects a payload with no iss claim', () => {
+    const strategy = new JwtStrategy(config);
+
+    expect(() => strategy.validate({ sub: 'actor-id' })).toThrow(
       UnauthorizedException,
     );
   });
@@ -69,10 +86,16 @@ describe('JwtStrategy', () => {
     // number or object) -- calling .trim() on a non-string would throw an unhandled TypeError
     // (surfacing as a 500) instead of the clean, intentional 401 this guard is meant to produce.
     expect(() =>
-      strategy.validate({ sub: 12345 as unknown as string }),
+      strategy.validate({
+        sub: 12345 as unknown as string,
+        iss: validIss,
+      }),
     ).toThrow(UnauthorizedException);
     expect(() =>
-      strategy.validate({ sub: { nested: true } as unknown as string }),
+      strategy.validate({
+        sub: { nested: true } as unknown as string,
+        iss: validIss,
+      }),
     ).toThrow(UnauthorizedException);
   });
 

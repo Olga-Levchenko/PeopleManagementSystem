@@ -20,6 +20,7 @@ export const envValidationSchema = Joi.object({
   // failure/non-2xx fails closed to "no access" at the adapter, but a missing base URL must still
   // fail fast at startup, same reasoning as people-service's own ACCESS_CONTROL_SERVICE_BASE_URL.
   ACCESS_CONTROL_SERVICE_BASE_URL: Joi.string().uri().required(),
+  PEOPLE_SERVICE_BASE_URL: Joi.string().uri().required(),
   SERVICE_AUTH_PRIVATE_KEY_PATH: Joi.string().optional(),
   SERVICE_AUTH_KEY_ID: Joi.string().optional(),
   SERVICE_AUTH_SIGNING_ALG: Joi.string().valid('RS256').default('RS256'),

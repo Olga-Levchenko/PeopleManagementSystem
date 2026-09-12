@@ -108,6 +108,7 @@ Set-DotEnvIfEmpty (Join-Path $PeopleDir '.env') 'SERVICE_AUTH_PRIVATE_KEY_PATH' 
 Set-DotEnvIfEmpty (Join-Path $PeopleDir '.env') 'SERVICE_AUTH_KEY_ID' 'local-people-key'
 Set-DotEnvIfEmpty (Join-Path $NodeServiceDirs[2] '.env') 'SERVICE_AUTH_PRIVATE_KEY_PATH' (Convert-ToEnvPath $WorkManagementPem)
 Set-DotEnvIfEmpty (Join-Path $NodeServiceDirs[2] '.env') 'SERVICE_AUTH_KEY_ID' 'local-work-management-key'
+Set-DotEnvIfEmpty (Join-Path $NodeServiceDirs[2] '.env') 'PEOPLE_SERVICE_BASE_URL' 'http://localhost:3002'
 
 foreach ($libraryDir in @(
     (Join-Path $RepoRoot 'libs\config'),

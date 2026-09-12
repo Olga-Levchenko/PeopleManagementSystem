@@ -90,6 +90,15 @@ public sealed class FunctionalRolesApiContractTests : IAsyncLifetime
                             .RequireAuthenticatedUser()
                             .RequireClaim("azp", "people-service")
                             .RequireClaim("aud", "access-control-service"));
+                    options.AddPolicy(
+                        "AccessRoleResolutionJwt",
+                        policy => policy
+                            .AddAuthenticationSchemes(TestAuthenticationHandler.SchemeName)
+                            .RequireAuthenticatedUser()
+                            .RequireClaim("aud", "access-control-service")
+                            .RequireAssertion(context =>
+                                context.User.FindAll("azp").Any(claim =>
+                                    claim.Value is "people-service" or "work-management-service")));
                 });
             });
         });

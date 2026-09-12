@@ -2,8 +2,9 @@
 title: 'Story 3.1: Manual action item creation, scoped to creator''s access'
 type: 'feature'
 created: '2026-09-12'
-status: 'ready-for-dev'
+status: 'in-review'
 review_loop_iteration: 0
+baseline_commit: 'b2366512933206997d6d801ea233df68b2be67d7'
 context:
   - '{project-root}/.claude/rules/access-control-invariants.md'
   - '{project-root}/docs/access-control/section-matrix.md'
@@ -107,14 +108,14 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Prisma `ActionItem` model + migration
-- [ ] Identity-resolution port (`iss`+`sub` → platform `Person.id`)
-- [ ] Permissions-check port (ACS `POST /api/v1/permissions/check`)
-- [ ] `ActionItemsService` dual gate + create
-- [ ] `POST /action-items` controller (resolved `Person.id` as author)
-- [ ] Unit tests — all I/O matrix rows
-- [ ] E2E — create success + self-assign success + 403 out-of-scope + 403 permission-only (other assignee)
-- [ ] `deferred-work.md` — one line: BFF `action-items` proxy deferred (Story 1.7 precedent)
+- [x] Prisma `ActionItem` model + migration
+- [x] Identity-resolution port (`iss`+`sub` → platform `Person.id`)
+- [x] Permissions-check port (ACS `POST /api/v1/permissions/check`)
+- [x] `ActionItemsService` dual gate + create
+- [x] `POST /action-items` controller (resolved `Person.id` as author)
+- [x] Unit tests — all I/O matrix rows
+- [x] E2E — create success + self-assign success + 403 out-of-scope + 403 permission-only (other assignee)
+- [x] `deferred-work.md` — one line: BFF `action-items` proxy deferred (Story 1.7 precedent)
 
 **Acceptance Criteria:** (verbatim from `epics.md`, Epic 3 Story 3.1)
 - Given a UM/DM/PM/PP, or a role holding "create action items", when they create an action item for a person they hold Manager or PP access over, then the action item is created and assigned to that person
