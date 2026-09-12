@@ -720,3 +720,11 @@ photo on management profile UI — scoped in
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-1-manual-action-item-creation-scoped-to-creator-s-access.md`
   summary: Add a thin BFF proxy module for `action-items` (POST forwarding to `work-management-service`, mirroring the existing `management-notes` / `organisational-relationships` proxy pattern).
   evidence: Split from Story 3.1's scope note at planning — none of Story 3.1's acceptance criteria require going through the BFF; all are verifiable directly against `work-management-service`'s own API, matching Story 1.7's precedent for `management-notes`.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-2-campaign-generated-action-items.md`
+  summary: Wire a RabbitMQ consumer in `work-management-service` for `campaign-activated-event.v1` (broker publishing from Epic 11 campaigns activation).
+  evidence: Story 3.2 delivers the contract, idempotent processor, and in-process publisher only — mirror ACS `spec-1-1d` / deferred `spec-1-1e` broker wiring split.
+
+## Deferred from: code review of spec-3-2-campaign-generated-action-items (2026-09-12)
+
+- WMS e2e suites excluded from CI (`run_e2e` not set in `work-management-service-ci.yml`) — pre-existing gap shared with Story 3.1; enabling requires Testcontainers Postgres or equivalent CI database wiring.

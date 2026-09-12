@@ -13,6 +13,7 @@ import type { PermissionsCheckPort } from '../src/modules/action-items/permissio
 import type { IdentityResolutionPort } from '../src/modules/identity/identity-resolution.port';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { installJwtAuthGuardBypass } from './support/e2e-auth.helpers';
+import { resetActionItemE2eState } from './support/e2e-db.helpers';
 
 describe('Action items (e2e)', () => {
   jest.setTimeout(60_000);
@@ -89,10 +90,14 @@ describe('Action items (e2e)', () => {
     await app?.close();
   });
 
+  beforeEach(async () => {
+    await resetActionItemE2eState(prisma);
+  });
+
   afterEach(async () => {
     jest.clearAllMocks();
     permissionMock.mockResolvedValue(true);
-    await prisma.actionItem.deleteMany({});
+    await resetActionItemE2eState(prisma);
   });
 
   function resolution(
@@ -136,10 +141,11 @@ describe('Action items (e2e)', () => {
       'e2e-test-token',
     );
 
-    const row = await prisma.actionItem.findFirst({
-      where: { assigneePersonId: assigneeId },
+    const row = await prisma.actionItem.findUnique({
+      where: { id: body.id },
     });
     expect(row?.authorPersonId).toBe(viewerPersonId);
+    expect(row?.source).toBe('manual');
   });
 
   it('self-assign succeeds with permission only (no relationship resolve)', async () => {

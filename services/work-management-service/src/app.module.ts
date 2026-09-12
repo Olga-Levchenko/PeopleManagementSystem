@@ -7,6 +7,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 import { HealthModule } from './modules/health/health.module';
 import { ActionItemsModule } from './modules/action-items/action-items.module';
+import { CampaignActivationModule } from './modules/campaign-activation/campaign-activation.module';
 import { ManagementNotesModule } from './modules/management-notes/management-notes.module';
 import { PrismaModule } from './prisma/prisma.module';
 
@@ -21,6 +22,7 @@ import { PrismaModule } from './prisma/prisma.module';
     HealthModule,
     ManagementNotesModule,
     ActionItemsModule,
+    CampaignActivationModule,
   ],
   providers: [
     {
