@@ -2,9 +2,9 @@
 title: 'Story 2.9: Manager/PP read S4 and S9 on employee profile'
 type: 'feature'
 created: '2026-09-12'
-status: 'review'
+status: 'done'
 review_loop_iteration: 2
-baseline_commit: '84233ec'
+baseline_commit: '1e76c2b'
 context:
   - '{project-root}/.claude/rules/access-control-invariants.md'
   - '{project-root}/docs/access-control/section-matrix.md'
