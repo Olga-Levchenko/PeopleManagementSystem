@@ -709,3 +709,7 @@ Story 2.1 shipped in PR #65 (2026-09-10). Items below remain **open** follow-up 
 ## Deferred from: code review of spec-2-7 (2026-09-11)
 
 - Wire manager/PP S4/S9 from ACS `managerSectionAccess` / `peoplePartnerSectionAccess` instead of `NO_SECTION_ACCESS` hardcode — intentional 2.7 MVP scope; manager employment/timeline read is a future story.
+
+## Resolved: spec-2-6b review items → Story 2.10 (2026-09-12)
+
+Manager/PP read of `s3`/`s5` on profile GET (and manager certificate download) are **no longer deferred** — scoped in `_bmad-output/implementation-artifacts/spec-2-10-manager-pp-s3-s5-read-on-employee-profile.md`, depending on Story 2.6b models/upload infrastructure.
