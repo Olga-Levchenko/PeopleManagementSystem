@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
@@ -51,14 +51,6 @@ export const ProfileSelfServiceSection = ({
   )
   const displayedPhotoUrl = photoPreviewUrl ?? authenticatedPhotoUrl
 
-  useEffect(() => {
-    if (!photoPreviewUrl || photoRevision === 0 || !authenticatedPhotoUrl) {
-      return
-    }
-    URL.revokeObjectURL(photoPreviewUrl)
-    setPhotoPreviewUrl(null)
-  }, [authenticatedPhotoUrl, photoPreviewUrl, photoRevision])
-
   const refreshProfile = async () => {
     await queryClient.invalidateQueries({
       queryKey: employeeProfileQueryKey(personId),
@@ -104,6 +96,9 @@ export const ProfileSelfServiceSection = ({
       return
     }
 
+    if (photoPreviewUrl) {
+      URL.revokeObjectURL(photoPreviewUrl)
+    }
     const preview = URL.createObjectURL(file)
     setPhotoPreviewUrl(preview)
     setIsUploadingPhoto(true)

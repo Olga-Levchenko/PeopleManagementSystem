@@ -15,7 +15,6 @@ export const useAuthenticatedAssetUrl = (
 
   useEffect(() => {
     if (!relativeUrl) {
-      setBlobUrl(null)
       return
     }
 
@@ -46,8 +45,13 @@ export const useAuthenticatedAssetUrl = (
       if (activeObjectUrl) {
         URL.revokeObjectURL(activeObjectUrl)
       }
+      setBlobUrl(null)
     }
   }, [relativeUrl, revision])
+
+  if (!relativeUrl) {
+    return null
+  }
 
   return blobUrl
 }
