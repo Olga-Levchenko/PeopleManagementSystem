@@ -2,7 +2,7 @@
 title: 'Story 3.1: Manual action item creation, scoped to creator''s access'
 type: 'feature'
 created: '2026-09-12'
-status: 'in-review'
+status: 'done'
 review_loop_iteration: 0
 baseline_commit: 'b2366512933206997d6d801ea233df68b2be67d7'
 context:
