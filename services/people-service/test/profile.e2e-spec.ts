@@ -1040,7 +1040,7 @@ describe('Profile (e2e)', () => {
       .expect(404);
   });
 
-  it('Manager with S1 access can download gated photo but not S5 certificate until Story 2.10', async () => {
+  it('Reporting-line manager: profile GET includes s3/s5 and can download gated photo and certificate', async () => {
     const { subject, manager } = await seedSubject(
       { photoUrl: null },
       { seedRecords: false },
@@ -1060,6 +1060,15 @@ describe('Profile (e2e)', () => {
       })
       .expect(201);
 
+    const contactResponse = await request(app.getHttpServer())
+      .post(`/people/${subject.id}/profile/emergency-contacts`)
+      .send({
+        contactName: 'Emergency Person',
+        relationship: 'Sibling',
+        phone: '+380991111111',
+      })
+      .expect(201);
+
     const certResponse = await request(app.getHttpServer())
       .post(`/people/${subject.id}/profile/certificates`)
       .attach('file', MINIMAL_PDF, {
@@ -1068,6 +1077,7 @@ describe('Profile (e2e)', () => {
       })
       .expect(201);
 
+    const contactId = (contactResponse.body as { id: string }).id;
     const certificateId = (certResponse.body as { id: string }).id;
 
     currentViewerId = manager.id;
@@ -1077,13 +1087,34 @@ describe('Profile (e2e)', () => {
       managerSectionAccess: {
         s1: { level: 'ReadWrite' },
         s2: { level: 'Read' },
+        s3: { level: 'Read' },
         s4: { level: 'ReadWrite' },
+        s5: { level: 'Read' },
         s9: { level: 'ReadWrite' },
         s10: { level: 'Read' },
         s11: { level: 'Read' },
         s16: { level: 'ReadWrite' },
       },
     });
+
+    const profile = await request(app.getHttpServer())
+      .get(`/people/${subject.id}/profile`)
+      .expect(200);
+
+    const body = profile.body as {
+      s3: Array<{ id: string; contactName: string }>;
+      s5: Array<{ id: string; fileName: string }>;
+    };
+    expect(body.s3).toEqual([
+      {
+        id: contactId,
+        contactName: 'Emergency Person',
+        relationship: 'Sibling',
+        phone: '+380991111111',
+      },
+    ]);
+    expect(body.s5).toHaveLength(1);
+    expect(body.s5[0]).toMatchObject({ id: certificateId, fileName: 'cert.pdf' });
 
     await request(app.getHttpServer())
       .get(`/people/${subject.id}/profile/photo`)
@@ -1093,7 +1124,61 @@ describe('Profile (e2e)', () => {
       .get(
         `/people/${subject.id}/profile/certificates/${certificateId}/download`,
       )
-      .expect(404);
+      .expect(200);
+  });
+
+  it('Project-line-only manager: s3 absent and s5 present when ACS grants narrowed S5 read', async () => {
+    const { subject, manager } = await seedSubject(
+      { photoUrl: null },
+      { seedRecords: false },
+    );
+    currentViewerId = subject.id;
+    resolveMock.mockResolvedValue({
+      reportingLine: false,
+      projectLine: false,
+      managerSectionAccess: null,
+    });
+
+    await request(app.getHttpServer())
+      .post(`/people/${subject.id}/profile/emergency-contacts`)
+      .send({ contactName: 'Hidden Contact' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/people/${subject.id}/profile/certificates`)
+      .attach('file', MINIMAL_PDF, {
+        filename: 'project-line-cert.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(201);
+
+    currentViewerId = manager.id;
+    resolveMock.mockResolvedValue({
+      reportingLine: false,
+      projectLine: true,
+      managerSectionAccess: {
+        s1: { level: 'ReadWrite' },
+        s2: { level: 'None' },
+        s3: { level: 'None' },
+        s4: { level: 'ReadWrite' },
+        s5: { level: 'Read' },
+        s9: { level: 'ReadWrite' },
+        s10: { level: 'Read' },
+        s11: { level: 'Read' },
+        s16: { level: 'ReadWrite' },
+      },
+    });
+
+    const profile = await request(app.getHttpServer())
+      .get(`/people/${subject.id}/profile`)
+      .expect(200);
+
+    const keys = Object.keys(profile.body as object).sort();
+    expect(keys).not.toContain('s3');
+    expect((profile.body as { s5: Array<{ fileName: string }> }).s5).toHaveLength(1);
+    expect(
+      (profile.body as { s5: Array<{ fileName: string }> }).s5[0]?.fileName,
+    ).toBe('project-line-cert.pdf');
   });
 
   it('Colleague cannot download another person certificate bytes', async () => {

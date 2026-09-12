@@ -134,7 +134,9 @@ describe('deriveAudienceFromResolution', () => {
   const managerSectionAccessRw = {
     s1: { level: 'ReadWrite' as const },
     s2: { level: 'Read' as const },
+    s3: { level: 'Read' as const },
     s4: { level: 'ReadWrite' as const },
+    s5: { level: 'Read' as const },
     s6: { level: 'ReadWrite' as const },
     s9: { level: 'ReadWrite' as const },
     s10: { level: 'Read' as const },
@@ -153,7 +155,9 @@ describe('deriveAudienceFromResolution', () => {
       SUBJECT_ID,
     );
 
+    expect(audience.s3).toBe('Read');
     expect(audience.s4).toBe('ReadWrite');
+    expect(audience.s5).toBe('Read');
     expect(audience.s9).toBe('ReadWrite');
     expect(audience.s6).toBe('None');
     expect(audience.isColleague).toBe(false);
@@ -170,8 +174,50 @@ describe('deriveAudienceFromResolution', () => {
       SUBJECT_ID,
     );
 
+    expect(audience.s3).toBe('Read');
     expect(audience.s4).toBe('ReadWrite');
+    expect(audience.s5).toBe('Read');
     expect(audience.s9).toBe('ReadWrite');
+  });
+
+  it('project-line-only manager receives S5 but not S3 when ACS narrows project line', () => {
+    const audience = deriveAudienceFromResolution(
+      {
+        ...NEITHER_LINE_RESOLUTION,
+        projectLine: true,
+        managerSectionAccess: {
+          ...managerSectionAccessRw,
+          s2: { level: 'None' },
+          s3: { level: 'None' },
+          s5: { level: 'Read' },
+        },
+      },
+      VIEWER_ID,
+      SUBJECT_ID,
+    );
+
+    expect(audience.s3).toBe('None');
+    expect(audience.s5).toBe('Read');
+  });
+
+  it('reporting and project line together restore S3 via most-permissive merge', () => {
+    const audience = deriveAudienceFromResolution(
+      {
+        ...NEITHER_LINE_RESOLUTION,
+        reportingLine: true,
+        projectLine: true,
+        managerSectionAccess: {
+          ...managerSectionAccessRw,
+          s3: { level: 'Read' },
+          s5: { level: 'Read' },
+        },
+      },
+      VIEWER_ID,
+      SUBJECT_ID,
+    );
+
+    expect(audience.s3).toBe('Read');
+    expect(audience.s5).toBe('Read');
   });
 
   it('project-line-only manager still receives S4/S9 when ACS grants RW', () => {
