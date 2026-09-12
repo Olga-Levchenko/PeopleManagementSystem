@@ -20,6 +20,8 @@ Managers and people partners browse, filter, configure columns, edit inline, sav
 - Story 2.9: Manager/PP read S4 and S9 on employee profile — **done**
 - Story 2.10: Manager/PP read S3, S5, and S1 photo on employee profile — **done**
 
+**Retrospective (2026-09-12):** `epic-2-retro-09-12-2026.md` — verdict **accepted-with-open-items**; see sprint `action_items` epic 2.
+
 ## Requirements & Constraints
 
 - Any profile field may be a filter and column when the viewer's entitlements allow it; custom fields appear without deploy when HR Admin defines them.

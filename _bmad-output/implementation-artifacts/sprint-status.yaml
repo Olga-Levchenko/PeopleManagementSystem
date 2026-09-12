@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-30-2026 12:52
-last_updated: 09-12-2026 12:10
+last_updated: 09-12-2026 12:15
 project: PeopleManagementSystem
 project_key: NOKEY
 tracking_system: file-system
@@ -69,7 +69,7 @@ development_status:
   2-6b-s3-and-self-uploads: done  # Jira O4-169; PR #87 merged 2026-09-12
   2-9-manager-pp-s4-s9-on-employee-profile: done  # Jira O4-170; PR #85 merged 2026-09-12
   2-10-manager-pp-s3-s5-read-on-employee-profile: done  # Jira O4-171; PR #90 merged 2026-09-12
-  epic-2-retrospective: optional
+  epic-2-retrospective: done  # retro 09-12-2026; verdict accepted-with-open-items
 
   epic-3: backlog
   3-1-manual-action-item-creation-scoped-to-creator-s-access: backlog
@@ -407,3 +407,27 @@ action_items:
     action: "Fix UnavailableRelationshipPermissionAdapter to reject with 403 (ForbiddenException) instead of 401, matching its port contract (deferred-work.md)"
     owner: unassigned
     status: open
+  - epic: 2
+    id: epic-2-retro-item-1-integration-perf-test-500
+    action: "Add integration perf test: All Employees with real access-control-service batch resolve at 500+ subjects within 2s (Story 2.1 AC4)"
+    owner: team
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-09-12-2026.md"
+  - epic: 2
+    id: epic-2-retro-item-2-pp-fpa-s3-s5-e2e
+    action: "Add PP-line and FPA e2e for manager s3/s5 profile GET (Story 2.10 review gap)"
+    owner: team
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-09-12-2026.md"
+  - epic: 2
+    id: epic-2-retro-item-3-epic-done-bmad-gate
+    action: "BMAD gate: set epic-N done only when all epic story keys are done in sprint-status.yaml"
+    owner: process
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-09-12-2026.md"
+  - epic: 2
+    id: epic-2-retro-item-4-s5-filter-epic-16
+    action: "When Epic 16 adds non-certificate S5 types, filter toS5 by ACS project-line restriction"
+    owner: Epic 16
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-09-12-2026.md"
