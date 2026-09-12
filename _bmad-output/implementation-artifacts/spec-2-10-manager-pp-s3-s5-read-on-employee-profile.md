@@ -2,9 +2,9 @@
 title: 'Story 2.10: Manager/PP read S3, S5, and S1 photo on employee profile'
 type: 'feature'
 created: '2026-09-12'
-status: 'in-review'
+status: 'done'
 review_loop_iteration: 2
-baseline_commit: 'e91a841'
+baseline_commit: 'ae53096'
 context:
   - '{project-root}/.claude/rules/access-control-invariants.md'
   - '{project-root}/docs/access-control/section-matrix.md'
