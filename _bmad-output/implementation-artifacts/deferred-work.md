@@ -688,28 +688,30 @@ Story 2.1 shipped in PR #65 (2026-09-10). Items below remain **open** follow-up 
   summary: Playwright e2e asserting Export button hidden when `listAudienceLevel=colleague`.
   evidence: bmad-code-review 2026-09-11; interim UI gate; full colleague lockout deferred to Story 2.5.
 
-## Deferred from: bmad-build scope split for Story 2.6 (2026-09-11)
+## Resolved: Story 2.6 split → Story 2.6b (2026-09-12)
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-2-6-self-managed-personal-data.md`
-  summary: S3 emergency contacts self-edit (schema, API, and profile UI) — employee-maintained emergency contact records per section matrix.
-  evidence: Epic 2.6 AC and `epics.md` include S3 writes; no S3 model or profile assembly exists in people-service today. MVP scoped to stored S2 fields only.
+The following items from the 2026-09-11 Story 2.6 scope split are **no longer deferred** — owned by
+`_bmad-output/implementation-artifacts/spec-2-6b-s3-and-self-uploads.md` (Jira O4-169):
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-2-6-self-managed-personal-data.md`
-  summary: Employee photo upload and attachment to own `photoUrl` / S1 identity card.
-  evidence: Epic 2.6 AC requires photo upload; `Person.photoUrl` is read-only storage with no upload pipeline in repo. Not owned by another story.
+- S3 emergency contacts self-edit (schema, API, profile UI)
+- Employee photo upload and attachment to own `photoUrl` / S1 identity card
+- Employee certificate upload and attachment to own record (S5 certificates slice)
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-2-6-self-managed-personal-data.md`
-  summary: Employee certificate upload and attachment to own record (S5 CV/certificates slice).
-  evidence: Epic 2.6 AC requires certificate upload; no certificate storage or upload API found in people-service. Distinct from S2 self-edit MVP.
+## Deferred from: bmad-build scope split for Story 2.6 (2026-09-11) — remaining
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-6-self-managed-personal-data.md`
   summary: S2 fields beyond current Prisma columns — messengers and current place of stay — once modeled and exposed in `GET /profile` `s2`.
   evidence: `section-matrix.md` S2 lists messengers and place of stay; `toS2()` and `Person` only implement `personalPhone`, `personalEmail`, `residentialAddress`.
 
-## Deferred from: code review of spec-2-7 (2026-09-11)
+## Resolved: spec-2-7 review → Story 2.9 (2026-09-12)
 
-- Wire manager/PP S4/S9 from ACS `managerSectionAccess` / `peoplePartnerSectionAccess` instead of `NO_SECTION_ACCESS` hardcode — intentional 2.7 MVP scope; manager employment/timeline read is a future story.
+Wire manager/PP S4/S9 from ACS `managerSectionAccess` / `peoplePartnerSectionAccess` instead of
+`NO_SECTION_ACCESS` hardcode — scoped in
+`_bmad-output/implementation-artifacts/spec-2-9-manager-pp-s4-s9-on-employee-profile.md` (Jira
+O4-170).
 
-## Resolved: spec-2-6b review items → Story 2.10 (2026-09-12)
+## Resolved: spec-2-6b review → Story 2.10 (2026-09-12)
 
-Manager/PP read of `s3`/`s5` on profile GET (and manager certificate download) are **no longer deferred** — scoped in `_bmad-output/implementation-artifacts/spec-2-10-manager-pp-s3-s5-read-on-employee-profile.md`, depending on Story 2.6b models/upload infrastructure.
+Manager/PP read of `s3`/`s5` on profile GET (and manager certificate download) — scoped in
+`_bmad-output/implementation-artifacts/spec-2-10-manager-pp-s3-s5-read-on-employee-profile.md`
+(Jira O4-171), depending on Story 2.6b models/upload infrastructure.
