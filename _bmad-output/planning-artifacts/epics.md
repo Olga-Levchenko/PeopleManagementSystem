@@ -1220,6 +1220,10 @@ given person
 **Then** the request is rejected — the permission never widens access beyond the holder's access
 role (Story 1.4)
 
+**Given** a holder of "create action items"
+**When** they create an action item with `assigneePersonId` equal to their own person id
+**Then** the action item is created (permission gate only; PRD UJ-2)
+
 ### Story 3.2: Campaign-generated action items
 
 As a campaign creator,
