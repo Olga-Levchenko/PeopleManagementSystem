@@ -8,3 +8,5 @@ uv run {skill-root}/scripts/sprint_plan.py validate \
 ```
 
 Never writes; exits 0 whether valid or not. Report `valid` in one line. If `problems` is non-empty, list them plainly (each names the key or field at fault) and offer the fix flow (`fix-sprint-status.md`). If `legacy_mapped` is non-empty, note the file still uses v6 status names and that any regenerate will rewrite them to the modern vocabulary — progress is preserved either way.
+
+**Epic-done gate:** `epic-N: done` is only valid when every `N-*` story key in `development_status` is `done`. A premature epic completion (e.g. before split stories land) fails validation and surfaces as a risk in the status view.

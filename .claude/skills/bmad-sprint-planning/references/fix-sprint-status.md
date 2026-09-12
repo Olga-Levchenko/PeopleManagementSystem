@@ -10,7 +10,7 @@ Rebuild `sprint-status.yaml` to a pristine, script-valid state when it is broken
    - **Code evidence** — git history and the codebase: commits or merged work referencing story keys are evidence a story is done or in progress
    - **The current file** — salvage everything credible from the existing `sprint-status.yaml`, especially `action_items`, even when its structure is broken
 
-3. **Reconcile into one proposed state.** Merge the evidence into a single table: key → proposed status, evidence, and anything uncertain. When evidence conflicts or is thin, prefer the lower status and flag it — a false `done` costs more than a false `in-progress`.
+3. **Reconcile into one proposed state.** Merge the evidence into a single table: key → proposed status, evidence, and anything uncertain. When evidence conflicts or is thin, prefer the lower status and flag it — a false `done` costs more than a false `in-progress`. **`epic-N` may be `done` only when every `N-*` story key is `done`** — `validate` enforces this; downgrade a premature epic before writing.
 
 4. **Confirm with `{user_name}`.** Show the table. Highlight every entry that differs from the current file — especially downgrades — and every low-confidence call. Adjust to their corrections. Headless: halt with `blocked` instead of confirming.
 

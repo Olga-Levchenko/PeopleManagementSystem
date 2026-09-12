@@ -218,6 +218,7 @@ Detect stale or contradictory states. For each mismatch, emit one row with:
 | Dependency done in code, backlog in YAML | predecessor merged but status not updated |
 | Merged PR not reflected | PR merged to main, story still `in-progress` |
 | Deleted/renamed story keys | key in `sprint-status.yaml` with no matching `spec-*.md` or epic entry |
+| Epic done before all stories | `epic-N: done` while any `N-*` story is not `done` (run `bmad-sprint-planning` validate) |
 | Parallel branch artifact drift | same story key updated differently on two branches |
 
 Do **not** edit artifacts. Present proposed corrections for human approval.

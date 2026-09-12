@@ -19,7 +19,8 @@ Subcommands:
             items, and the next recommended action. No writes.
   validate  Report whether an existing status file is structurally valid:
             parseable, recognized keys, legal statuses, well-formed
-            action_items. No writes; exit 0 whether valid or not.
+            action_items, and epic-done consistency (epic-N done only when
+            every N-* story is done). No writes; exit 0 whether valid or not.
 
 The LLM decides *which* files are epics (discovery is judgment); this script
 owns everything after that decision: parsing, key derivation, ordering, status
@@ -154,6 +155,40 @@ def classify_key(key):
     if m:
         return "story", int(m.group(1))
     return None
+
+
+def _epic_done_gate_violations(dev):
+    """Return problems when epic-N is done but a story under N is not."""
+    if not isinstance(dev, dict):
+        return []
+    epic_status = {}
+    stories_by_epic = {}
+    for key, raw in dev.items():
+        key = str(key)
+        parsed = classify_key(key)
+        if parsed is None:
+            continue
+        kind, epic_num = parsed
+        status, _ = _normalize(raw)
+        if kind == "epic":
+            epic_status[epic_num] = status
+        elif kind == "story":
+            stories_by_epic.setdefault(epic_num, []).append((key, status))
+    violations = []
+    for epic_num, status in epic_status.items():
+        if status != "done":
+            continue
+        pending = sorted(
+            (key, story_status)
+            for key, story_status in stories_by_epic.get(epic_num, [])
+            if story_status != "done"
+        )
+        if pending:
+            detail = ", ".join(f"{key} ({story_status})" for key, story_status in pending)
+            violations.append(
+                f"epic-{epic_num} is done but {len(pending)} story(ies) are not done: {detail}"
+            )
+    return violations
 
 
 def _story_sort_key(key):
@@ -560,6 +595,8 @@ def cmd_status(args):
         risks.append(f"{len(by_status['review'])} story(ies) in review — run bmad-code-review")
     if unrecognized:
         risks.append(f"{len(unrecognized)} unrecognized key(s) in development_status — run validate")
+    for msg in _epic_done_gate_violations(dev):
+        risks.append(msg)
 
     recommendation = None
     if by_status.get("in-progress"):
@@ -638,6 +675,7 @@ def cmd_validate(args):
                     legacy_mapped.append({"key": str(key), "from": raw, "to": status})
                 if status not in RANKS[kind]:
                     problems.append(f"illegal {kind} status {str(raw)!r} on '{key}'")
+            problems.extend(_epic_done_gate_violations(dev))
         elif isinstance(data.get("development_status"), dict):
             problems.append("development_status is empty")
         items = data.get("action_items")
