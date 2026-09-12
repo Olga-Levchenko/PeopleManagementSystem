@@ -2,7 +2,7 @@
 title: 'Story 3.2: Campaign-generated action items'
 type: 'feature'
 created: '2026-09-12'
-status: 'in-progress'
+status: 'done'
 review_loop_iteration: 0
 baseline_commit: 'ba3305d2933206997d6d801ea233df68b2be67d7'
 context:
