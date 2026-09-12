@@ -42,7 +42,7 @@ const managementProfile = {
   isSelf: false,
   s1: {
     fullName: 'Report Person',
-    photoUrl: null,
+    photoUrl: '/api/v1/people/33333333-3333-4333-8333-333333333333/profile/photo',
     position: 'Senior Engineer',
     department: { id: 'dept-2', name: 'Engineering' },
     countryCity: 'Lviv',
@@ -87,6 +87,23 @@ const managementProfile = {
       summary: 'Promoted to L5',
     },
   ],
+  s3: [
+    {
+      id: 'ec-mgmt-1',
+      contactName: 'Emergency Contact',
+      relationship: 'Parent',
+      phone: '+380000000003',
+    },
+  ],
+  s5: [
+    {
+      id: 'cert-mgmt-1',
+      fileName: 'aws-sa.pdf',
+      uploadedAt: '2025-06-01T00:00:00.000Z',
+      downloadUrl:
+        '/api/v1/people/33333333-3333-4333-8333-333333333333/profile/certificates/cert-mgmt-1/download',
+    },
+  ],
   s16: [{ fieldId: 'cf-1', name: 'Certification', value: 'AWS SA' }],
 }
 
@@ -118,13 +135,20 @@ test.describe('All Employees management profile navigation', () => {
       }),
     )
 
-    await page.route(`**/api/v1/people/${subjectPersonId}/profile**`, route =>
-      route.fulfill({
+    await page.route(`**/api/v1/people/${subjectPersonId}/profile**`, route => {
+      if (route.request().url().includes('/profile/photo')) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'image/jpeg',
+          body: Buffer.from('fake-image'),
+        })
+      }
+      return route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(managementProfile),
-      }),
-    )
+      })
+    })
   })
 
   test('opens employee profile with management-tier sections from row click', async ({ page }) => {
@@ -148,5 +172,14 @@ test.describe('All Employees management profile navigation', () => {
       .locator('section')
       .filter({ has: page.getByRole('heading', { name: 'Personal contacts' }) })
     await expect(personalContactsSection.getByRole('button')).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Emergency contacts' })).toBeVisible()
+    await expect(page.getByText('Emergency Contact', { exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Certificates' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'aws-sa.pdf' })).toBeVisible()
+    await expect(page.getByTestId('management-profile-photo')).toBeVisible()
+    const emergencySection = page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { name: 'Emergency contacts' }) })
+    await expect(emergencySection.getByRole('button')).toHaveCount(0)
   })
 })

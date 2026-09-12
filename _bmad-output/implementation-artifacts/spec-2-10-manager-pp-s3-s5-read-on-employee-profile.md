@@ -2,9 +2,9 @@
 title: 'Story 2.10: Manager/PP read S3, S5, and S1 photo on employee profile'
 type: 'feature'
 created: '2026-09-12'
-status: 'ready-for-dev'
+status: 'in-review'
 review_loop_iteration: 2
-baseline_commit: '84233ec'
+baseline_commit: 'e91a841'
 context:
   - '{project-root}/.claude/rules/access-control-invariants.md'
   - '{project-root}/docs/access-control/section-matrix.md'
@@ -81,13 +81,13 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `profile-audience.util.ts` — wire manager/PP `s3`/`s5` levels (replace 2.6b placeholder)
-- [ ] `profile.service.ts` — manager assembly + cert download gate for `s5` read
-- [ ] Unit tests — audience util + profile.service (incl. project-line-only S3 absent)
-- [ ] E2E — manager profile includes s3/s5 when ACS grants access
-- [ ] Playwright — management profile shows Emergency Contacts / Certificates when present
-- [ ] Frontend — read-only S1 photo on management profile when `s1.photoUrl` present
-- [ ] `section-matrix.md` — coverage trace update
+- [x] `profile-audience.util.ts` — wire manager/PP `s3`/`s5` levels (replace 2.6b placeholder)
+- [x] `profile.service.ts` — manager assembly + cert download gate for `s5` read
+- [x] Unit tests — audience util + profile.service (incl. project-line-only S3 absent)
+- [x] E2E — manager profile includes s3/s5 when ACS grants access
+- [x] Playwright — management profile shows Emergency Contacts / Certificates when present
+- [x] Frontend — read-only S1 photo on management profile when `s1.photoUrl` present
+- [x] `section-matrix.md` — coverage trace update
 
 **Acceptance Criteria:**
 - Given a manager with Reporting-line access over a subject, when they GET that subject's profile, then `s3` is present when ACS `s3` level is Read or ReadWrite

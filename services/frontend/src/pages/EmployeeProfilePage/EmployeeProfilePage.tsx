@@ -4,7 +4,9 @@ import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useEmployeeProfile } from '@/api/hooks/useEmployeeProfile'
 import { usePatchProfileField } from '@/api/hooks/usePatchProfileField'
+import { useAuthenticatedAssetUrl } from '@/pages/EmployeeProfilePage/hooks/useAuthenticatedAssetUrl'
 import { ProfileInlineEditableField } from './ProfileInlineEditableField'
+import { ProfileManagementReadOnlySection } from './ProfileManagementReadOnlySection'
 import { ProfileSelfServiceSection } from './ProfileSelfServiceSection'
 
 const formatDate = (value: string | null | undefined): string => {
@@ -34,6 +36,18 @@ export const EmployeeProfilePage = () => {
   const [liveMessage, setLiveMessage] = useState('')
 
   const isSelfProfile = profileQuery.data?.isSelf === true
+  const isManagementProfile =
+    !isSelfProfile &&
+    Boolean(
+      profileQuery.data?.s2 ||
+        profileQuery.data?.s3 ||
+        profileQuery.data?.s4 ||
+        profileQuery.data?.s5 ||
+        profileQuery.data?.s9,
+    )
+  const managementPhotoUrl = useAuthenticatedAssetUrl(
+    isManagementProfile ? profileQuery.data?.s1?.photoUrl : null,
+  )
 
   const saveS2Field = async (fieldKey: S2FieldKey, value: unknown) => {
     try {
@@ -59,7 +73,16 @@ export const EmployeeProfilePage = () => {
       </div>
 
       <div className="flex items-center gap-3">
-        <User className="h-6 w-6 text-primary" />
+        {isManagementProfile && profileQuery.data?.s1?.photoUrl && managementPhotoUrl ? (
+          <img
+            src={managementPhotoUrl}
+            alt=""
+            data-testid="management-profile-photo"
+            className="h-12 w-12 shrink-0 rounded-full object-cover"
+          />
+        ) : (
+          <User className="h-6 w-6 text-primary" />
+        )}
         <div>
           <h1 className="text-2xl font-semibold text-foreground">
             {profileQuery.data?.s1?.fullName ?? t('employeeProfile.title')}
@@ -195,6 +218,10 @@ export const EmployeeProfilePage = () => {
 
           {isSelfProfile && profileQuery.data && personId && (
             <ProfileSelfServiceSection personId={personId} profile={profileQuery.data} />
+          )}
+
+          {isManagementProfile && profileQuery.data && (
+            <ProfileManagementReadOnlySection profile={profileQuery.data} />
           )}
 
           {profileQuery.data?.s2 && (

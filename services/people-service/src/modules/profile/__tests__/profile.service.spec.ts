@@ -33,7 +33,9 @@ const SELF_PROFILE_KEYS = [
 const MANAGER_SECTION_ACCESS_WITH_S4_S9 = {
   s1: { level: 'ReadWrite' },
   s2: { level: 'Read' },
+  s3: { level: 'Read' },
   s4: { level: 'ReadWrite' },
+  s5: { level: 'Read' },
   s9: { level: 'ReadWrite' },
   s10: { level: 'Read' },
   s11: { level: 'Read' },
@@ -87,8 +89,21 @@ const FULL_PERSON_ROW = {
       summary: 'Joined the company',
     },
   ],
-  emergencyContacts: [],
-  personCertificates: [],
+  emergencyContacts: [
+    {
+      id: 'ec-00000000-0000-4000-8000-000000000001',
+      contactName: 'Emergency Contact',
+      relationship: 'Spouse',
+      phone: '+380000000099',
+    },
+  ],
+  personCertificates: [
+    {
+      id: 'cert-00000000-0000-4000-8000-000000000001',
+      fileName: 'aws-sa.pdf',
+      uploadedAt: new Date('2025-06-01T00:00:00.000Z'),
+    },
+  ],
   customFieldValues: [
     {
       value: 'mgmt-value',
@@ -251,9 +266,24 @@ describe('ProfileService', () => {
       's11',
       's16',
       's2',
+      's3',
       's4',
+      's5',
       's9',
     ]);
+    expect(result.s3).toEqual([
+      {
+        id: 'ec-00000000-0000-4000-8000-000000000001',
+        contactName: 'Emergency Contact',
+        relationship: 'Spouse',
+        phone: '+380000000099',
+      },
+    ]);
+    expect(result.s5).toHaveLength(1);
+    expect(result.s5![0]).toMatchObject({
+      id: 'cert-00000000-0000-4000-8000-000000000001',
+      fileName: 'aws-sa.pdf',
+    });
     expect(result.s4).toMatchObject({
       employmentType: 'FTE',
       grade: 'L5',
@@ -275,14 +305,16 @@ describe('ProfileService', () => {
     expect(s16FieldIds).toContain(COLLEAGUE_FIELD_ID);
   });
 
-  it('Project line only, narrowed: s2.level None -> s1+s10+s11+s16 present with full data, s2 key absent', async () => {
+  it('Project line only, narrowed: s2/s3 None, s5 Read -> s1+s5+s10+s11+s16+s4+s9 present, s2/s3 absent', async () => {
     const resolve = jest.fn().mockResolvedValue({
       reportingLine: false,
       projectLine: true,
       managerSectionAccess: {
         s1: { level: 'ReadWrite' },
         s2: { level: 'None' },
+        s3: { level: 'None' },
         s4: { level: 'ReadWrite' },
+        s5: { level: 'Read' },
         s9: { level: 'ReadWrite' },
         s10: { level: 'Read' },
         s11: { level: 'Read' },
@@ -300,8 +332,11 @@ describe('ProfileService', () => {
       's11',
       's16',
       's4',
+      's5',
       's9',
     ]);
+    expect(result).not.toHaveProperty('s3');
+    expect(result.s5).toHaveLength(1);
     expect(result.s2).toBeUndefined();
     // Project-line viewer is NOT a colleague (isColleague: false) so gets full S10/S11 data
     expect(result.s10![0]).toHaveProperty('leaveType', 'vacation');
@@ -329,7 +364,9 @@ describe('ProfileService', () => {
       's11',
       's16',
     ]);
+    expect(result).not.toHaveProperty('s3');
     expect(result).not.toHaveProperty('s4');
+    expect(result).not.toHaveProperty('s5');
     expect(result).not.toHaveProperty('s9');
     expect(result.s2).toBeUndefined();
     expect(result.s1?.manager).toEqual(FULL_PERSON_ROW.manager);
