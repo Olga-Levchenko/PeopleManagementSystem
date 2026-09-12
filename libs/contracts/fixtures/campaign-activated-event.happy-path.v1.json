@@ -1,0 +1,21 @@
+{
+  "eventId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "schemaVersion": 1,
+  "occurredAtUtc": "2026-09-12T10:00:00.000Z",
+  "source": {
+    "service": "work-management-service",
+    "aggregateType": "campaign",
+    "aggregateId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    "aggregateVersion": 1
+  },
+  "campaignId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  "title": "Quarterly security training",
+  "description": "Complete the external form before the due date.",
+  "linkUrl": "https://forms.example.test/security-q3",
+  "dueDate": "2026-10-01T00:00:00.000Z",
+  "authorPersonId": "cccccccc-0000-0000-0000-000000000006",
+  "recipientPersonIds": [
+    "cccccccc-0000-0000-0000-00000000000b",
+    "cccccccc-0000-0000-0000-00000000000c"
+  ]
+}

@@ -46,13 +46,19 @@ jobs:
           node-version: 24
 
       - name: Install shared contracts dependencies
-        if: steps.scaffolded.outputs.present == 'true' && inputs.service_path == 'services/people-service'
+        if: >-
+          steps.scaffolded.outputs.present == 'true' &&
+          (inputs.service_path == 'services/people-service' ||
+          inputs.service_path == 'services/work-management-service')
         working-directory: libs/contracts
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
       - name: Build shared contracts
-        if: steps.scaffolded.outputs.present == 'true' && inputs.service_path == 'services/people-service'
+        if: >-
+          steps.scaffolded.outputs.present == 'true' &&
+          (inputs.service_path == 'services/people-service' ||
+          inputs.service_path == 'services/work-management-service')
         working-directory: libs/contracts
         run: npm run build
 

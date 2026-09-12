@@ -4,6 +4,7 @@
     "^(\\.{1,2}/.*)\\.js$": "$1"
   },
   "rootDir": ".",
+  "maxWorkers": 1,
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
   "setupFiles": ["<rootDir>/jest-e2e-setup.ts"],

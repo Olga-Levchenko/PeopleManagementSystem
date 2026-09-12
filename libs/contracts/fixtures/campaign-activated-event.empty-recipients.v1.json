@@ -1,0 +1,17 @@
+{
+  "eventId": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+  "schemaVersion": 1,
+  "occurredAtUtc": "2026-09-12T11:00:00.000Z",
+  "source": {
+    "service": "work-management-service",
+    "aggregateType": "campaign",
+    "aggregateId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+    "aggregateVersion": 1
+  },
+  "campaignId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+  "title": "Empty audience campaign",
+  "linkUrl": "https://forms.example.test/empty",
+  "dueDate": "2026-10-15T00:00:00.000Z",
+  "authorPersonId": "cccccccc-0000-0000-0000-000000000006",
+  "recipientPersonIds": []
+}

@@ -46,6 +46,7 @@ model ActionItem {
   authorPersonId   String
   dueDate          DateTime
   linkUrl          String?
+  campaignId       String?
   status           ActionItemStatus @default(open)
   source           ActionItemSource @default(manual)
   completionDate   DateTime?
@@ -53,5 +54,13 @@ model ActionItem {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
+  @@unique([campaignId, assigneePersonId])
   @@map("action_items")
+}
+
+model ProcessedCampaignActivationEvent {
+  eventId     String   @id
+  processedAt DateTime @default(now())
+
+  @@map("processed_campaign_activation_events")
 }

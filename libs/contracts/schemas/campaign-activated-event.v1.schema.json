@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://people-management.example/contracts/campaign-activated-event.v1.schema.json",
+  "title": "CampaignActivatedEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "eventId",
+    "schemaVersion",
+    "occurredAtUtc",
+    "source",
+    "campaignId",
+    "title",
+    "linkUrl",
+    "dueDate",
+    "authorPersonId",
+    "recipientPersonIds"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "occurredAtUtc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "service",
+        "aggregateType",
+        "aggregateId",
+        "aggregateVersion"
+      ],
+      "properties": {
+        "service": {
+          "const": "work-management-service"
+        },
+        "aggregateType": {
+          "const": "campaign"
+        },
+        "aggregateId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "aggregateVersion": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "campaignId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "pattern": ".*\\S.*"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 10000
+    },
+    "linkUrl": {
+      "type": "string",
+      "format": "uri",
+      "maxLength": 2048
+    },
+    "dueDate": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "authorPersonId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "recipientPersonIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uuid"
+      }
+    }
+  }
+}

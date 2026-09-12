@@ -8,6 +8,12 @@ The package is consumed locally by Node services through a `file:` dependency.
 and representative fixtures. Changes within v1 must be additive. A breaking wire change requires a
 new schema version and package version.
 
+`CampaignActivatedEvent` follows the same pattern for campaign activation in
+`work-management-service`: schema
+[`campaign-activated-event.v1.schema.json`](schemas/campaign-activated-event.v1.schema.json),
+fixtures under `fixtures/campaign-activated-event.*.v1.json`, and runtime validation via
+`validateCampaignActivatedEvent()` exported from the package entry point.
+
 ## Future .NET verification
 
 The future Access Control consumer should check out this package's v1 schema and fixtures in its
