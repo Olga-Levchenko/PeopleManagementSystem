@@ -11,7 +11,7 @@ Managers and people partners create action items for people in their access scop
 - Story 3.1: Manual action item creation, scoped to creator's access — **done**
 - Story 3.2: Campaign-generated action items — **done**
 - Story 3.3: Action item lifecycle and overdue display — **done**
-- Story 3.4: Self-complete action item
+- Story 3.4: Self-complete action item — **done**
 
 ## Requirements & Constraints
 
