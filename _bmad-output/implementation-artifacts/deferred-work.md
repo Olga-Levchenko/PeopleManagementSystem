@@ -712,6 +712,7 @@ O4-170).
 
 ## Resolved: spec-2-6b review → Story 2.10 (2026-09-12)
 
-Manager/PP read of `s3`/`s5` on profile GET (and manager certificate download) — scoped in
+Manager/PP read of `s3`/`s5` on profile GET (and manager certificate download), plus read-only S1
+photo on management profile UI — scoped in
 `_bmad-output/implementation-artifacts/spec-2-10-manager-pp-s3-s5-read-on-employee-profile.md`
 (Jira O4-171), depending on Story 2.6b models/upload infrastructure.

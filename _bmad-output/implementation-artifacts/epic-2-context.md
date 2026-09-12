@@ -18,7 +18,7 @@ Managers and people partners browse, filter, configure columns, edit inline, sav
 - Story 2.7: Self-read of managed data and never own risk level — **done**
 - Story 2.6b: S3 emergency contacts and self uploads (photo + certificates) — **done**
 - Story 2.9: Manager/PP read S4 and S9 on employee profile — **done**
-- Story 2.10: Manager/PP read S3 and S5 on employee profile — **ready-for-dev** (depends on 2.6b)
+- Story 2.10: Manager/PP read S3, S5, and S1 photo on employee profile — **ready-for-dev** (depends on 2.6b)
 
 ## Requirements & Constraints
 
@@ -50,4 +50,4 @@ Managers and people partners browse, filter, configure columns, edit inline, sav
 - **2.3–2.5** extend the same All Employees component — sequential delivery recommended to avoid merge conflicts.
 - **2.8** depends on **2.5** (done — colleague row-click route exists); delivers management row-click + unified `EmployeeProfilePage` shell. Recommended before **2.6–2.7** so managers can browse profiles from the list.
 - **2.6–2.7** are self-service on the profile page and can parallelize once **2.8** lands the shared profile route component.
-- **2.6b** extends self-service (S3 + uploads); **2.9** wires manager S4/S9 read; **2.10** wires manager S3/S5 read after **2.6b** lands models/download routes.
+- **2.6b** extends self-service (S3 + uploads); **2.9** wires manager S4/S9 read; **2.10** wires manager S3/S5 read and S1 photo display on management profile after **2.6b** lands models/download routes.

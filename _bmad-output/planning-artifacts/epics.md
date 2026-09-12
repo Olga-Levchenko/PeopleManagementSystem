@@ -935,7 +935,7 @@ after 2.5); Stories 2.6-2.7 are a separate self-service surface on the shared pr
 can be built in parallel by a second developer once 2.8 lands the Employee Profile shell, since
 both chains depend on Epic 1 having cleared its exit gate. **Follow-ups (2026-09-12):** Story
 **2.6b** completes the Story 2.6 / FR-13 split (S3 + uploads); **2.9** wires manager/PP S4/S9 read;
-**2.10** wires manager/PP S3/S5 read after 2.6b.
+**2.10** wires manager/PP S3/S5 read and S1 photo display on management profile after 2.6b.
 
 ### Story 2.1: Universal filter/column engine over profile fields
 
@@ -1164,10 +1164,10 @@ So that the management profile view matches the section matrix without client-si
 **Specification:** `_bmad-output/implementation-artifacts/spec-2-9-manager-pp-s4-s9-on-employee-profile.md`
 (Jira O4-170)
 
-### Story 2.10: Manager/PP read S3 and S5 on employee profile
+### Story 2.10: Manager/PP read S3, S5, and S1 photo on employee profile
 
 As a manager or PP browsing an employee's profile,
-I want to read emergency contacts (S3) and certificates (S5) when the section matrix entitles me,
+I want to read emergency contacts (S3), certificates (S5), and the subject's profile photo (S1) when the section matrix entitles me,
 So that manager profile read parity is complete after self-service uploads land in Story 2.6b.
 
 **Acceptance Criteria:**
@@ -1183,6 +1183,10 @@ So that manager profile read parity is complete after self-service uploads land 
 **Given** a manager with S5 read toward a subject
 **When** they request a certificate download
 **Then** the server returns the file (auth-gated; 404 when not entitled)
+
+**Given** a manager or PP with S1 read toward a subject who uploaded a profile photo
+**When** they open that subject's management profile in the UI
+**Then** the photo is displayed read-only (no upload controls); API already returns `s1.photoUrl` — this AC is UI-only
 
 **Specification:** `_bmad-output/implementation-artifacts/spec-2-10-manager-pp-s3-s5-read-on-employee-profile.md`
 (Jira O4-171; depends on Story 2.6b)
