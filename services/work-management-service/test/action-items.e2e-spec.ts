@@ -41,6 +41,12 @@ describe('Action items (e2e)', () => {
       .set('Authorization', E2E_AUTH);
   }
 
+  function authedGet(path: string) {
+    return request(app.getHttpServer())
+      .get(path)
+      .set('Authorization', E2E_AUTH);
+  }
+
   function authedPatch(path: string) {
     return request(app.getHttpServer())
       .patch(path)
@@ -637,5 +643,199 @@ describe('Action items (e2e)', () => {
     const row = await prisma.actionItem.findUnique({ where: { id: item.id } });
     expect(row?.source).toBe('campaign');
     expect(row?.cancelReason).toBe('Campaign withdrawn');
+  });
+
+  it('GET /mine returns only items assigned to the viewer', async () => {
+    const viewerPersonId = randomUUID();
+    const otherAssigneeId = randomUUID();
+    const authorId = randomUUID();
+    currentViewerSub = randomUUID();
+    currentViewerPersonId = viewerPersonId;
+
+    const ownOpen = await seedOpenItem({
+      assigneePersonId: viewerPersonId,
+      authorPersonId: authorId,
+      dueDate: new Date('2026-09-01T00:00:00.000Z'),
+    });
+    const ownCompleted = await seedOpenItem({
+      assigneePersonId: viewerPersonId,
+      authorPersonId: authorId,
+      dueDate: new Date('2026-10-01T00:00:00.000Z'),
+      status: 'completed',
+      completionDate: new Date('2026-09-10T00:00:00.000Z'),
+    });
+    await seedOpenItem({
+      assigneePersonId: otherAssigneeId,
+      authorPersonId: authorId,
+      dueDate: new Date('2026-08-01T00:00:00.000Z'),
+    });
+
+    const res = await authedGet('/action-items/mine').expect(200);
+    const body = res.body as Array<{
+      id: string;
+      assigneePersonId: string;
+      isOverdue: boolean;
+    }>;
+    expect(body).toHaveLength(2);
+    expect(body.map((row) => row.id).sort()).toEqual(
+      [ownOpen.id, ownCompleted.id].sort(),
+    );
+    for (const row of body) {
+      expect(row.assigneePersonId).toBe(viewerPersonId);
+      expect(typeof row.isOverdue).toBe('boolean');
+    }
+    const openRow = body.find((row) => row.id === ownOpen.id);
+    const completedRow = body.find((row) => row.id === ownCompleted.id);
+    expect(openRow?.isOverdue).toBe(true);
+    expect(completedRow?.isOverdue).toBe(false);
+    expect(resolveMock).not.toHaveBeenCalled();
+    expect(permissionMock).not.toHaveBeenCalled();
+  });
+
+  it('GET /mine returns mixed statuses for the viewer', async () => {
+    const viewerPersonId = randomUUID();
+    const authorId = randomUUID();
+    currentViewerSub = randomUUID();
+    currentViewerPersonId = viewerPersonId;
+
+    const openItem = await seedOpenItem({
+      assigneePersonId: viewerPersonId,
+      authorPersonId: authorId,
+      dueDate: new Date('2026-10-15T00:00:00.000Z'),
+      status: 'open',
+    });
+    const completedItem = await seedOpenItem({
+      assigneePersonId: viewerPersonId,
+      authorPersonId: authorId,
+      dueDate: new Date('2026-09-15T00:00:00.000Z'),
+      status: 'completed',
+      completionDate: new Date('2026-09-11T00:00:00.000Z'),
+    });
+    const cancelledItem = await seedOpenItem({
+      assigneePersonId: viewerPersonId,
+      authorPersonId: authorId,
+      dueDate: new Date('2026-08-15T00:00:00.000Z'),
+      status: 'cancelled',
+      cancelReason: 'No longer needed',
+    });
+
+    const res = await authedGet('/action-items/mine').expect(200);
+    const body = res.body as Array<{ id: string; status: string }>;
+    expect(body).toHaveLength(3);
+    expect(body.map((row) => row.status).sort()).toEqual([
+      'cancelled',
+      'completed',
+      'open',
+    ]);
+    expect(body.map((row) => row.id).sort()).toEqual(
+      [openItem.id, completedItem.id, cancelledItem.id].sort(),
+    );
+  });
+
+  it('GET /mine sorts own items by dueDate ascending', async () => {
+    const viewerPersonId = randomUUID();
+    const authorId = randomUUID();
+    currentViewerSub = randomUUID();
+    currentViewerPersonId = viewerPersonId;
+
+    const later = await seedOpenItem({
+      assigneePersonId: viewerPersonId,
+      authorPersonId: authorId,
+      dueDate: new Date('2026-12-01T00:00:00.000Z'),
+    });
+    const earlier = await seedOpenItem({
+      assigneePersonId: viewerPersonId,
+      authorPersonId: authorId,
+      dueDate: new Date('2026-09-01T00:00:00.000Z'),
+    });
+
+    const res = await authedGet('/action-items/mine').expect(200);
+    const body = res.body as Array<{ id: string; dueDate: string }>;
+    expect(body).toHaveLength(2);
+    expect(body[0].id).toBe(earlier.id);
+    expect(body[1].id).toBe(later.id);
+  });
+
+  it('GET /mine returns empty array when viewer has no assigned items', async () => {
+    currentViewerSub = randomUUID();
+    currentViewerPersonId = randomUUID();
+
+    const res = await authedGet('/action-items/mine').expect(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it('self-complete journey: list own item then PATCH complete', async () => {
+    const viewerPersonId = randomUUID();
+    const authorId = randomUUID();
+    currentViewerSub = randomUUID();
+    currentViewerPersonId = viewerPersonId;
+
+    const item = await seedOpenItem({
+      assigneePersonId: viewerPersonId,
+      authorPersonId: authorId,
+      dueDate: new Date('2026-09-01T00:00:00.000Z'),
+    });
+
+    const listBefore = await authedGet('/action-items/mine').expect(200);
+    const beforeBody = listBefore.body as Array<{
+      id: string;
+      status: string;
+      isOverdue: boolean;
+    }>;
+    expect(beforeBody).toHaveLength(1);
+    expect(beforeBody[0].id).toBe(item.id);
+    expect(beforeBody[0].status).toBe('open');
+    expect(beforeBody[0].isOverdue).toBe(true);
+
+    await authedPatch(`/action-items/${item.id}/complete`).send({}).expect(200);
+
+    const listAfter = await authedGet('/action-items/mine').expect(200);
+    const afterBody = listAfter.body as Array<{
+      id: string;
+      status: string;
+      completionDate: string | null;
+      isOverdue: boolean;
+    }>;
+    expect(afterBody).toHaveLength(1);
+    expect(afterBody[0].status).toBe('completed');
+    expect(afterBody[0].completionDate).not.toBeNull();
+    expect(afterBody[0].isOverdue).toBe(false);
+  });
+
+  it('self-complete: non-assignee cannot complete another persons item', async () => {
+    const assigneeId = randomUUID();
+    const authorId = randomUUID();
+    currentViewerSub = randomUUID();
+    currentViewerPersonId = randomUUID();
+    const item = await seedOpenItem({
+      assigneePersonId: assigneeId,
+      authorPersonId: authorId,
+    });
+
+    await authedPatch(`/action-items/${item.id}/complete`).send({}).expect(403);
+  });
+
+  it('GET /mine includes campaign-source rows assigned to the viewer', async () => {
+    const viewerPersonId = randomUUID();
+    const authorId = randomUUID();
+    currentViewerSub = randomUUID();
+    currentViewerPersonId = viewerPersonId;
+
+    const item = await seedOpenItem({
+      assigneePersonId: viewerPersonId,
+      authorPersonId: authorId,
+      source: 'campaign',
+    });
+
+    const res = await authedGet('/action-items/mine').expect(200);
+    const body = res.body as Array<{
+      id: string;
+      source: string;
+      isOverdue: boolean;
+    }>;
+    expect(body).toHaveLength(1);
+    expect(body[0].id).toBe(item.id);
+    expect(body[0].source).toBe('campaign');
+    expect(typeof body[0].isOverdue).toBe('boolean');
   });
 });

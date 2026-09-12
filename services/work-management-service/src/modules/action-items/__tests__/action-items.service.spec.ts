@@ -56,6 +56,7 @@ function buildService(
     actionItem: {
       create: jest.fn(),
       findUnique: jest.fn(),
+      findMany: jest.fn(),
       updateMany: jest.fn(),
       findUniqueOrThrow: jest.fn(),
       ...prismaOverrides,
@@ -524,6 +525,74 @@ describe('ActionItemsService', () => {
         cancelReason: 'Done elsewhere',
       });
       expect(result.status).toBe('cancelled');
+    });
+  });
+
+  describe('listMyActionItems', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+      jest.setSystemTime(NOW);
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('returns only rows assigned to the viewer, ordered by dueDate asc', async () => {
+      const earlierDue = new Date('2026-09-01T00:00:00.000Z');
+      const laterDue = new Date('2026-10-01T00:00:00.000Z');
+      const ownEarlier = {
+        ...ACTION_ITEM_ROW,
+        id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        assigneePersonId: VIEWER_ID,
+        dueDate: earlierDue,
+      };
+      const ownLater = {
+        ...ACTION_ITEM_ROW,
+        id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        assigneePersonId: VIEWER_ID,
+        dueDate: laterDue,
+        status: 'completed',
+        completionDate: NOW,
+      };
+      const { service, prisma } = buildService(grantedPermission, jest.fn());
+      prisma.actionItem.findMany.mockResolvedValue([ownEarlier, ownLater]);
+
+      const result = await service.listMyActionItems(VIEWER_ID);
+
+      expect(prisma.actionItem.findMany).toHaveBeenCalledWith({
+        where: { assigneePersonId: VIEWER_ID },
+        orderBy: { dueDate: 'asc' },
+      });
+      expect(result).toHaveLength(2);
+      expect(result[0].id).toBe(ownEarlier.id);
+      expect(result[1].id).toBe(ownLater.id);
+      expect(result[0].isOverdue).toBe(true);
+      expect(result[1].isOverdue).toBe(false);
+    });
+
+    it('returns empty array when viewer has no assigned items', async () => {
+      const { service, prisma } = buildService(grantedPermission, jest.fn());
+      prisma.actionItem.findMany.mockResolvedValue([]);
+
+      const result = await service.listMyActionItems(VIEWER_ID);
+
+      expect(result).toEqual([]);
+    });
+
+    it('does not call ACS on list', async () => {
+      const resolve = jest.fn();
+      const permissionCheck = jest.fn().mockResolvedValue(true);
+      const { service, prisma } = buildService(
+        { hasCreateActionItemsPermission: permissionCheck },
+        resolve,
+      );
+      prisma.actionItem.findMany.mockResolvedValue([]);
+
+      await service.listMyActionItems(VIEWER_ID);
+
+      expect(resolve).not.toHaveBeenCalled();
+      expect(permissionCheck).not.toHaveBeenCalled();
     });
   });
 });

@@ -356,6 +356,12 @@ describe('JWT guard (e2e)', () => {
     expect(resolveMock).not.toHaveBeenCalled();
   });
 
+  it('missing token on GET action-items mine: 401', async () => {
+    await request(app.getHttpServer()).get('/action-items/mine').expect(401);
+
+    expect(resolveMock).not.toHaveBeenCalled();
+  });
+
   it('valid token: reaches the controller, RequestActorContext resolves, and fails at the access-role check -- not at authentication', async () => {
     const { access_token: accessToken } = await obtainToken();
 
