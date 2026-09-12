@@ -933,7 +933,9 @@ browse, filter, save views, and export the org roster within their entitlements.
 done in sequence by one developer (or pair) to avoid merge conflicts on the same component (2.8
 after 2.5); Stories 2.6-2.7 are a separate self-service surface on the shared profile route and
 can be built in parallel by a second developer once 2.8 lands the Employee Profile shell, since
-both chains depend on Epic 1 having cleared its exit gate.
+both chains depend on Epic 1 having cleared its exit gate. **Follow-ups (2026-09-12):** Story
+**2.6b** completes the Story 2.6 / FR-13 split (S3 + uploads); **2.9** wires manager/PP S4/S9 read;
+**2.10** wires manager/PP S3/S5 read after 2.6b.
 
 ### Story 2.1: Universal filter/column engine over profile fields
 
@@ -1050,8 +1052,9 @@ So that I can review their full entitled profile without hunting for another ent
 
 **Given** that management viewer and a subject they hold Manager or PP access over
 **When** the profile loads
-**Then** the page includes every section key the API returns among `{ s1, s2, s10, s11, s16 }`
-and omits every absent key with no client-side section matrix
+**Then** the page includes every section key the API returns (baseline `{ s1, s2, s10, s11, s16 }`;
+extended by Stories 2.7/2.9/2.10 with `s4`, `s9`, `s3`, `s5` when entitled) and omits every
+absent key with no client-side section matrix
 
 **Given** a management viewer
 **When** they interact with an inline-editable list cell
@@ -1070,6 +1073,9 @@ As an employee,
 I want to view and edit my own contact and emergency information without asking anyone,
 So that I can keep my own data current myself.
 
+**Delivery note:** Story 2.6 (merged, PR #79) delivered **S2 self-edit MVP** only. Story **2.6b**
+completes S3 emergency contacts, photo upload, and certificate upload per the AC below (FR-13).
+
 **Acceptance Criteria:**
 
 **Given** an employee viewing their own profile
@@ -1080,6 +1086,32 @@ So that I can keep my own data current myself.
 **Given** an employee on their own profile
 **When** they upload a photo or a certificate
 **Then** the upload is accepted and attached to their own record
+
+**Specification (S2 MVP, done):**
+`_bmad-output/implementation-artifacts/spec-2-6-self-managed-personal-data.md`
+
+### Story 2.6b: S3 emergency contacts and self uploads (photo + certificates)
+
+As an employee,
+I want to maintain my emergency contacts and upload my own photo and certificates on my profile,
+So that FR-13 and the Story 2.6 acceptance criteria are fully met without manager involvement.
+
+**Acceptance Criteria:**
+
+**Given** an employee on their own profile
+**When** they add, edit, or delete emergency contacts (S3)
+**Then** changes persist with no manager or PP action required
+
+**Given** an employee on their own profile
+**When** they upload a photo or certificate within configured size/MIME limits
+**Then** the file is stored per ADR-004 and attached to their own record with auth-gated download
+
+**Given** any viewer who is not the subject
+**When** they attempt S3 or upload mutations
+**Then** the server returns 403
+
+**Specification:** `_bmad-output/implementation-artifacts/spec-2-6b-s3-and-self-uploads.md`
+(Jira O4-169)
 
 ### Story 2.7: Self-read of managed data, and never own risk level
 
@@ -1102,6 +1134,58 @@ requires Manager/PP access instead
 someone else
 **Then** their own S6 risk level is never included — enforced the same way as any other `—` cell
 (Story 1.6), with no self-view exception
+
+**Delivery note:** Story 2.7 (merged) delivered **self-read** of S4/S9 only. Story **2.9** wires
+manager/PP read of S4/S9 on another person's profile GET.
+
+**Specification (self-read MVP, done):**
+`_bmad-output/implementation-artifacts/spec-2-7-self-read-of-managed-data-and-never-own-risk-level.md`
+
+### Story 2.9: Manager/PP read S4 and S9 on employee profile
+
+As a manager or PP browsing an employee's profile from All Employees,
+I want to read employment (S4) and career timeline (S9) data the API entitles me to,
+So that the management profile view matches the section matrix without client-side guessing.
+
+**Acceptance Criteria:**
+
+**Given** a manager or PP with access over a subject
+**When** they GET that subject's profile and ACS grants S4/S9 Read or ReadWrite
+**Then** `s4` and `s9` are present in the response
+
+**Given** a project-line-only manager (no reporting line) toward a subject
+**When** ACS grants S4/S9 RW
+**Then** profile GET includes `s4`/`s9` (not narrowed away unlike S2/S3/S5)
+
+**Given** a colleague viewer
+**When** they GET another person's profile
+**Then** `s4` and `s9` are absent
+
+**Specification:** `_bmad-output/implementation-artifacts/spec-2-9-manager-pp-s4-s9-on-employee-profile.md`
+(Jira O4-170)
+
+### Story 2.10: Manager/PP read S3 and S5 on employee profile
+
+As a manager or PP browsing an employee's profile,
+I want to read emergency contacts (S3) and certificates (S5) when the section matrix entitles me,
+So that manager profile read parity is complete after self-service uploads land in Story 2.6b.
+
+**Acceptance Criteria:**
+
+**Given** a manager with Reporting-line access toward a subject
+**When** they GET that subject's profile and ACS grants S3 read
+**Then** `s3` is present in the response
+
+**Given** a project-line-only manager toward a subject
+**When** they GET the profile
+**Then** `s3` is absent and `s5` is present only when ACS grants narrowed S5 read (CV+certificates)
+
+**Given** a manager with S5 read toward a subject
+**When** they request a certificate download
+**Then** the server returns the file (auth-gated; 404 when not entitled)
+
+**Specification:** `_bmad-output/implementation-artifacts/spec-2-10-manager-pp-s3-s5-read-on-employee-profile.md`
+(Jira O4-171; depends on Story 2.6b)
 
 ---
 
