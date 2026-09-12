@@ -39,7 +39,7 @@ Consumers of this doc: `.claude/rules/access-control-invariants.md`,
 
 | # | Section | Contents | Self | Reporting line | Project line | PP | Colleague | Shared link | Test coverage |
 |---|---|---|---|---|---|---|---|---|---|
-| S1 | Identity card | Full name, photo, position, department/unit, country/city, work email/phone, birthday (day+month), start date, manager, people partner, mentor, current project(s) | R (photo RW) | RW¹ | RW¹ | RW¹ | R | on by default | partial |
+| S1 | Identity card | Full name, photo, position, department/unit, country/city, work email/phone, birthday (day+month), start date, manager, people partner, mentor, current project(s) | R (photo RW) | RW¹ | RW¹ | RW¹ | R | on by default | partial (Story 2.6b: gated photo upload + profile GET `photoUrl`; Story 2.10: management profile UI read-only avatar when entitled) |
 | S2 | Personal contacts | Personal phone/email, messengers, residential address, current place of stay | RW | R | **—** | RW | — | cfg | partial |
 | S3 | Emergency contacts | Contact person, relationship, phone | RW | R | **—** | RW | — | — (never shareable) | partial (Story 2.6b: Self S3 CRUD + profile GET — `profile.e2e-spec` / `profile-mutations.service`) |
 | S4 | Employment | Employee type (FTE/Subcontractor), grade, seniority, position history, English level, probation status, employment status, contract type | R | RW | RW | RW | — | cfg | partial (Story 2.7: Self read; Story 2.9: Manager/PP read on profile GET — `profile-audience.util.spec` / `profile.service.spec` / `profile.e2e-spec`) |
