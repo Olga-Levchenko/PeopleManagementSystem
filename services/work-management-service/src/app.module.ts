@@ -9,6 +9,7 @@ import { HealthModule } from './modules/health/health.module';
 import { ActionItemsModule } from './modules/action-items/action-items.module';
 import { CampaignActivationModule } from './modules/campaign-activation/campaign-activation.module';
 import { ManagementNotesModule } from './modules/management-notes/management-notes.module';
+import { RisksModule } from './modules/risks/risks.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -22,6 +23,7 @@ import { PrismaModule } from './prisma/prisma.module';
     HealthModule,
     ManagementNotesModule,
     ActionItemsModule,
+    RisksModule,
     CampaignActivationModule,
   ],
   providers: [

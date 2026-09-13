@@ -7,3 +7,8 @@ export async function resetActionItemE2eState(
   await prisma.actionItem.deleteMany();
   await prisma.processedCampaignActivationEvent.deleteMany();
 }
+
+/** Clears risk-record tables so e2e suites do not pollute each other on the shared dev DB. */
+export async function resetRiskE2eState(prisma: PrismaService): Promise<void> {
+  await prisma.riskRecord.deleteMany();
+}
