@@ -2,7 +2,7 @@
 title: 'Story 4.1: Risk record with retained history'
 type: 'feature'
 created: '2026-09-12'
-status: 'in-review'
+status: 'done'
 review_loop_iteration: 0
 baseline_commit: '8a2decec65248d7f6c8537d9266d810fa1b1fcf2'
 context:
@@ -139,5 +139,6 @@ context:
 
 ## Spec Change Log
 
+- 2026-09-13 — Done: PR #104 merged to `main` (`841c087`); all five GitHub checks passed; Jira O4-46 → Done.
 - 2026-09-12 — Security Audit Personas amendments A1–A7: gate order, `fullProfileAccessLine`, O4-142 identity, future `recordedAt` rejection, empty-history contract, uniform `403`.
 - 2026-09-12 — Approved for implementation (planning-gap-audit: PROCEED WITH CONDITIONS).
