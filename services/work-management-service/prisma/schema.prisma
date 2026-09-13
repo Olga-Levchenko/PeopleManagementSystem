@@ -64,3 +64,25 @@ model ProcessedCampaignActivationEvent {
 
   @@map("processed_campaign_activation_events")
 }
+
+enum RiskLevel {
+  low
+  need_attention
+  medium
+  high
+  leaver
+}
+
+model RiskRecord {
+  id              String    @id @default(uuid())
+  subjectPersonId String
+  authorPersonId  String
+  level           RiskLevel
+  description     String
+  details         String?
+  recordedAt      DateTime  @db.Date
+  createdAt       DateTime  @default(now())
+
+  @@index([subjectPersonId, recordedAt])
+  @@map("risk_records")
+}

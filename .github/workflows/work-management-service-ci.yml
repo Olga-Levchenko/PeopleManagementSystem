@@ -17,3 +17,51 @@ jobs:
     uses: ./.github/workflows/_reusable-node-ci.yml
     with:
       service_path: services/work-management-service
+
+  e2e:
+    name: Work Management Service e2e
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: work_management_service
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d work_management_service"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: services/work-management-service
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/work_management_service
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install and build shared contracts
+        working-directory: libs/contracts
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install Work Management dependencies
+        run: npm ci
+
+      - name: Install shared lint and test dependencies
+        working-directory: libs/config
+        run: npm ci
+
+      - name: Apply database migrations
+        run: npm run db:deploy
+
+      - name: E2E test
+        run: npm run test:e2e

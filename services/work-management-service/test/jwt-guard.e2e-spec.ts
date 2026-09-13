@@ -362,6 +362,27 @@ describe('JWT guard (e2e)', () => {
     expect(resolveMock).not.toHaveBeenCalled();
   });
 
+  it('missing token on POST risks: 401', async () => {
+    await request(app.getHttpServer())
+      .post('/risks')
+      .send({
+        subjectPersonId: SOME_SUBJECT_ID,
+        level: 'medium',
+        description: 'x',
+      })
+      .expect(401);
+
+    expect(resolveMock).not.toHaveBeenCalled();
+  });
+
+  it('missing token on GET risks: 401', async () => {
+    await request(app.getHttpServer())
+      .get(`/risks?subjectPersonId=${SOME_SUBJECT_ID}`)
+      .expect(401);
+
+    expect(resolveMock).not.toHaveBeenCalled();
+  });
+
   it('valid token: reaches the controller, RequestActorContext resolves, and fails at the access-role check -- not at authentication', async () => {
     const { access_token: accessToken } = await obtainToken();
 
