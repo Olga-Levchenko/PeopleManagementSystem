@@ -2,7 +2,7 @@
 title: 'Story 5.2: UM Dashboard — Early Blocks'
 type: 'feature'
 created: '2026-09-14'
-status: 'review'
+status: 'done'
 review_loop_iteration: 0
 baseline_commit: '3b4d7df901048fcac82fb1eaab1680232dbf6a36'
 context:
@@ -165,6 +165,11 @@ const columns: ColumnSpec<UMDashboardRow>[] = [
 - [x] [Review][Defer] Missing `retry` config in `useUMDashboard` — consistent with global QueryClient `retry: 1`; same as existing `useRiskDashboard` — deferred, pre-existing
 - [x] [Review][Defer] BFF composed-response test only asserts `riskCounts.high` — other zero-counts not verified; service initialization logic is correct — deferred, pre-existing
 - [x] [Review][Defer] BFF outer `try/catch` redundancy masks some error types as 502 — acceptable fail-closed pattern; P3 covers the specific ACS JSON case — deferred, pre-existing
+
+### Code Review — Iteration 2 (2026-09-14)
+
+- [x] [Review][Patch] `useSideMenu.test.ts` — test title "sets canAccessUMDashboard false when UM probe returns 403" implied specific 403-handling but hook collapses any rejection to false; renamed to accurately describe any-error behavior [services/frontend/src/components/SideMenu/hooks/__tests__/useSideMenu.test.ts:98]
+- [x] [Review][Patch] `useUMDashboardPage` returns `isError: true` when `isUnauthorized: true` — both flags simultaneously true; callers that branch on `isError` without checking `isUnauthorized` first could show error UI for 403; fixed to `isError: dashboard.isError && !isUnauthorized` [services/frontend/src/pages/UMDashboardPage/hooks/useUMDashboardPage.ts:27]
 
 ## Verification
 

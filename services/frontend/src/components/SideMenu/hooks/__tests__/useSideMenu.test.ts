@@ -95,7 +95,7 @@ describe('useSideMenu', () => {
     })
   })
 
-  it('sets canAccessUMDashboard false when UM probe returns 403', async () => {
+  it('sets canAccessUMDashboard false when UM probe rejects with an HTTP error response', async () => {
     mockGetFunctionalRoles.mockResolvedValue({ roles: [] } as never)
     mockGetRiskDashboardApiCall.mockResolvedValue({} as never)
     mockGetUMDashboardApiCall.mockRejectedValue(

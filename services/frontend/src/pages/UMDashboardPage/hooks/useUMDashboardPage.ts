@@ -24,7 +24,7 @@ export const useUMDashboardPage = (): UseUMDashboardPageResult => {
   return {
     data: dashboard.data,
     isLoading: dashboard.isLoading,
-    isError: dashboard.isError,
+    isError: dashboard.isError && !isUnauthorized,
     isUnauthorized,
     navigateToProfile,
   }
