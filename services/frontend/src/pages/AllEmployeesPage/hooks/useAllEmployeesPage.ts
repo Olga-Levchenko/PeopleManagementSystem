@@ -33,7 +33,6 @@ const COLLEAGUE_DEFAULT_COLUMNS = [
   'projectName',
 ]
 const DEFAULT_PAGE_SIZE = 50
-
 const createDefaultUiState = (): AllEmployeesUiState => ({
   countryCity: '',
   departmentId: '',
@@ -128,12 +127,20 @@ export const useAllEmployeesPage = () => {
   )
 
   const visibleColumnKeys = useMemo(() => {
-    if (!isColleagueBrowseMode || !catalogQuery.data) {
-      return uiState.visibleColumnKeys
+    if (
+      isColleagueBrowseMode &&
+      catalogQuery.data &&
+      uiState.visibleColumnKeys.join('|') === DEFAULT_COLUMNS.join('|')
+    ) {
+      const defaults = COLLEAGUE_DEFAULT_COLUMNS.filter(key =>
+        catalogQuery.data.fields.some(field => field.key === key && field.columnable),
+      )
+      const custom = catalogQuery.data.fields
+        .filter(field => field.kind === 'custom' && field.columnable)
+        .map(field => field.key)
+      return [...defaults, ...custom]
     }
-    return COLLEAGUE_DEFAULT_COLUMNS.filter(key =>
-      catalogQuery.data?.fields.some(field => field.key === key && field.columnable),
-    )
+    return uiState.visibleColumnKeys
   }, [catalogQuery.data, isColleagueBrowseMode, uiState.visibleColumnKeys])
 
   const visibleColumns = useMemo(
@@ -217,20 +224,24 @@ export const useAllEmployeesPage = () => {
   )
 
   const toggleColumn = (key: string) => {
-    if (isColleagueBrowseMode) {
-      return
-    }
     setUiState(current => ({
       ...current,
-      visibleColumnKeys: current.visibleColumnKeys.includes(key)
-        ? current.visibleColumnKeys.filter(item => item !== key)
-        : [...current.visibleColumnKeys, key],
+      visibleColumnKeys: visibleColumnKeys.includes(key)
+        ? visibleColumnKeys.filter(item => item !== key)
+        : [...visibleColumnKeys, key],
     }))
   }
 
-  const applyFilters = () => {
+  const clearFilters = () => {
     setPage(1)
-    void listQuery.refetch()
+    setUiState(current => ({
+      ...current,
+      countryCity: '',
+      departmentId: '',
+      yearsMin: '',
+      yearsMax: '',
+      customFieldFilters: {},
+    }))
   }
 
   const saveCurrentOwnedView = async () => {
@@ -385,24 +396,37 @@ export const useAllEmployeesPage = () => {
     deleteCurrentOwnedView,
     createViewFromCurrentState,
     countryCity: uiState.countryCity,
-    setCountryCity: (value: string) =>
-      setUiState(current => ({ ...current, countryCity: value })),
+    setCountryCity: (value: string) => {
+      setPage(1)
+      setUiState(current => ({ ...current, countryCity: value }))
+    },
     yearsMin: uiState.yearsMin,
-    setYearsMin: (value: string) =>
-      setUiState(current => ({ ...current, yearsMin: value })),
+    setYearsMin: (value: string) => {
+      setPage(1)
+      setUiState(current => ({ ...current, yearsMin: value }))
+    },
     yearsMax: uiState.yearsMax,
-    setYearsMax: (value: string) =>
-      setUiState(current => ({ ...current, yearsMax: value })),
+    setYearsMax: (value: string) => {
+      setPage(1)
+      setUiState(current => ({ ...current, yearsMax: value }))
+    },
     visibleColumns,
     visibleColumnKeys,
     columnableFields,
     toggleColumn,
     pickerOpen,
     setPickerOpen,
-    applyFilters,
+    clearFilters,
+    hasActiveFilters:
+      Boolean(uiState.countryCity.trim()) ||
+      Boolean(uiState.departmentId.trim()) ||
+      Boolean(uiState.yearsMin.trim()) ||
+      Boolean(uiState.yearsMax.trim()) ||
+      Object.keys(uiState.customFieldFilters).length > 0,
     filterableCustomFields,
     customFieldFilters: uiState.customFieldFilters,
     setCustomFieldFilter: (key: string, value: string) => {
+      setPage(1)
       setUiState(current => {
         const nextFilters = { ...current.customFieldFilters }
         if (value.trim()) {
