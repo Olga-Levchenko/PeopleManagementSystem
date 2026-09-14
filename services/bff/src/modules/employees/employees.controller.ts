@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -115,7 +116,7 @@ export class EmployeesController {
 
   @Patch(':subjectPersonId/fields')
   async patchField(
-    @Param('subjectPersonId') subjectPersonId: string,
+    @Param('subjectPersonId', ParseUUIDPipe) subjectPersonId: string,
     @Body() body: unknown,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,

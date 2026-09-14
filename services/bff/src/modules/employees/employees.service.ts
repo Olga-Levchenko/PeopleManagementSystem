@@ -254,8 +254,14 @@ export class EmployeesService {
     context: ProxyContext,
   ): Promise<UpstreamResponse> {
     const search = new URLSearchParams();
-    for (const [key, value] of Object.entries(query)) {
+    for (const [rawKey, value] of Object.entries(query)) {
       if (value !== undefined && value !== '') {
+        let key = rawKey;
+        try {
+          key = decodeURIComponent(rawKey);
+        } catch {
+          // Preserve malformed unrelated query keys for the upstream validator.
+        }
         search.set(key, value);
       }
     }

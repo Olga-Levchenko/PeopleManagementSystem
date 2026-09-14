@@ -20,6 +20,22 @@
     "administration": "Administration",
     "riskDashboard": "Risk Dashboard"
   },
+  "dashboard": {
+    "common": {
+      "severity": {
+        "low": "Low",
+        "need_attention": "Needs attention",
+        "medium": "Medium",
+        "high": "High",
+        "leaver": "Leaver"
+      },
+      "trend": {
+        "up": "Increasing",
+        "down": "Decreasing",
+        "none": "No change"
+      }
+    }
+  },
   "riskDashboard": {
     "title": "Risk Dashboard",
     "description": "Current risk posture for your permitted population.",
@@ -62,7 +78,9 @@
       "countryCity": "Country / city",
       "yearsMin": "Years with company (min)",
       "yearsMax": "Years with company (max)",
-      "apply": "Apply filters"
+      "clear": "Clear filters",
+      "clearFilter": "Clear filter",
+      "clearField": "Clear {{field}}"
     },
     "export": {
       "button": "Export .xlsx",

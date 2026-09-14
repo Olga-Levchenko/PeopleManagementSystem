@@ -353,10 +353,7 @@ export class ProfileService {
       response.s4 = this.toS4(person);
     }
     if (this.grantsAccess(audience.s5)) {
-      response.s5 = this.toS5(
-        subjectPersonId,
-        person.personCertificates ?? [],
-      );
+      response.s5 = this.toS5(subjectPersonId, person.personCertificates ?? []);
     }
     if (this.grantsAccess(audience.s9)) {
       response.s9 = this.toS9(person.careerTimelineEvents);

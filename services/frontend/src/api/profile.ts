@@ -195,7 +195,6 @@ export const uploadProfilePhotoApiCall = (personId: string, file: File) => {
   return apiClient.post<{ photoUrl: string }>(
     `/api/v1/people/${personId}/profile/photo`,
     formData,
-    { headers: { 'Content-Type': 'multipart/form-data' } },
   )
 }
 
@@ -205,7 +204,6 @@ export const uploadProfileCertificateApiCall = (personId: string, file: File) =>
   return apiClient.post<S5Certificate>(
     `/api/v1/people/${personId}/profile/certificates`,
     formData,
-    { headers: { 'Content-Type': 'multipart/form-data' } },
   )
 }
 

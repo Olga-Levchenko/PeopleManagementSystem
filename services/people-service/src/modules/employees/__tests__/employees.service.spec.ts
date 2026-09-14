@@ -726,7 +726,7 @@ describe('EmployeesService', () => {
       customFieldValues: {
         some: {
           definitionId: 'cf-desk',
-          value: { equals: 'Standing', mode: 'insensitive' },
+          value: { contains: 'Standing', mode: 'insensitive' },
           definition: { isActive: true },
         },
       },

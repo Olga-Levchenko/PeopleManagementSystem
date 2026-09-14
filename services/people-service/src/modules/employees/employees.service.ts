@@ -501,6 +501,7 @@ export class EmployeesService {
         audience,
         filterDefinitions,
         customFieldFilters,
+        person.customFieldValues,
       );
     });
 
@@ -561,6 +562,7 @@ export class EmployeesService {
         audience,
         filterDefinitions,
         customFieldFilters,
+        person.customFieldValues,
       );
     });
 
@@ -758,6 +760,7 @@ export class EmployeesService {
     audience: ReturnType<typeof deriveAudienceFromResolution>,
     filterDefinitions: Map<string, { visibility: string }>,
     customFieldFilters: Record<string, string>,
+    customFieldValues: PersonListRecord['customFieldValues'],
   ): boolean {
     for (const fieldKey of Object.keys(customFieldFilters)) {
       const definition = filterDefinitions.get(fieldKey);
@@ -767,6 +770,17 @@ export class EmployeesService {
           definition.visibility,
           audience.customFieldAudienceLevel,
         )
+      ) {
+        return false;
+      }
+      const value = customFieldValues.find(
+        (fieldValue) => `custom:${fieldValue.definition.id}` === fieldKey,
+      )?.value;
+      if (
+        value === undefined ||
+        !value
+          .toLowerCase()
+          .includes(customFieldFilters[fieldKey].toLowerCase())
       ) {
         return false;
       }
@@ -848,7 +862,7 @@ export class EmployeesService {
     }
     if (query.countryCity) {
       where.countryCity = {
-        equals: query.countryCity,
+        contains: query.countryCity,
         mode: 'insensitive',
       };
     }
@@ -867,7 +881,7 @@ export class EmployeesService {
         customFieldValues: {
           some: {
             definitionId,
-            value: { equals: filterValue, mode: 'insensitive' },
+            value: { contains: filterValue, mode: 'insensitive' },
             definition: { isActive: true },
           },
         },
