@@ -14,6 +14,7 @@ import { AllEmployeesPage } from '@/pages/AllEmployeesPage/AllEmployeesPage'
 import { EmployeeProfilePage } from '@/pages/EmployeeProfilePage/EmployeeProfilePage'
 import { RiskDashboardPage } from '@/pages/RiskDashboardPage/RiskDashboardPage'
 import { DMPMDashboardPage } from '@/pages/DMPMDashboardPage/DMPMDashboardPage'
+import { PPDashboardPage } from '@/pages/PPDashboardPage/PPDashboardPage'
 import { UMDashboardPage } from '@/pages/UMDashboardPage/UMDashboardPage'
 
 const router = createBrowserRouter([
@@ -57,6 +58,10 @@ const router = createBrowserRouter([
           {
             path: 'dm-pm-dashboard',
             element: <DMPMDashboardPage />,
+          },
+          {
+            path: 'pp-dashboard',
+            element: <PPDashboardPage />,
           },
           {
             path: 'people/:personId',
