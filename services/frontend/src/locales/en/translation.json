@@ -61,7 +61,8 @@
       "countryCity": "Country / city",
       "yearsMin": "Years with company (min)",
       "yearsMax": "Years with company (max)",
-      "apply": "Apply filters"
+      "clear": "Clear filters",
+      "clearField": "Clear {{field}}"
     },
     "export": {
       "button": "Export .xlsx",

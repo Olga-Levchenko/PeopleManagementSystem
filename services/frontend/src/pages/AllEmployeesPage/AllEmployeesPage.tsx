@@ -1,9 +1,14 @@
-import { Users } from 'lucide-react'
+import { X, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { InlineEditableCell } from './InlineEditableCell'
 import { useAllEmployeesPage } from './hooks/useAllEmployeesPage'
+
+const filterInputClassName =
+  'w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-foreground'
+const filterClearButtonClassName =
+  'absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground opacity-70 transition hover:bg-muted hover:opacity-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 export const AllEmployeesPage = () => {
   const { t } = useTranslation()
@@ -36,7 +41,8 @@ export const AllEmployeesPage = () => {
     toggleColumn,
     pickerOpen,
     setPickerOpen,
-    applyFilters,
+    clearFilters,
+    hasActiveFilters,
     filterableCustomFields,
     customFieldFilters,
     setCustomFieldFilter,
@@ -167,11 +173,28 @@ export const AllEmployeesPage = () => {
       <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card p-4">
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-muted-foreground">{t('allEmployees.filters.countryCity')}</span>
-          <input
-            className="rounded-md border border-input bg-background px-3 py-2 text-foreground"
-            value={countryCity}
-            onChange={event => setCountryCity(event.target.value)}
-          />
+          <span className="relative">
+            <input
+              className={filterInputClassName}
+              value={countryCity}
+              onChange={event => setCountryCity(event.target.value)}
+            />
+            {countryCity.trim() && (
+              <button
+                type="button"
+                aria-label={t('allEmployees.filters.clearField', {
+                  field: t('allEmployees.filters.countryCity'),
+                })}
+                title={t('allEmployees.filters.clearField', {
+                  field: t('allEmployees.filters.countryCity'),
+                })}
+                className={filterClearButtonClassName}
+                onClick={() => setCountryCity('')}
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            )}
+          </span>
         </label>
         {showSavedViews && (
           <>
@@ -198,16 +221,40 @@ export const AllEmployeesPage = () => {
           </>
         )}
         {filterableCustomFields.map(field => (
-          <label key={field.key} className="flex flex-col gap-1 text-sm">
-            <span className="text-muted-foreground">{field.label}</span>
-            <input
-              className="rounded-md border border-input bg-background px-3 py-2 text-foreground"
-              value={customFieldFilters[field.key] ?? ''}
-              onChange={event => setCustomFieldFilter(field.key, event.target.value)}
-            />
+            <label key={field.key} className="flex flex-col gap-1 text-sm">
+              <span className="text-muted-foreground">{field.label}</span>
+              <span className="relative">
+                <input
+                  className={filterInputClassName}
+                  value={customFieldFilters[field.key] ?? ''}
+                  onChange={event => setCustomFieldFilter(field.key, event.target.value)}
+                />
+                {(customFieldFilters[field.key] ?? '').trim() && (
+                  <button
+                    type="button"
+                    aria-label={t('allEmployees.filters.clearField', {
+                      field: field.label,
+                    })}
+                    title={t('allEmployees.filters.clearField', {
+                      field: field.label,
+                    })}
+                    className={filterClearButtonClassName}
+                    onClick={() => setCustomFieldFilter(field.key, '')}
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                )}
+              </span>
           </label>
         ))}
-        <Button type="button" onClick={applyFilters}>{t('allEmployees.filters.apply')}</Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={!hasActiveFilters}
+          onClick={clearFilters}
+        >
+          {t('allEmployees.filters.clear')}
+        </Button>
         {showSavedViews && (
           <Button
             type="button"

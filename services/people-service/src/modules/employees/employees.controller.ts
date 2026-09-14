@@ -16,9 +16,16 @@ import {
 import {
   parseCustomFieldFilters,
   parseExportColumnKeys,
+  stripCustomFieldQueryParams,
 } from './employees-query.util';
 import { EmployeesService } from './employees.service';
 import { ColleagueBrowseGateService } from './colleague-browse.gate.service';
+
+const listEmployeesQueryPipe = new ValidationPipe({
+  whitelist: true,
+  forbidNonWhitelisted: true,
+  transform: true,
+});
 
 @ApiBearerAuth()
 @Controller('employees')
@@ -37,19 +44,19 @@ export class EmployeesController {
 
   @Get('export')
   async exportEmployees(
-    @Query(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: false,
-        transform: true,
-      }),
-    )
-    query: ExportEmployeesQueryDto,
     @Req() request: Request,
     @Res() response: Response,
   ) {
     const actorId = await this.actor.resolveActorId();
     await this.colleagueBrowseGate.assertManagementBrowseAllowed(actorId);
+    const query = (await listEmployeesQueryPipe.transform(
+      stripCustomFieldQueryParams(request.query),
+      {
+        type: 'query',
+        metatype: ExportEmployeesQueryDto,
+        data: undefined,
+      },
+    )) as ExportEmployeesQueryDto;
     const columnKeys = parseExportColumnKeys(query.columns);
     const { buffer, filename } = await this.service.exportEmployeesToXlsx(
       actorId,
@@ -71,17 +78,18 @@ export class EmployeesController {
 
   @Get()
   async listEmployees(
-    @Query(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: false,
-        transform: true,
-      }),
-    )
-    query: ListEmployeesQueryDto,
+    @Query() rawQuery: Record<string, unknown>,
     @Req() request: Request,
   ) {
     const actorId = await this.actor.resolveActorId();
+    const query = (await listEmployeesQueryPipe.transform(
+      stripCustomFieldQueryParams(rawQuery),
+      {
+        type: 'query',
+        metatype: ListEmployeesQueryDto,
+        data: undefined,
+      },
+    )) as ListEmployeesQueryDto;
     return this.service.listEmployees(
       actorId,
       query,

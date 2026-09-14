@@ -6,7 +6,13 @@ export function parseCustomFieldFilters(
   query: Record<string, unknown>,
 ): Record<string, string> {
   const filters: Record<string, string> = {};
-  for (const [key, value] of Object.entries(query)) {
+  for (const [rawKey, value] of Object.entries(query)) {
+    let key = rawKey;
+    try {
+      key = decodeURIComponent(rawKey);
+    } catch {
+      // Keep the original key so malformed unrelated query keys are ignored.
+    }
     if (!key.startsWith(CUSTOM_FIELD_QUERY_PREFIX)) {
       continue;
     }
@@ -16,6 +22,24 @@ export function parseCustomFieldFilters(
     }
   }
   return filters;
+}
+
+export function stripCustomFieldQueryParams(
+  query: Record<string, unknown>,
+): Record<string, unknown> {
+  const sanitized: Record<string, unknown> = {};
+  for (const [rawKey, value] of Object.entries(query)) {
+    let key = rawKey;
+    try {
+      key = decodeURIComponent(rawKey);
+    } catch {
+      // Preserve malformed unrelated query keys so DTO validation rejects them.
+    }
+    if (!key.startsWith(CUSTOM_FIELD_QUERY_PREFIX)) {
+      sanitized[rawKey] = value;
+    }
+  }
+  return sanitized;
 }
 
 export function parseExportColumnKeys(columnsParam: unknown): string[] {
