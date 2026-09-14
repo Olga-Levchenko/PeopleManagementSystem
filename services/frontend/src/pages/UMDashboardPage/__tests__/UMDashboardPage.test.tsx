@@ -82,6 +82,32 @@ describe('UMDashboardPage', () => {
     expect(screen.getByText('No direct reports found.')).toBeInTheDocument()
   })
 
+  it('shows empty subordinates message while own action items are still rendered', () => {
+    mockUseUMDashboardPage.mockReturnValue({
+      ...baseHookResult,
+      data: {
+        headcount: 0,
+        riskCounts: { low: 0, need_attention: 0, medium: 0, high: 0, leaver: 0 },
+        actionItemCounts: { open: 1, overdue: 0 },
+        rows: [],
+        ownActionItems: [
+          {
+            id: 'ai-1',
+            title: 'Finish review',
+            dueDate: '2026-09-20',
+            status: 'open',
+            isOverdue: false,
+          },
+        ],
+      },
+    })
+
+    renderPage()
+
+    expect(screen.getByText('No direct reports found.')).toBeInTheDocument()
+    expect(screen.getByText('Finish review')).toBeInTheDocument()
+  })
+
   it('highlights overdue action item rows with a distinct style', () => {
     mockUseUMDashboardPage.mockReturnValue({
       ...baseHookResult,

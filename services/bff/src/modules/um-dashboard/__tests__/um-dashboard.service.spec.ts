@@ -248,6 +248,52 @@ describe('UMDashboardService', () => {
     });
   });
 
+  it('returns 403 when ACS returns a 5xx error status', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValueOnce(makeResponse({}, 500));
+
+    const service = new UMDashboardService(config);
+    const result = await service.getUMDashboard(
+      'Bearer token',
+      'Bearer people',
+      'Bearer wms',
+    );
+
+    expect(result).toEqual({ status: 403, body: undefined });
+  });
+
+  it('passes leaveStatus null through to the row when person has no active leave', async () => {
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(makeResponse({ granted: true }))
+      .mockResolvedValueOnce(
+        makeResponse({
+          people: [
+            {
+              personId: 'person-1',
+              fullName: 'Alex Brandt',
+              department: null,
+              projects: [],
+              leaveStatus: null,
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(makeResponse({ rows: [], nextCursor: null }))
+      .mockResolvedValueOnce(makeResponse({ items: [] }));
+
+    const service = new UMDashboardService(config);
+    const result = await service.getUMDashboard(
+      'Bearer token',
+      'Bearer people',
+      'Bearer wms',
+    );
+
+    expect(result.status).toBe(200);
+    const body = result.body as Record<string, unknown>;
+    const rows = body.rows as Array<Record<string, unknown>>;
+    expect(rows[0].leaveStatus).toBeNull();
+  });
+
   it('own action items are sorted by dueDate ascending in response', async () => {
     jest
       .spyOn(global, 'fetch')

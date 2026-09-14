@@ -1,4 +1,5 @@
 import { apiClient } from '@/api/client'
+import { type RiskSeverity, type RiskTrendDirection } from '@/api/riskDashboard'
 
 export interface UMDashboardRow {
   personId: string
@@ -6,8 +7,8 @@ export interface UMDashboardRow {
   department: { id: string; label: string } | null
   projects: Array<{ id: string; label: string }>
   leaveStatus: string | null
-  severity: string | null
-  trendDirection: string
+  severity: RiskSeverity | null
+  trendDirection: RiskTrendDirection | 'none'
   recordedAt: string | null
 }
 

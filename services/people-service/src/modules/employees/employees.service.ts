@@ -231,6 +231,7 @@ export class EmployeesService {
         leaves: {
           select: { leaveType: true, startDate: true, endDate: true },
           where: { startDate: { lte: now }, endDate: { gte: now } },
+          orderBy: { startDate: 'desc' },
           take: 1,
         },
       },

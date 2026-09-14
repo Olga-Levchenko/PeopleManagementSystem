@@ -752,3 +752,25 @@ photo on management profile UI — scoped in
 - source_spec: `_bmad-output/implementation-artifacts/spec-5-1-shared-dashboard-engine-per-audience-configuration.md`
   summary: In `useSideMenu`, both `setCanAccessAdministration(false)` and `setCanAccessRiskDashboard(false)` are called in `.catch()` handlers after their respective `AbortController` signals fire — calling a state setter after unmount (the component that called `useSideMenu` unmounts, which triggers the cleanup return that calls `controller.abort()`). React 18's automatic batching and no-op unmounted-state-update behavior means this is harmless in practice, but the pattern is not idiomatic: a `.catch()` handler that checks `controller.signal.aborted` before calling the setter would make the intent explicit and future-proof against React versions that surface unmounted-state-update warnings.
   evidence: Code review of Story 5.1 blind-hunter pass; this is a pre-existing pattern in the `SideMenu` this story refactored — not introduced by Story 5.1. React 18 has removed the unmounted-update warning that appeared in React 17, so there is no runtime signal of the issue. Deferred: adding the `signal.aborted` check is mechanical but would require touching `useSideMenu` outside Story 5.1's frozen scope post-approval.
+
+## Deferred from: code review of spec-5-2-um-dashboard-early-blocks (2026-09-14)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-um-dashboard-early-blocks.md`
+  summary: Project assignment `endDate: { gt: now }` off-by-one in `getUMDashboardMetadata` — an assignment ending at the exact query instant is excluded; `gte` would include it. Millisecond-level timing edge case with no practical consequence in normal operation.
+  evidence: Code review edge-case-hunter pass; consistent with the timing ambiguity already noted for the same pattern in other date-filtered queries across the service.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-um-dashboard-early-blocks.md`
+  summary: BFF `um-dashboard.service.spec.ts` — `acsDenied` module-level fixture shares a single `jest.fn()` for `json()` across all tests that use it; call-count state bleeds between tests. No test failures result since `mockResolvedValue` always returns the same value, but the pattern is misleading.
+  evidence: Code review edge-case-hunter pass; cosmetic test setup issue, no correctness risk.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-um-dashboard-early-blocks.md`
+  summary: `useUMDashboard` TanStack Query hook has no per-query `retry` override — the global QueryClient `retry: 1` applies, meaning a 403 response triggers one redundant retry before `isUnauthorized` is set. Consistent with the existing `useRiskDashboard` pattern.
+  evidence: Code review acceptance-auditor pass; the global QueryClient config (`retry: 1, staleTime: 5 min`) is intentional per Frontend CLAUDE.md. Suppressing retries for 4xx responses is a future improvement applicable to all hooks.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-um-dashboard-early-blocks.md`
+  summary: BFF `um-dashboard.service.spec.ts` composed-response test only asserts `riskCounts.high === 1`; does not verify that the other severity keys (`low`, `medium`, `need_attention`, `leaver`) are initialized to 0. The service code is correct (all keys initialized with 0), but the test does not pin this behaviour.
+  evidence: Code review acceptance-auditor pass; logic is correct — this is a coverage completeness note.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-um-dashboard-early-blocks.md`
+  summary: BFF `UMDashboardService.getUMDashboard` outer `try/catch` is redundant given all `fetch` calls use `.catch(() => null)` inline — the outer catch masks some unexpected error types (e.g. unexpected throws from the compose step) as a generic 502 without distinguishing them. Acceptable fail-closed pattern for a composition endpoint; P3 (ACS JSON parse returning 502 instead of 403) is the specific actionable case.
+  evidence: Code review blind-hunter pass; pre-existing fail-closed convention across BFF service modules.

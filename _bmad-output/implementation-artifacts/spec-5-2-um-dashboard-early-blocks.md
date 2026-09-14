@@ -2,7 +2,7 @@
 title: 'Story 5.2: UM Dashboard — Early Blocks'
 type: 'feature'
 created: '2026-09-14'
-status: 'in-progress'
+status: 'review'
 review_loop_iteration: 0
 baseline_commit: '3b4d7df901048fcac82fb1eaab1680232dbf6a36'
 context:
@@ -148,6 +148,23 @@ const columns: ColumnSpec<UMDashboardRow>[] = [
 - [x] [Review][Patch] Subordinates-without-risk-rows must appear in table — **Resolved P3**: BFF service task now explicitly states rows are built from `peopleMetadata.people` (not from WMS rows); WMS risk data attached per person if present, else nulled fields.
 - [x] [Review][Patch] BFF service test missing action-items 5xx case — **Resolved P8**: Distinct WMS action-items 5xx test case added to BFF service test task.
 - [x] [Review][Patch] `useUMDashboardPage` unauthorized redirect — **Resolved P9**: Hook task specifies it exposes `isUnauthorized` only (no `navigate` call); page task specifies `navigate('/')` in `useEffect` when `isUnauthorized` is true, matching `useRiskDashboardPage` pattern.
+
+### Code Review — Iteration 1 (2026-09-14)
+
+- [x] [Review][Patch] No unit tests for `getUMDashboardMetadata` service method — non-trivial Prisma query logic (date-filtered leaves, active-project filter, leaveType mapping) ships untested at service level; controller spec mocks service entirely [services/people-service/src/modules/employees/employees.service.ts:217-265]
+- [x] [Review][Patch] Pagination loop missing max-page guard — `while (riskPage.nextCursor)` has no iteration limit; if WMS returns same cursor repeatedly, request hangs indefinitely [services/bff/src/modules/um-dashboard/um-dashboard.service.ts:726-738]
+- [x] [Review][Patch] ACS JSON parse error returns 502 instead of 403 — `permCheckResponse.json()` can reject on empty/malformed 200 body; outer catch returns 502, but spec requires 403 when ACS is unavailable [services/bff/src/modules/um-dashboard/um-dashboard.service.ts:677-681]
+- [x] [Review][Patch] Counter cards use `dashboard.common.severity.*` keys instead of `dashboard.um.riskCounts.*` — renders "Low" instead of "Low risk" etc.; violates `dashboard.um.*` namespace constraint and uses wrong label text [services/frontend/src/pages/UMDashboardPage/UMDashboardPage.tsx:1233]
+- [x] [Review][Patch] BFF test missing ACS HTTP 5xx path — "ACS unavailable" test covers only network error; no test for ACS returning HTTP 5xx (also → 403 per spec boundary) [services/bff/src/modules/um-dashboard/__tests__/um-dashboard.service.spec.ts]
+- [x] [Review][Patch] Missing test: zero subordinates + non-empty own action items — I/O matrix row "UM with no subordinates → own action items list still renders" has no test coverage [services/frontend/src/pages/UMDashboardPage/__tests__/UMDashboardPage.test.tsx]
+- [x] [Review][Patch] Missing BFF service test for `leaveStatus: null` propagation — spec task lists "null leave status" as a required test case; no dedicated test verifies null leaveStatus flows through the composed row [services/bff/src/modules/um-dashboard/__tests__/um-dashboard.service.spec.ts]
+- [x] [Review][Patch] `UMDashboardRow.severity/trendDirection` weakly typed — `severity: string | null` and `trendDirection: string` should be `RiskSeverity | null` and `RiskTrendDirection | 'none'`; page casts `as RiskSeverity` to work around it [services/frontend/src/api/umDashboard.ts:844-846]
+- [x] [Review][Patch] Multiple active leaves query missing `orderBy` — `take: 1` without `orderBy` returns arbitrary leave when person has multiple concurrent active leaves [services/people-service/src/modules/employees/employees.service.ts:1744-1747]
+- [x] [Review][Defer] Project assignment `endDate: { gt: now }` off-by-one — assignment ending exactly at query instant excluded; `gte` would include it; millisecond-level timing edge case with no practical consequence — deferred, pre-existing
+- [x] [Review][Defer] `acsDenied` module-level fixture json() mock state bleeds across tests — cosmetic; `mockResolvedValue` always returns same value so no test failures — deferred, pre-existing
+- [x] [Review][Defer] Missing `retry` config in `useUMDashboard` — consistent with global QueryClient `retry: 1`; same as existing `useRiskDashboard` — deferred, pre-existing
+- [x] [Review][Defer] BFF composed-response test only asserts `riskCounts.high` — other zero-counts not verified; service initialization logic is correct — deferred, pre-existing
+- [x] [Review][Defer] BFF outer `try/catch` redundancy masks some error types as 502 — acceptable fail-closed pattern; P3 covers the specific ACS JSON case — deferred, pre-existing
 
 ## Verification
 

@@ -863,4 +863,100 @@ describe('EmployeesService', () => {
     expect(result.items[0]?.personId).toBe(managementSubjectId);
     expect(result.items[0]?.values['custom:cf-management']).toBe('G5');
   });
+
+  describe('getUMDashboardMetadata', () => {
+    const callerId = '77777777-7777-4777-8777-777777777777';
+    const reportId = '88888888-8888-4888-8888-888888888888';
+
+    it('returns mapped rows for direct reports of the caller', async () => {
+      prisma.person.findMany.mockResolvedValueOnce([
+        {
+          id: reportId,
+          fullName: 'Jamie Rivera',
+          department: { id: 'dept-1', name: 'Engineering' },
+          personProjectAssignments: [{ projectName: 'Alpha' }],
+          leaves: [
+            {
+              leaveType: 'Annual',
+              startDate: new Date(),
+              endDate: new Date(),
+            },
+          ],
+        },
+      ]);
+
+      const result = await service.getUMDashboardMetadata(callerId);
+
+      expect(result.people).toHaveLength(1);
+      expect(result.people[0].personId).toBe(reportId);
+      expect(result.people[0].fullName).toBe('Jamie Rivera');
+      expect(result.people[0].department).toEqual({
+        id: 'dept-1',
+        label: 'Engineering',
+      });
+      expect(result.people[0].projects).toEqual([
+        { id: 'Alpha', label: 'Alpha' },
+      ]);
+      expect(result.people[0].leaveStatus).toBe('Annual');
+    });
+
+    it('returns leaveStatus null when person has no active leave', async () => {
+      prisma.person.findMany.mockResolvedValueOnce([
+        {
+          id: reportId,
+          fullName: 'Jamie Rivera',
+          department: null,
+          personProjectAssignments: [],
+          leaves: [],
+        },
+      ]);
+
+      const result = await service.getUMDashboardMetadata(callerId);
+
+      expect(result.people[0].leaveStatus).toBeNull();
+      expect(result.people[0].department).toBeNull();
+      expect(result.people[0].projects).toEqual([]);
+    });
+
+    it('returns empty people array when caller has no direct reports', async () => {
+      prisma.person.findMany.mockResolvedValueOnce([]);
+
+      const result = await service.getUMDashboardMetadata(callerId);
+
+      expect(result.people).toHaveLength(0);
+    });
+
+    it('queries Prisma with managerId equal to the caller ID', async () => {
+      prisma.person.findMany.mockResolvedValueOnce([]);
+
+      await service.getUMDashboardMetadata(callerId);
+
+      expect(prisma.person.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { managerId: callerId } }),
+      );
+    });
+
+    it('de-duplicates project names for the same person', async () => {
+      prisma.person.findMany.mockResolvedValueOnce([
+        {
+          id: reportId,
+          fullName: 'Jamie Rivera',
+          department: null,
+          personProjectAssignments: [
+            { projectName: 'Alpha' },
+            { projectName: 'Alpha' },
+            { projectName: 'Beta' },
+          ],
+          leaves: [],
+        },
+      ]);
+
+      const result = await service.getUMDashboardMetadata(callerId);
+
+      expect(result.people[0].projects).toEqual([
+        { id: 'Alpha', label: 'Alpha' },
+        { id: 'Beta', label: 'Beta' },
+      ]);
+    });
+  });
 });

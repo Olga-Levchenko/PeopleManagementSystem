@@ -36,7 +36,7 @@ export const UMDashboardPage = () => {
         header: t('dashboard.um.columns.severity'),
         sortable: false,
         render: row =>
-          row.severity ? <SeverityBadge level={row.severity as RiskSeverity} /> : '—',
+          row.severity ? <SeverityBadge level={row.severity} /> : '—',
       },
       {
         key: 'project',
@@ -82,7 +82,7 @@ export const UMDashboardPage = () => {
             {riskLevels.map(level => (
               <DashboardCountCard
                 key={level}
-                label={t(`dashboard.common.severity.${level}`)}
+                label={t(`dashboard.um.riskCounts.${level}`)}
                 count={data?.riskCounts[level] ?? 0}
               />
             ))}

@@ -68,10 +68,10 @@ export class UMDashboardService {
         return { status: 403, body: undefined };
       }
 
-      const permCheckBody = (await permCheckResponse.json()) as {
-        granted: boolean;
-      };
-      if (!permCheckBody.granted) {
+      const permCheckBody = (await permCheckResponse
+        .json()
+        .catch(() => null)) as { granted: boolean } | null;
+      if (!permCheckBody?.granted) {
         return { status: 403, body: undefined };
       }
 
@@ -117,7 +117,9 @@ export class UMDashboardService {
       };
       riskRows.push(...riskPage.rows);
 
-      while (riskPage.nextCursor) {
+      let riskPageCount = 0;
+      while (riskPage.nextCursor && riskPageCount < 50) {
+        riskPageCount++;
         riskUrl.searchParams.set('cursor', riskPage.nextCursor);
         riskResponse = await fetch(riskUrl, {
           headers: wmsAuthorization ? { Authorization: wmsAuthorization } : {},
