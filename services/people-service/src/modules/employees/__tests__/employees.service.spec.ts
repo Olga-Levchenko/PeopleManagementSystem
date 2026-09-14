@@ -1141,7 +1141,9 @@ describe('EmployeesService', () => {
 
       const result = await service.getDMPMDashboardMetadata(callerId);
 
-      const alpha = result.projects.find((p) => p.projectId === 'project-alpha');
+      const alpha = result.projects.find(
+        (p) => p.projectId === 'project-alpha',
+      );
       const beta = result.projects.find((p) => p.projectId === 'project-beta');
       expect(alpha?.people).toHaveLength(1);
       expect(beta?.people).toHaveLength(2);

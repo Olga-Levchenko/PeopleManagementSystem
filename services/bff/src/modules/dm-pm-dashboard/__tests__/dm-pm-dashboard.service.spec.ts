@@ -308,7 +308,10 @@ describe('DMPMDashboardService', () => {
       'Bearer wms',
     );
 
-    expect(result).toEqual({ status: 502, body: { message: 'Request failed' } });
+    expect(result).toEqual({
+      status: 502,
+      body: { message: 'Request failed' },
+    });
   });
 
   it('returns 502 when WMS risks endpoint is unavailable', async () => {
@@ -326,7 +329,10 @@ describe('DMPMDashboardService', () => {
       'Bearer wms',
     );
 
-    expect(result).toEqual({ status: 502, body: { message: 'Request failed' } });
+    expect(result).toEqual({
+      status: 502,
+      body: { message: 'Request failed' },
+    });
   });
 
   it('returns 502 when WMS action-items endpoint is unavailable (distinct path from risks 5xx)', async () => {
@@ -345,7 +351,10 @@ describe('DMPMDashboardService', () => {
       'Bearer wms',
     );
 
-    expect(result).toEqual({ status: 502, body: { message: 'Request failed' } });
+    expect(result).toEqual({
+      status: 502,
+      body: { message: 'Request failed' },
+    });
   });
 
   it('own action items are sorted by dueDate ascending in response', async () => {

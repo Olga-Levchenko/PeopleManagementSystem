@@ -163,7 +163,9 @@ export class DMPMDashboardService {
 
       // Aggregate counts across all projects (people may appear in multiple projects)
       const allPersonIds = new Set(
-        metadata.projects.flatMap((p) => p.people.map((person) => person.personId)),
+        metadata.projects.flatMap((p) =>
+          p.people.map((person) => person.personId),
+        ),
       );
 
       const totalPeople = allPersonIds.size;
