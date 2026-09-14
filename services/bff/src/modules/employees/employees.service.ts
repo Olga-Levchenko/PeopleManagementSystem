@@ -510,7 +510,10 @@ export class EmployeesService {
       if (passthroughValidation && response.status === 400) {
         return { status: 400, body: responseBody };
       }
-      return { status: response.status >= 500 ? 502 : response.status, body: { message: 'Request failed' } };
+      return {
+        status: response.status >= 500 ? 502 : response.status,
+        body: { message: 'Request failed' },
+      };
     }
 
     return {

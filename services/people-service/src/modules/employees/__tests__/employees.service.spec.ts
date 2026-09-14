@@ -959,4 +959,194 @@ describe('EmployeesService', () => {
       ]);
     });
   });
+
+  describe('getDMPMDashboardMetadata', () => {
+    const callerId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    const memberId1 = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    const memberId2 = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+
+    const prismaWithAssignments = prisma as unknown as {
+      personProjectAssignment: {
+        findMany: jest.Mock;
+      };
+      person: {
+        findMany: jest.Mock;
+      };
+    };
+
+    it('returns grouped projects for a DeliveryManager', async () => {
+      prismaWithAssignments.personProjectAssignment.findMany
+        .mockResolvedValueOnce([{ projectName: 'project-alpha' }])
+        .mockResolvedValueOnce([
+          {
+            projectName: 'project-alpha',
+            person: {
+              id: memberId1,
+              fullName: 'Morgan Ellis',
+              department: { id: 'dept-1', name: 'Engineering' },
+              leaves: [{ leaveType: 'Annual' }],
+            },
+          },
+        ]);
+
+      const result = await service.getDMPMDashboardMetadata(callerId);
+
+      expect(result.projects).toHaveLength(1);
+      expect(result.projects[0].projectId).toBe('project-alpha');
+      expect(result.projects[0].people).toHaveLength(1);
+      expect(result.projects[0].people[0].personId).toBe(memberId1);
+      expect(result.projects[0].people[0].leaveStatus).toBe('Annual');
+    });
+
+    it('returns grouped projects for a ProjectManager', async () => {
+      prismaWithAssignments.personProjectAssignment.findMany
+        .mockResolvedValueOnce([{ projectName: 'project-beta' }])
+        .mockResolvedValueOnce([
+          {
+            projectName: 'project-beta',
+            person: {
+              id: memberId1,
+              fullName: 'Robin Park',
+              department: null,
+              leaves: [],
+            },
+          },
+        ]);
+
+      const result = await service.getDMPMDashboardMetadata(callerId);
+
+      expect(result.projects).toHaveLength(1);
+      expect(result.projects[0].projectId).toBe('project-beta');
+      expect(result.projects[0].people[0].fullName).toBe('Robin Park');
+    });
+
+    it('deduplicates projects when caller holds both DM and PM roles on the same project', async () => {
+      // First call returns two assignments to the same project (DM + PM)
+      prismaWithAssignments.personProjectAssignment.findMany
+        .mockResolvedValueOnce([
+          { projectName: 'project-alpha' },
+          { projectName: 'project-alpha' },
+        ])
+        .mockResolvedValueOnce([
+          {
+            projectName: 'project-alpha',
+            person: {
+              id: memberId1,
+              fullName: 'Alex Brandt',
+              department: null,
+              leaves: [],
+            },
+          },
+        ]);
+
+      const result = await service.getDMPMDashboardMetadata(callerId);
+
+      expect(result.projects).toHaveLength(1);
+    });
+
+    it('deduplicates people within the same project', async () => {
+      prismaWithAssignments.personProjectAssignment.findMany
+        .mockResolvedValueOnce([{ projectName: 'project-alpha' }])
+        .mockResolvedValueOnce([
+          {
+            projectName: 'project-alpha',
+            person: {
+              id: memberId1,
+              fullName: 'Morgan Ellis',
+              department: null,
+              leaves: [],
+            },
+          },
+          {
+            projectName: 'project-alpha',
+            person: {
+              id: memberId1,
+              fullName: 'Morgan Ellis',
+              department: null,
+              leaves: [],
+            },
+          },
+        ]);
+
+      const result = await service.getDMPMDashboardMetadata(callerId);
+
+      expect(result.projects[0].people).toHaveLength(1);
+    });
+
+    it('returns empty projects when caller has no DM/PM assignments', async () => {
+      prismaWithAssignments.personProjectAssignment.findMany.mockResolvedValueOnce(
+        [],
+      );
+
+      const result = await service.getDMPMDashboardMetadata(callerId);
+
+      expect(result.projects).toHaveLength(0);
+    });
+
+    it('propagates null leaveStatus when person has no active leave', async () => {
+      prismaWithAssignments.personProjectAssignment.findMany
+        .mockResolvedValueOnce([{ projectName: 'project-gamma' }])
+        .mockResolvedValueOnce([
+          {
+            projectName: 'project-gamma',
+            person: {
+              id: memberId1,
+              fullName: 'Sam Chen',
+              department: null,
+              leaves: [],
+            },
+          },
+        ]);
+
+      const result = await service.getDMPMDashboardMetadata(callerId);
+
+      expect(result.projects[0].people[0].leaveStatus).toBeNull();
+    });
+
+    it('handles a person appearing in multiple projects without cross-project deduplication', async () => {
+      prismaWithAssignments.personProjectAssignment.findMany
+        .mockResolvedValueOnce([
+          { projectName: 'project-alpha' },
+          { projectName: 'project-beta' },
+        ])
+        .mockResolvedValueOnce([
+          {
+            projectName: 'project-alpha',
+            person: {
+              id: memberId1,
+              fullName: 'Jordan Lee',
+              department: null,
+              leaves: [],
+            },
+          },
+          {
+            projectName: 'project-beta',
+            person: {
+              id: memberId1,
+              fullName: 'Jordan Lee',
+              department: null,
+              leaves: [],
+            },
+          },
+          {
+            projectName: 'project-beta',
+            person: {
+              id: memberId2,
+              fullName: 'Casey Kim',
+              department: null,
+              leaves: [],
+            },
+          },
+        ]);
+
+      const result = await service.getDMPMDashboardMetadata(callerId);
+
+      const alpha = result.projects.find(
+        (p) => p.projectId === 'project-alpha',
+      );
+      const beta = result.projects.find((p) => p.projectId === 'project-beta');
+      expect(alpha?.people).toHaveLength(1);
+      expect(beta?.people).toHaveLength(2);
+    });
+  });
 });

@@ -43,10 +43,7 @@ export class EmployeesController {
   }
 
   @Get('export')
-  async exportEmployees(
-    @Req() request: Request,
-    @Res() response: Response,
-  ) {
+  async exportEmployees(@Req() request: Request, @Res() response: Response) {
     const actorId = await this.actor.resolveActorId();
     await this.colleagueBrowseGate.assertManagementBrowseAllowed(actorId);
     const query = (await listEmployeesQueryPipe.transform(
