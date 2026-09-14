@@ -182,9 +182,7 @@ export const AllEmployeesPage = () => {
             {countryCity.trim() && (
               <button
                 type="button"
-                aria-label={t('allEmployees.filters.clearField', {
-                  field: t('allEmployees.filters.countryCity'),
-                })}
+                aria-label={t('allEmployees.filters.clearFilter')}
                 title={t('allEmployees.filters.clearField', {
                   field: t('allEmployees.filters.countryCity'),
                 })}
@@ -232,9 +230,7 @@ export const AllEmployeesPage = () => {
                 {(customFieldFilters[field.key] ?? '').trim() && (
                   <button
                     type="button"
-                    aria-label={t('allEmployees.filters.clearField', {
-                      field: field.label,
-                    })}
+                    aria-label={t('allEmployees.filters.clearFilter')}
                     title={t('allEmployees.filters.clearField', {
                       field: field.label,
                     })}

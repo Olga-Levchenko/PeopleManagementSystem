@@ -62,6 +62,7 @@
       "yearsMin": "Years with company (min)",
       "yearsMax": "Years with company (max)",
       "clear": "Clear filters",
+      "clearFilter": "Clear filter",
       "clearField": "Clear {{field}}"
     },
     "export": {
