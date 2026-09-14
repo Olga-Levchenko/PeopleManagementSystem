@@ -92,8 +92,9 @@ export class RiskDashboardService {
             body: JSON.stringify({ personIds: ids.slice(index, index + 500) }),
           },
         );
-        if (!metadataResponse.ok)
+        if (!metadataResponse.ok) {
           return { status: 502, body: { message: 'Request failed' } };
+        }
         const metadata = (await metadataResponse.json()) as {
           people: typeof metadataPeople;
         };

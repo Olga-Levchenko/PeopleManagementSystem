@@ -1,4 +1,5 @@
 import { apiClient } from '@/api/client'
+import type { RiskSeverity, RiskTrendDirection } from '@/api/riskDashboard'
 
 export interface PersonSummary {
   id: string
@@ -90,6 +91,37 @@ export interface EmployeeProfileResponse {
   s16?: S16CustomField[]
 }
 
+export interface ProfileRiskSummary {
+  currentLevel: RiskSeverity | null
+  isActive: boolean
+  recordedAt: string | null
+}
+
+export interface ProfileRiskRecord {
+  id: string
+  subjectPersonId: string
+  authorPersonId: string
+  level: RiskSeverity
+  description: string
+  details: string | null
+  recordedAt: string
+  trendDirection: RiskTrendDirection
+  createdAt: string
+}
+
+export interface ProfileRiskHistoryResponse {
+  summary: ProfileRiskSummary
+  records: ProfileRiskRecord[]
+  canAppend: boolean
+}
+
+export interface AppendProfileRiskRequest {
+  level: RiskSeverity
+  description: string
+  details?: string | null
+  recordedAt?: string
+}
+
 /** @deprecated Use EmployeeProfileResponse */
 export type ColleagueProfileResponse = EmployeeProfileResponse
 
@@ -110,6 +142,20 @@ export const getEmployeeProfileApiCall = (
   apiClient.get<EmployeeProfileResponse>(`/api/v1/people/${personId}/profile`, {
     signal,
   })
+
+export const getProfileRisksApiCall = (
+  personId: string,
+  signal?: AbortSignal,
+) =>
+  apiClient.get<ProfileRiskHistoryResponse>(`/api/v1/people/${personId}/risks`, {
+    signal,
+  })
+
+export const appendProfileRiskApiCall = (
+  personId: string,
+  body: AppendProfileRiskRequest,
+) =>
+  apiClient.post<ProfileRiskRecord>(`/api/v1/people/${personId}/risks`, body)
 
 export const patchProfileFieldApiCall = (
   personId: string,

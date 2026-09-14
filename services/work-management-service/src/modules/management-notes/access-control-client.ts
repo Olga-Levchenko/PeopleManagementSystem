@@ -222,7 +222,6 @@ function isCompleteBatchResolution(value: Record<string, unknown>): boolean {
     typeof value['reportingLine'] === 'boolean' &&
     typeof value['projectLine'] === 'boolean' &&
     typeof value['peoplePartnerLine'] === 'boolean' &&
-    typeof value['fullProfileAccessLine'] === 'boolean' &&
-    Array.isArray(value['projectRoles'])
+    typeof value['fullProfileAccessLine'] === 'boolean'
   );
 }

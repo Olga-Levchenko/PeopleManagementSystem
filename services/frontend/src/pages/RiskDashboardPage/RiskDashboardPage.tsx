@@ -26,8 +26,6 @@ export const RiskDashboardPage = () => {
   })
   const forbidden = axios.isAxiosError(dashboard.error) && dashboard.error.response?.status === 403
 
-  if (forbidden) return null
-
   const catalogs = dashboard.data?.catalogs
   const setFilter = (value: string, setter: (next: string | undefined) => void) =>
     setter(value || undefined)
@@ -42,7 +40,9 @@ export const RiskDashboardPage = () => {
         </div>
       </div>
 
-      {dashboard.isLoading ? (
+      {forbidden ? (
+        <p className="text-muted-foreground">{t('riskDashboard.forbidden')}</p>
+      ) : dashboard.isLoading ? (
         <p className="text-muted-foreground">{t('riskDashboard.loading')}</p>
       ) : dashboard.isError ? (
         <p className="text-destructive">{t('riskDashboard.error')}</p>

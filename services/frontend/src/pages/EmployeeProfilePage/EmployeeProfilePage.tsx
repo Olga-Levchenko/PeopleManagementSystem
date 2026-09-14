@@ -1,9 +1,14 @@
 import { useState } from 'react'
-import { ArrowLeft, User } from 'lucide-react'
+import { ArrowLeft, Plus, User } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useEmployeeProfile } from '@/api/hooks/useEmployeeProfile'
+import {
+  useAppendProfileRisk,
+  useEmployeeProfile,
+  useProfileRisks,
+} from '@/api/hooks/useEmployeeProfile'
 import { usePatchProfileField } from '@/api/hooks/usePatchProfileField'
+import type { RiskSeverity } from '@/api/riskDashboard'
 import { useAuthenticatedAssetUrl } from '@/pages/EmployeeProfilePage/hooks/useAuthenticatedAssetUrl'
 import { ProfileInlineEditableField } from './ProfileInlineEditableField'
 import { ProfileManagementReadOnlySection } from './ProfileManagementReadOnlySection'
@@ -28,12 +33,31 @@ const formatBirthday = (
 
 type S2FieldKey = 'personalPhone' | 'personalEmail' | 'residentialAddress'
 
+const severityOptions: RiskSeverity[] = [
+  'low',
+  'need_attention',
+  'medium',
+  'high',
+  'leaver',
+]
+
 export const EmployeeProfilePage = () => {
   const { t } = useTranslation()
   const { personId } = useParams<{ personId: string }>()
   const profileQuery = useEmployeeProfile(personId)
   const patchMutation = usePatchProfileField(personId)
+  const risksQuery = useProfileRisks(
+    personId,
+    profileQuery.isSuccess && profileQuery.data?.isSelf !== true,
+  )
+  const appendRiskMutation = useAppendProfileRisk(personId)
   const [liveMessage, setLiveMessage] = useState('')
+  const [riskFormOpen, setRiskFormOpen] = useState(false)
+  const [riskLevel, setRiskLevel] = useState<RiskSeverity>('need_attention')
+  const [riskDescription, setRiskDescription] = useState('')
+  const [riskDetails, setRiskDetails] = useState('')
+  const [riskRecordedAt, setRiskRecordedAt] = useState('')
+  const [riskFormError, setRiskFormError] = useState('')
 
   const isSelfProfile = profileQuery.data?.isSelf === true
   const isManagementProfile =
@@ -55,6 +79,42 @@ export const EmployeeProfilePage = () => {
       setLiveMessage(t('employeeProfile.saveSuccess', { field: fieldKey }))
     } catch {
       setLiveMessage(t('employeeProfile.saveError', { field: fieldKey }))
+    }
+  }
+
+  const riskStatus = (risksQuery.error as { response?: { status?: number } } | null)
+    ?.response?.status
+  const showRiskSection =
+    risksQuery.isLoading ||
+    risksQuery.isSuccess ||
+    (risksQuery.isError && riskStatus !== 403)
+
+  const submitRiskRecord = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setRiskFormError('')
+    if (!riskDescription.trim()) {
+      setRiskFormError(t('employeeProfile.risks.validation.description'))
+      return
+    }
+    try {
+      await appendRiskMutation.mutateAsync({
+        level: riskLevel,
+        description: riskDescription.trim(),
+        details: riskDetails.trim() || null,
+        recordedAt: riskRecordedAt || undefined,
+      })
+      setRiskDescription('')
+      setRiskDetails('')
+      setRiskRecordedAt('')
+      setRiskFormOpen(false)
+      setLiveMessage(t('employeeProfile.risks.saved'))
+    } catch (error) {
+      const status = (error as { response?: { status?: number } }).response?.status
+      setRiskFormError(
+        status === 400
+          ? t('employeeProfile.risks.validation.generic')
+          : t('employeeProfile.risks.saveError'),
+      )
     }
   }
 
@@ -222,6 +282,153 @@ export const EmployeeProfilePage = () => {
 
           {isManagementProfile && profileQuery.data && (
             <ProfileManagementReadOnlySection profile={profileQuery.data} />
+          )}
+
+          {showRiskSection && (
+            <section
+              id="profile-risks"
+              className="rounded-lg border border-border bg-card p-4 lg:col-span-2"
+            >
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-medium text-foreground">
+                    {t('employeeProfile.sections.risks')}
+                  </h2>
+                  {risksQuery.data?.summary.currentLevel && (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {t('employeeProfile.risks.current', {
+                        level: t(`riskDashboard.severity.${risksQuery.data.summary.currentLevel}`),
+                        date: formatDate(risksQuery.data.summary.recordedAt),
+                      })}
+                    </p>
+                  )}
+                </div>
+                {risksQuery.data?.canAppend && (
+                  <button
+                    type="button"
+                    onClick={() => setRiskFormOpen(open => !open)}
+                    className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {t('employeeProfile.risks.add')}
+                  </button>
+                )}
+              </div>
+
+              {risksQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">
+                  {t('employeeProfile.risks.loading')}
+                </p>
+              ) : risksQuery.isError ? (
+                <p className="text-sm text-destructive">
+                  {t('employeeProfile.risks.error')}
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {riskFormOpen && risksQuery.data.canAppend && (
+                    <form className="grid gap-3 rounded-md border border-border p-3" onSubmit={submitRiskRecord}>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <label className="grid gap-1 text-sm">
+                          <span className="text-muted-foreground">
+                            {t('employeeProfile.risks.level')}
+                          </span>
+                          <select
+                            value={riskLevel}
+                            onChange={event => setRiskLevel(event.target.value as RiskSeverity)}
+                            className="rounded-md border border-input bg-background px-3 py-2 text-foreground"
+                          >
+                            {severityOptions.map(level => (
+                              <option key={level} value={level}>
+                                {t(`riskDashboard.severity.${level}`)}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="grid gap-1 text-sm">
+                          <span className="text-muted-foreground">
+                            {t('employeeProfile.risks.recordedAt')}
+                          </span>
+                          <input
+                            type="date"
+                            value={riskRecordedAt}
+                            onChange={event => setRiskRecordedAt(event.target.value)}
+                            className="rounded-md border border-input bg-background px-3 py-2 text-foreground"
+                          />
+                        </label>
+                      </div>
+                      <label className="grid gap-1 text-sm">
+                        <span className="text-muted-foreground">
+                          {t('employeeProfile.risks.description')}
+                        </span>
+                        <input
+                          value={riskDescription}
+                          maxLength={10000}
+                          onChange={event => setRiskDescription(event.target.value)}
+                          className="rounded-md border border-input bg-background px-3 py-2 text-foreground"
+                        />
+                      </label>
+                      <label className="grid gap-1 text-sm">
+                        <span className="text-muted-foreground">
+                          {t('employeeProfile.risks.details')}
+                        </span>
+                        <textarea
+                          value={riskDetails}
+                          maxLength={10000}
+                          onChange={event => setRiskDetails(event.target.value)}
+                          className="min-h-24 rounded-md border border-input bg-background px-3 py-2 text-foreground"
+                        />
+                      </label>
+                      {riskFormError && (
+                        <p className="text-sm text-destructive">{riskFormError}</p>
+                      )}
+                      <div>
+                        <button
+                          type="submit"
+                          disabled={appendRiskMutation.isPending}
+                          className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
+                        >
+                          {appendRiskMutation.isPending
+                            ? t('employeeProfile.risks.saving')
+                            : t('employeeProfile.risks.save')}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {risksQuery.data.records.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      {t('employeeProfile.risks.empty')}
+                    </p>
+                  ) : (
+                    <ol className="space-y-3">
+                      {risksQuery.data.records.map(record => (
+                        <li key={record.id} className="rounded-md border border-border p-3">
+                          <div className="flex flex-wrap items-center gap-2 text-sm">
+                            <span className="font-medium text-foreground">
+                              {t(`riskDashboard.severity.${record.level}`)}
+                            </span>
+                            <span className="text-muted-foreground">
+                              {formatDate(record.recordedAt)}
+                            </span>
+                            <span className="text-muted-foreground">
+                              {record.trendDirection
+                                ? t(`riskDashboard.trend.${record.trendDirection}`)
+                                : t('riskDashboard.trend.none')}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-sm text-foreground">{record.description}</p>
+                          {record.details && (
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              {record.details}
+                            </p>
+                          )}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </div>
+              )}
+            </section>
           )}
 
           {profileQuery.data?.s2 && (

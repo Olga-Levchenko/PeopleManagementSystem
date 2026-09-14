@@ -31,6 +31,42 @@ export class EmployeesService {
     );
   }
 
+  getProfileRisks(
+    subjectPersonId: string,
+    context: ProxyContext,
+  ): Promise<UpstreamResponse> {
+    return this.requestWorkManagement(
+      `/risks?subjectPersonId=${encodeURIComponent(subjectPersonId)}`,
+      'GET',
+      undefined,
+      context,
+    );
+  }
+
+  appendProfileRisk(
+    subjectPersonId: string,
+    body: unknown,
+    context: ProxyContext,
+  ): Promise<UpstreamResponse> {
+    const source =
+      typeof body === 'object' && body !== null
+        ? (body as Record<string, unknown>)
+        : {};
+    return this.requestWorkManagement(
+      '/risks',
+      'POST',
+      {
+        subjectPersonId,
+        level: source.level,
+        description: source.description,
+        details: source.details,
+        recordedAt: source.recordedAt,
+      },
+      context,
+      true,
+    );
+  }
+
   patchField(
     subjectPersonId: string,
     body: unknown,
@@ -419,6 +455,56 @@ export class EmployeesService {
         },
         this.safeErrorStatus(response.status),
       );
+    }
+
+    return {
+      status: response.status,
+      body: responseBody,
+    };
+  }
+
+  private async requestWorkManagement(
+    path: string,
+    method: string,
+    body: unknown,
+    context: ProxyContext,
+    passthroughValidation = false,
+  ): Promise<UpstreamResponse> {
+    const headers: Record<string, string> = {
+      accept: 'application/json',
+      'x-correlation-id': context.correlationId,
+    };
+    if (context.authorization) {
+      headers.authorization = context.authorization;
+    }
+    if (body !== undefined) {
+      headers['content-type'] = 'application/json';
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(
+        `${this.config.getOrThrow<string>('WORK_MANAGEMENT_SERVICE_URL')}/api/v1${path}`,
+        {
+          method,
+          headers,
+          body: body === undefined ? undefined : JSON.stringify(body),
+        },
+      );
+    } catch {
+      return { status: 502, body: { message: 'Request failed' } };
+    }
+
+    if (response.status === 403) {
+      return { status: 403, body: undefined };
+    }
+
+    const responseBody = await this.readBody(response);
+    if (!response.ok) {
+      if (passthroughValidation && response.status === 400) {
+        return { status: 400, body: responseBody };
+      }
+      return { status: response.status >= 500 ? 502 : response.status, body: { message: 'Request failed' } };
     }
 
     return {
