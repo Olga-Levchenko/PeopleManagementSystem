@@ -30,6 +30,7 @@ function buildService(
   permissionsCheck: RisksPermissionsCheckPort,
   resolve: AccessRoleResolutionPort['resolve'],
   prismaOverrides: Record<string, unknown> = {},
+  resolveBatch?: NonNullable<AccessRoleResolutionPort['resolveBatch']>,
 ) {
   const prisma = {
     riskRecord: {
@@ -38,7 +39,10 @@ function buildService(
       ...prismaOverrides,
     },
   };
-  const accessRoleResolution: AccessRoleResolutionPort = { resolve };
+  const accessRoleResolution: AccessRoleResolutionPort = {
+    resolve,
+    resolveBatch,
+  };
   const service = new RisksService(
     prisma as unknown as PrismaService,
     permissionsCheck,
@@ -588,6 +592,72 @@ describe('RisksService', () => {
 
     it('AC5: high then low trend is down', () => {
       expect(service.computeTrendDirection('low', 'high')).toBe('down');
+    });
+  });
+
+  describe('getDashboard', () => {
+    it('fails closed without the scoped dashboard permission', async () => {
+      const { service, prisma } = buildService(
+        {
+          hasCreateEditRisksPermission: jest.fn(),
+          hasViewDashboardPermission: jest.fn().mockResolvedValue(false),
+        },
+        jest.fn(),
+      );
+      await expect(
+        service.getDashboard(VIEWER_ID, { pageSize: 50 }, 'token'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.riskRecord.findMany).not.toHaveBeenCalled();
+    });
+
+    it('excludes self, keeps current low in counts, and returns an opaque continuation', async () => {
+      const other = '44444444-4444-4444-8444-444444444444';
+      const batch = jest.fn().mockResolvedValue(
+        new Map([
+          [SUBJECT_ID, resolution({ reportingLine: true })],
+          [other, resolution({ fullProfileAccessLine: true })],
+        ]),
+      );
+      const { service } = buildService(
+        {
+          hasCreateEditRisksPermission: jest.fn(),
+          hasViewDashboardPermission: jest.fn().mockResolvedValue(true),
+        },
+        jest.fn(),
+        {
+          findMany: jest.fn().mockResolvedValue([
+            riskRow({ subjectPersonId: VIEWER_ID, level: 'leaver' }),
+            riskRow({
+              subjectPersonId: SUBJECT_ID,
+              level: 'low',
+              createdAt: new Date('2026-09-11'),
+            }),
+            riskRow({
+              id: 'other',
+              subjectPersonId: other,
+              level: 'high',
+              createdAt: new Date('2026-09-10'),
+            }),
+          ]),
+        },
+        batch,
+      );
+      const first = await service.getDashboard(
+        VIEWER_ID,
+        { pageSize: 1 },
+        'token',
+      );
+      expect(first.counts).toEqual(
+        expect.objectContaining({ low: 1, high: 1, activeCount: 1 }),
+      );
+      expect(first.rows.map((row) => row.personId)).not.toContain(VIEWER_ID);
+      expect(first.nextCursor).toEqual(expect.any(String));
+      const second = await service.getDashboard(
+        VIEWER_ID,
+        { pageSize: 1, cursor: first.nextCursor ?? undefined },
+        'token',
+      );
+      expect(second.rows[0].personId).not.toBe(first.rows[0].personId);
     });
   });
 

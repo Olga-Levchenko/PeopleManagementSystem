@@ -12,6 +12,7 @@ import { ManagementNotesModule } from './modules/management-notes/management-not
 import { OrganisationalRelationshipsModule } from './modules/organisational-relationships/organisational-relationships.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { FunctionalRolesModule } from './modules/functional-roles/functional-roles.module';
+import { RiskDashboardModule } from './modules/risk-dashboard/risk-dashboard.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { FunctionalRolesModule } from './modules/functional-roles/functional-rol
     ManagementNotesModule,
     OrganisationalRelationshipsModule,
     FunctionalRolesModule,
+    RiskDashboardModule,
   ],
   providers: [
     // OidcService is exported from AuthModule, but APP_GUARD is instantiated by the root injector

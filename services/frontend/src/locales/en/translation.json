@@ -17,7 +17,37 @@
     "home": "Home",
     "allEmployees": "All Employees",
     "relationships": "Relationships",
-    "administration": "Administration"
+    "administration": "Administration",
+    "riskDashboard": "Risk Dashboard"
+  },
+  "riskDashboard": {
+    "title": "Risk Dashboard",
+    "description": "Current risk posture for your permitted population.",
+    "loading": "Loading risk dashboard...",
+    "error": "Unable to load risk data. Please try again.",
+    "empty": "No current risk records to show.",
+    "activeCount": "Active risks",
+    "severity": {
+      "low": "Low",
+      "need_attention": "Needs attention",
+      "medium": "Medium",
+      "high": "High",
+      "leaver": "Leaver"
+    },
+    "filters": {
+      "department": "Department",
+      "project": "Project",
+      "peoplePartner": "People Partner",
+      "manager": "Manager"
+    },
+    "columns": {
+      "person": "Person",
+      "severity": "Severity",
+      "trend": "Trend",
+      "recordedAt": "Recorded",
+      "department": "Department"
+    },
+    "trend": { "up": "Increasing", "down": "Decreasing", "none": "No change" }
   },
   "allEmployees": {
     "title": "All Employees",

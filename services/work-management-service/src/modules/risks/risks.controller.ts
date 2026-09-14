@@ -11,6 +11,7 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RequestActorContext } from '../identity/request-actor.context';
 import { CreateRiskRecordDto } from './dto/create-risk-record.dto';
+import { RiskDashboardQueryDto } from './dto/risk-dashboard-query.dto';
 import { RisksService } from './risks.service';
 import {
   SwaggerAppendRiskRecord,
@@ -47,6 +48,16 @@ export class RisksController {
     return this.service.getRiskHistory(
       viewerPersonId,
       subjectPersonId,
+      this.actor.accessToken,
+    );
+  }
+
+  @Get('dashboard')
+  async getDashboard(@Query() query: RiskDashboardQueryDto) {
+    const viewerPersonId = await this.actor.resolveActorId();
+    return this.service.getDashboard(
+      viewerPersonId,
+      query,
       this.actor.accessToken,
     );
   }

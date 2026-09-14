@@ -53,6 +53,50 @@ describe('HttpRisksPermissionsCheckAdapter', () => {
     );
   });
 
+  it('allows dashboard access when any supported dashboard permission scope is granted', async () => {
+    fetchMock
+      .mockResolvedValueOnce(Response.json({ granted: false }))
+      .mockResolvedValueOnce(Response.json({ granted: false }))
+      .mockResolvedValueOnce(Response.json({ granted: true }));
+
+    await expect(
+      adapter.hasViewDashboardPermission('subject-token'),
+    ).resolves.toBe(true);
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const requestBodies: unknown[] = fetchMock.mock.calls.map(([, init]) => {
+      const body = init?.body;
+      expect(typeof body).toBe('string');
+      const parsed: unknown = JSON.parse(body);
+      return parsed;
+    });
+
+    expect(requestBodies).toEqual([
+      {
+        permissionKey: 'view-dashboard',
+        scope: { dashboardType: 'unit-manager' },
+      },
+      {
+        permissionKey: 'view-dashboard',
+        scope: { dashboardType: 'delivery-manager' },
+      },
+      {
+        permissionKey: 'view-dashboard',
+        scope: { dashboardType: 'project-manager' },
+      },
+    ]);
+  });
+
+  it('denies dashboard access when no supported dashboard permission scope is granted', async () => {
+    fetchMock.mockResolvedValue(Response.json({ granted: false }));
+
+    await expect(
+      adapter.hasViewDashboardPermission('subject-token'),
+    ).resolves.toBe(false);
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
   it.each([false, 'true', 1, null])(
     'denies a non-true grant %p',
     async (granted) => {

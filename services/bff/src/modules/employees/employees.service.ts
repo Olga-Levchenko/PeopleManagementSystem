@@ -247,12 +247,10 @@ export class EmployeesService {
     context: ProxyContext,
   ): Promise<UpstreamResponse> {
     const formData = new FormData();
-    const blob = new Blob([Uint8Array.from(file.buffer)], { type: file.mimetype });
-    formData.append(
-      'file',
-      blob,
-      decodeMultipartFileName(file.originalname),
-    );
+    const blob = new Blob([Uint8Array.from(file.buffer)], {
+      type: file.mimetype,
+    });
+    formData.append('file', blob, decodeMultipartFileName(file.originalname));
 
     const headers: Record<string, string> = {
       accept: 'application/json',

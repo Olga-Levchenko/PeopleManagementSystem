@@ -125,7 +125,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const isBootstrapIdentityResolver = request.path.startsWith(
       '/api/v1/internal/bootstrap/identity-mappings',
     );
-    const allowedAzp = isBootstrapIdentityResolver
+    const isRiskDashboardMetadata = request.path.startsWith(
+      '/api/v1/internal/risk-dashboard/metadata',
+    );
+    const allowedAzp = isRiskDashboardMetadata
+      ? ['bff-confidential']
+      : isBootstrapIdentityResolver
       ? ['access-control-service']
       : isIdentityResolver
         ? ['access-control-service', 'work-management-service']
