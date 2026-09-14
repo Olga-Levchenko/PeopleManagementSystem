@@ -2,7 +2,7 @@
 title: 'Story 4.3: Profile S6 Risk History and Authoring UI'
 type: 'feature'
 created: '2026-09-14'
-status: 'done'
+status: 'review'
 review_loop_iteration: 0
 baseline_commit: 'fd74f449304f2b66df8f03abf840c912085dac49'
 jira: 'O4-172'
