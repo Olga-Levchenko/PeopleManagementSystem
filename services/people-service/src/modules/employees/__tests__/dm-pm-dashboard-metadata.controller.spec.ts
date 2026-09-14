@@ -55,19 +55,19 @@ describe('DMPMDashboardMetadataController', () => {
     expect(mockEmployeesService.getDMPMDashboardMetadata).toHaveBeenCalledWith(
       callerPersonId,
     );
-    expect(result).toEqual({
-      projects: [
-        expect.objectContaining({
-          projectId: 'project-alpha',
-          people: expect.arrayContaining([
-            expect.objectContaining({
-              personId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-              fullName: 'Morgan Ellis',
-            }),
-          ]),
-        }),
-      ],
-    });
+    const typed = result as {
+      projects: Array<{
+        projectId: string;
+        people: Array<{ personId: string; fullName: string }>;
+      }>;
+    };
+    expect(typed.projects).toHaveLength(1);
+    expect(typed.projects[0].projectId).toBe('project-alpha');
+    expect(typed.projects[0].people).toHaveLength(1);
+    expect(typed.projects[0].people[0].personId).toBe(
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    );
+    expect(typed.projects[0].people[0].fullName).toBe('Morgan Ellis');
   });
 
   it('returns empty projects array when caller has no DM/PM assignments', async () => {
