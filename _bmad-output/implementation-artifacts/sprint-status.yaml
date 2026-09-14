@@ -84,11 +84,11 @@ development_status:
   4-3-profile-s6-risk-history-and-authoring-ui: done  # Jira O4-172; PR #112 merged 2026-09-14
   epic-4-retrospective: optional
 
-  epic-5: in-progress
+  epic-5: done  # all stories complete; PR #119 merged 2026-09-14; retrospective optional
   5-1-shared-dashboard-engine-per-audience-configuration: done  # PR #111 merged 2026-09-14
   5-2-um-dashboard-early-blocks: done
   5-3-dm-pm-dashboard-early-blocks: done  # PR #116 merged 2026-09-14
-  5-4-pp-dashboard: review
+  5-4-pp-dashboard: done  # PR #119 merged 2026-09-14
   epic-5-retrospective: optional
 
   epic-6: backlog
