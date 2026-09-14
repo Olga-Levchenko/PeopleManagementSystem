@@ -55,6 +55,10 @@ export class RisksController {
   @Get('dashboard')
   async getDashboard(@Query() query: RiskDashboardQueryDto) {
     const viewerPersonId = await this.actor.resolveActorId();
-    return this.service.getDashboard(viewerPersonId, query, this.actor.accessToken);
+    return this.service.getDashboard(
+      viewerPersonId,
+      query,
+      this.actor.accessToken,
+    );
   }
 }

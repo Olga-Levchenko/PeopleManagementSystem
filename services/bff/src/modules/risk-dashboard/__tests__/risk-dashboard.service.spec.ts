@@ -70,9 +70,9 @@ describe('RiskDashboardService', () => {
       }),
     );
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(String(fetchMock.mock.calls[1][0])).toContain(
-      '/api/v1/internal/risk-dashboard/metadata',
-    );
+    const metadataUrl = fetchMock.mock.calls[1][0];
+    expect(typeof metadataUrl).toBe('string');
+    expect(metadataUrl).toContain('/api/v1/internal/risk-dashboard/metadata');
   });
 
   it('reads all WMS pages before applying metadata filters and BFF pagination', async () => {
@@ -144,7 +144,9 @@ describe('RiskDashboardService', () => {
     );
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(String(fetchMock.mock.calls[1][0])).toContain('cursor=wms-cursor');
+    const secondWmsUrl = fetchMock.mock.calls[1][0];
+    expect(secondWmsUrl).toBeInstanceOf(URL);
+    expect((secondWmsUrl as URL).searchParams.get('cursor')).toBe('wms-cursor');
   });
 
   it('preserves uniform empty-body authorization denial', async () => {

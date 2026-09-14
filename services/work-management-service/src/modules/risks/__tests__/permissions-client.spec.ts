@@ -64,9 +64,14 @@ describe('HttpRisksPermissionsCheckAdapter', () => {
     ).resolves.toBe(true);
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(
-      fetchMock.mock.calls.map(([, init]) => JSON.parse(init?.body as string)),
-    ).toEqual([
+    const requestBodies: unknown[] = fetchMock.mock.calls.map(([, init]) => {
+      const body = init?.body;
+      expect(typeof body).toBe('string');
+      const parsed: unknown = JSON.parse(body);
+      return parsed;
+    });
+
+    expect(requestBodies).toEqual([
       {
         permissionKey: 'view-dashboard',
         scope: { dashboardType: 'unit-manager' },

@@ -149,20 +149,42 @@ export class HttpAccessRoleResolutionAdapter implements AccessRoleResolutionPort
     }
   }
 
-  async resolveBatch(viewerPersonId: string, subjectPersonIds: string[], subjectToken?: string): Promise<Map<string, AccessRoleResolution> | null> {
-    if (!subjectToken || subjectPersonIds.length > 500 || new Set(subjectPersonIds).size !== subjectPersonIds.length) return null;
+  async resolveBatch(
+    viewerPersonId: string,
+    subjectPersonIds: string[],
+    subjectToken?: string,
+  ): Promise<Map<string, AccessRoleResolution> | null> {
+    if (
+      !subjectToken ||
+      subjectPersonIds.length > 500 ||
+      new Set(subjectPersonIds).size !== subjectPersonIds.length
+    )
+      return null;
     try {
       const signal = AbortSignal.timeout(RESOLVE_TIMEOUT_MS);
-      const accessToken = await this.tokenExchange.exchangeForAccessControl(subjectToken, signal);
-      const baseUrl = this.config.getOrThrow<string>('ACCESS_CONTROL_SERVICE_BASE_URL');
-      const response = await fetch(new URL('/api/v1/access-roles/resolve-batch', baseUrl), {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ viewerPersonId, subjectPersonIds }), signal,
-      });
+      const accessToken = await this.tokenExchange.exchangeForAccessControl(
+        subjectToken,
+        signal,
+      );
+      const baseUrl = this.config.getOrThrow<string>(
+        'ACCESS_CONTROL_SERVICE_BASE_URL',
+      );
+      const response = await fetch(
+        new URL('/api/v1/access-roles/resolve-batch', baseUrl),
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ viewerPersonId, subjectPersonIds }),
+          signal,
+        },
+      );
       if (!response.ok) return null;
-      const body = await response.json();
-      if (!body || typeof body !== 'object' || !Array.isArray((body as { results?: unknown }).results)) return null;
-      const results = (body as { results: unknown[] }).results;
+      const body: unknown = await response.json();
+      if (!hasBatchResults(body)) return null;
+      const { results } = body;
       if (results.length !== subjectPersonIds.length) return null;
       const expected = new Set(subjectPersonIds);
       const resolved = new Map<string, AccessRoleResolution>();
@@ -170,7 +192,12 @@ export class HttpAccessRoleResolutionAdapter implements AccessRoleResolutionPort
         if (!item || typeof item !== 'object') return null;
         const record = item as Record<string, unknown>;
         const subjectId = record['subjectPersonId'];
-        if (typeof subjectId !== 'string' || !expected.delete(subjectId) || !isCompleteBatchResolution(record)) return null;
+        if (
+          typeof subjectId !== 'string' ||
+          !expected.delete(subjectId) ||
+          !isCompleteBatchResolution(record)
+        )
+          return null;
         resolved.set(subjectId, parseAccessRoleResolution(record));
       }
       return expected.size === 0 ? resolved : null;
@@ -182,10 +209,20 @@ export class HttpAccessRoleResolutionAdapter implements AccessRoleResolutionPort
 
 /** Batch responses are an authorization dependency: unlike a single resolution, wire-shape drift
  * must deny the dashboard rather than silently drop or reinterpret a candidate. */
+function hasBatchResults(value: unknown): value is { results: unknown[] } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    Array.isArray((value as { results?: unknown }).results)
+  );
+}
+
 function isCompleteBatchResolution(value: Record<string, unknown>): boolean {
-  return typeof value['reportingLine'] === 'boolean' &&
+  return (
+    typeof value['reportingLine'] === 'boolean' &&
     typeof value['projectLine'] === 'boolean' &&
     typeof value['peoplePartnerLine'] === 'boolean' &&
     typeof value['fullProfileAccessLine'] === 'boolean' &&
-    Array.isArray(value['projectRoles']);
+    Array.isArray(value['projectRoles'])
+  );
 }

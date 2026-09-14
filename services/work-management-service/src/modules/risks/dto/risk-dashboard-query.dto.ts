@@ -2,7 +2,13 @@ import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import type { RiskLevel } from '../../../generated/prisma/client';
 
-const RISK_LEVELS: RiskLevel[] = ['low', 'need_attention', 'medium', 'high', 'leaver'];
+const RISK_LEVELS: RiskLevel[] = [
+  'low',
+  'need_attention',
+  'medium',
+  'high',
+  'leaver',
+];
 
 export class RiskDashboardQueryDto {
   @IsOptional()
