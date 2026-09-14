@@ -127,24 +127,21 @@ export const useAllEmployeesPage = () => {
   )
 
   const visibleColumnKeys = useMemo(() => {
-    return uiState.visibleColumnKeys
-  }, [uiState.visibleColumnKeys])
-
-  useEffect(() => {
-    if (!isColleagueBrowseMode || !catalogQuery.data) return
-    setUiState(current => {
-      if (current.visibleColumnKeys.join('|') !== DEFAULT_COLUMNS.join('|')) {
-        return current
-      }
+    if (
+      isColleagueBrowseMode &&
+      catalogQuery.data &&
+      uiState.visibleColumnKeys.join('|') === DEFAULT_COLUMNS.join('|')
+    ) {
       const defaults = COLLEAGUE_DEFAULT_COLUMNS.filter(key =>
         catalogQuery.data.fields.some(field => field.key === key && field.columnable),
       )
       const custom = catalogQuery.data.fields
         .filter(field => field.kind === 'custom' && field.columnable)
         .map(field => field.key)
-      return { ...current, visibleColumnKeys: [...defaults, ...custom] }
-    })
-  }, [catalogQuery.data, isColleagueBrowseMode])
+      return [...defaults, ...custom]
+    }
+    return uiState.visibleColumnKeys
+  }, [catalogQuery.data, isColleagueBrowseMode, uiState.visibleColumnKeys])
 
   const visibleColumns = useMemo(
     () =>
@@ -229,9 +226,9 @@ export const useAllEmployeesPage = () => {
   const toggleColumn = (key: string) => {
     setUiState(current => ({
       ...current,
-      visibleColumnKeys: current.visibleColumnKeys.includes(key)
-        ? current.visibleColumnKeys.filter(item => item !== key)
-        : [...current.visibleColumnKeys, key],
+      visibleColumnKeys: visibleColumnKeys.includes(key)
+        ? visibleColumnKeys.filter(item => item !== key)
+        : [...visibleColumnKeys, key],
     }))
   }
 
