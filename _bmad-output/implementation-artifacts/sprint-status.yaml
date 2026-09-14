@@ -81,7 +81,7 @@ development_status:
   epic-4: in-progress
   4-1-risk-record-with-retained-history: done  # Jira O4-46; PR #104 merged 2026-09-13
   4-2-risk-dashboard: done  # Jira O4-47; PR #106 merged 2026-09-14
-  4-3-profile-s6-risk-history-and-authoring-ui: review  # Jira O4-172; Employee Profile S6 risk creation/history UI ready for review
+  4-3-profile-s6-risk-history-and-authoring-ui: done  # Jira O4-172; PR #112 merged 2026-09-14
   epic-4-retrospective: optional
 
   epic-5: in-progress
