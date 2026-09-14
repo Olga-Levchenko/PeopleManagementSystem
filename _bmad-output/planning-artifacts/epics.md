@@ -1341,6 +1341,42 @@ project/PP/manager
 **Then** their own risk data is never rendered there, under any access role they might otherwise
 hold for someone else
 
+### Story 4.3: Profile S6 risk history and authoring UI
+
+As a UM, DM, PM, PP, or Full Profile Access holder with risk-write permission,
+I want to view risk history and append a new risk record from the employee profile,
+So that risk changes are recorded at the point where I am reviewing the person.
+
+**Acceptance Criteria:**
+
+**Given** a viewer with S6 access to another person's profile and the `create-edit-risks`
+functional permission
+**When** they open that person's Employee Profile
+**Then** they see the S6 Risks section with current level, trend, retained history, and an
+Add risk record action
+
+**Given** the viewer submits a valid risk level, description, optional details, and non-future
+recorded date
+**When** the record is saved
+**Then** the platform appends a new `RiskRecord`, refreshes the profile S6 section, and preserves
+the previous records as history
+
+**Given** the viewer is Self, a Colleague, anonymous, lacks S6 relationship access, or lacks
+`create-edit-risks`
+**When** they open the profile or try to append a risk
+**Then** no S6 risk data or authoring affordance is rendered, and server-side requests fail closed
+without leaking whether records exist
+
+**Given** a risk level of `leaver`
+**When** it is displayed or saved from the profile
+**Then** it remains a risk prediction only and does not change employment status or departure
+state
+
+**Given** a profile opened from the Risk Dashboard
+**When** the viewer drills through to the person's profile
+**Then** the S6 section shows the same current risk semantics as the dashboard and allows an
+authorized append from the profile, not from the dashboard itself
+
 ---
 
 ## Epic 5: Dashboard Framework & Early Blocks

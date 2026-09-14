@@ -268,7 +268,28 @@ describe('OidcService', () => {
       );
     });
 
-    it('rejects an audience outside the two backend targets', async () => {
+    it('requests only the work-management-service audience scope', async () => {
+      const service = await buildService();
+      mockClient.grant.mockResolvedValueOnce({
+        access_token: 'exchanged-at',
+        expires_at: Math.floor(Date.now() / 1000) + 300,
+      });
+
+      await service.exchangeForAudience(
+        'browser-at',
+        'work-management-service',
+      );
+
+      const [body] = mockClient.grant.mock.calls[0];
+      expect(body).toEqual(
+        expect.objectContaining({
+          audience: 'work-management-service',
+          scope: 'work-management-service-audience',
+        }),
+      );
+    });
+
+    it('rejects an audience outside the backend targets', async () => {
       const service = await buildService();
 
       await expect(

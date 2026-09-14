@@ -6,6 +6,7 @@ import { RequestActorContext } from '../organisational-relationships/request-act
 import { ColleagueBrowseGateService } from './colleague-browse.gate.service';
 import { EmployeesController } from './employees.controller';
 import { EmployeesService } from './employees.service';
+import { RiskDashboardMetadataController } from './risk-dashboard-metadata.controller';
 import { SavedViewsController } from './saved-views.controller';
 import { SavedViewsService } from './saved-views.service';
 
@@ -15,7 +16,11 @@ import { SavedViewsService } from './saved-views.service';
     IdentityMappingsModule,
     forwardRef(() => ProfileModule),
   ],
-  controllers: [EmployeesController, SavedViewsController],
+  controllers: [
+    EmployeesController,
+    RiskDashboardMetadataController,
+    SavedViewsController,
+  ],
   providers: [
     EmployeesService,
     SavedViewsService,

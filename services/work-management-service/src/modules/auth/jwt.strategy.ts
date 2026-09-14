@@ -5,16 +5,10 @@ import { passportJwtSecret } from 'jwks-rsa';
 import { ExtractJwt, Strategy, StrategyOptions } from 'passport-jwt';
 
 /**
- * This is `bff-confidential`'s own client id -- also the `included.client.audience` value baked
- * into that client's `bff-confidential-audience` protocol mapper in
- * `authentication-service/keycloak/realm-export.json` (the single source of truth for this
- * realm). Kept as a constant, not an env var: unlike `KEYCLOAK_BASE_URL`/`KEYCLOAK_REALM`, this
- * value never varies per environment -- it names a specific client, not a deployment topology.
- * `people-service` validates the same audience as the BFF because it re-verifies the identical
- * bearer token the browser obtained and the BFF forwards unchanged (see this module's own
- * `auth.module.ts` doc comment) -- it is not a second, different client.
+ * Work Management accepts both the legacy browser token audience used by existing forwarding
+ * paths and the dedicated service audience used by newer BFF token-exchange paths.
  */
-const BFF_CLIENT_ID = 'bff-confidential';
+const ACCEPTED_AUDIENCES = ['bff-confidential', 'work-management-service'];
 
 /**
  * The subset of a Keycloak-issued access token's claims this strategy reads. Only `sub` is ever
@@ -64,11 +58,8 @@ export function deriveJwksUri(issuer: string): string {
  * rate-limited) and its `iss` claim against this realm's real issuer. Never reads a role/
  * permission claim -- see `AuthenticatedUser` above.
  *
- * This is `people-service`'s own, independent re-verification of the same token the BFF already
- * validated at the edge (Story 1.11b) -- the first "trusted service-to-service identity" hop in
- * this platform (`deferred-work.md`'s 1-11c entry). `people-service` never trusts a forwarded
- * `request.user` or a caller-supplied `actorId`; it verifies the signature/issuer/audience itself,
- * exactly as the BFF does.
+ * Work Management re-verifies tokens independently and never trusts a forwarded `request.user` or
+ * a caller-supplied `actorId`.
  */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -83,7 +74,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         jwksUri: deriveJwksUri(issuer),
       }),
       issuer,
-      audience: BFF_CLIENT_ID,
+      audience: ACCEPTED_AUDIENCES,
       algorithms: ['RS256'],
       // Small leeway against real clock drift between this process and Keycloak's -- without it,
       // a token that is genuinely still valid can be spuriously rejected as expired/not-yet-valid

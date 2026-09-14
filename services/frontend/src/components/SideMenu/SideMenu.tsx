@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Home, Network, Settings, Users } from 'lucide-react'
+import { AlertTriangle, Home, Network, Settings, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getFunctionalRoles } from '@/api/functionalRoles'
+import { getRiskDashboardApiCall } from '@/api/riskDashboard'
 import { useLayout } from '@/contexts/LayoutContext'
 import { SideMenuItem } from './components/SideMenuItem/SideMenuItem'
 import { SideMenuToggle } from './components/SideMenuToggle/SideMenuToggle'
@@ -16,6 +17,7 @@ export const SideMenu = ({ collapsible = true, expanded }: SideMenuProps) => {
   const { t } = useTranslation()
   const { toggleSidebar, isMobileSidebarOpen, closeMobileSidebar } = useLayout()
   const [canAccessAdministration, setCanAccessAdministration] = useState(false)
+  const [canAccessRiskDashboard, setCanAccessRiskDashboard] = useState(false)
   // The mobile drawer is always rendered at full width, so labels must be
   // visible there even if the desktop sidebar is currently collapsed.
   const showLabels = expanded || isMobileSidebarOpen
@@ -27,6 +29,14 @@ export const SideMenu = ({ collapsible = true, expanded }: SideMenuProps) => {
       .then(() => setCanAccessAdministration(true))
       .catch(() => setCanAccessAdministration(false))
 
+    return () => controller.abort()
+  }, [])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    void getRiskDashboardApiCall({ pageSize: 1 }, controller.signal)
+      .then(() => setCanAccessRiskDashboard(true))
+      .catch(() => setCanAccessRiskDashboard(false))
     return () => controller.abort()
   }, [])
 
@@ -69,6 +79,14 @@ export const SideMenu = ({ collapsible = true, expanded }: SideMenuProps) => {
             expanded={showLabels}
             onNavigate={closeMobileSidebar}
           />
+          {canAccessRiskDashboard && <SideMenuItem
+            icon={AlertTriangle}
+            label={t('sidebar.riskDashboard')}
+            path="/risk-dashboard"
+            hint={t('sidebar.riskDashboard')}
+            expanded={showLabels}
+            onNavigate={closeMobileSidebar}
+          />}
           <SideMenuItem
             icon={Network}
             label={t('sidebar.relationships')}

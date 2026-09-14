@@ -6,8 +6,9 @@ import {
 } from '@nestjs/common';
 import type { RiskLevel, RiskRecord } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import type { AccessRoleResolutionPort } from '../management-notes/access-control-client';
+import type { AccessRoleResolution, AccessRoleResolutionPort } from '../management-notes/access-control-client';
 import type { CreateRiskRecordDto } from './dto/create-risk-record.dto';
+import type { RiskDashboardQueryDto } from './dto/risk-dashboard-query.dto';
 import type { RisksPermissionsCheckPort } from './permissions-client';
 
 export type TrendDirection = 'up' | 'down' | null;
@@ -33,6 +34,12 @@ export interface RiskSummaryView {
 export interface RiskHistoryView {
   summary: RiskSummaryView;
   records: RiskRecordView[];
+}
+
+export interface RiskDashboardView {
+  counts: Record<RiskLevel | 'activeCount', number>;
+  rows: { personId: string; severity: RiskLevel; recordedAt: Date; trendDirection: TrendDirection }[];
+  nextCursor: string | null;
 }
 
 const RISK_LEVEL_RANK: Record<RiskLevel, number> = {
@@ -117,6 +124,47 @@ export class RisksService {
       summary: this.buildSummary(rows),
       records: recordsDesc,
     };
+  }
+
+  async getDashboard(viewerPersonId: string, query: RiskDashboardQueryDto, subjectToken: string): Promise<RiskDashboardView> {
+    viewerPersonId = viewerPersonId.toLowerCase();
+    if (!(await this.permissionsCheck.hasViewDashboardPermission?.(subjectToken))) throw new ForbiddenException();
+    const records = await this.prisma.riskRecord.findMany({ orderBy: [{ recordedAt: 'desc' }, { createdAt: 'desc' }, { subjectPersonId: 'asc' }] });
+    const byPerson = new Map<string, RiskRecord[]>();
+    for (const record of records) {
+      const id = record.subjectPersonId.toLowerCase();
+      if (id === viewerPersonId) continue;
+      const bucket = byPerson.get(id) ?? [];
+      bucket.push(record); byPerson.set(id, bucket);
+    }
+    const candidateIds = [...byPerson.keys()];
+    const access = new Map<string, AccessRoleResolution>();
+    for (let index = 0; index < candidateIds.length; index += 500) {
+      const ids = candidateIds.slice(index, index + 500);
+      const batch = await this.accessRoleResolution.resolveBatch?.(viewerPersonId, ids, subjectToken);
+      if (!batch || batch.size !== ids.length) throw new ForbiddenException();
+      for (const id of ids) {
+        const resolution = batch.get(id);
+        if (!resolution) throw new ForbiddenException();
+        access.set(id, resolution);
+      }
+    }
+    const current = [...byPerson.entries()].flatMap(([personId, history]) => {
+      const resolution = access.get(personId);
+      if (!resolution || !(resolution.reportingLine || resolution.projectLine || resolution.peoplePartnerLine || resolution.fullProfileAccessLine)) return [];
+      const chronological = [...history].sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime() || a.createdAt.getTime() - b.createdAt.getTime());
+      const latest = chronological[chronological.length - 1];
+      const previous = chronological[chronological.length - 2];
+      return [{ personId, severity: latest.level, recordedAt: latest.recordedAt, createdAt: latest.createdAt, trendDirection: this.computeTrendDirection(latest.level, previous?.level) }];
+    }).filter(row => !query.severity || row.severity === query.severity);
+    current.sort((a, b) => RISK_LEVEL_RANK[b.severity] - RISK_LEVEL_RANK[a.severity] || b.recordedAt.getTime() - a.recordedAt.getTime() || b.createdAt.getTime() - a.createdAt.getTime() || a.personId.localeCompare(b.personId));
+    const counts: Record<RiskLevel | 'activeCount', number> = { low: 0, need_attention: 0, medium: 0, high: 0, leaver: 0, activeCount: 0 };
+    for (const row of current) { counts[row.severity] += 1; if (row.severity !== 'low') counts.activeCount += 1; }
+    const cursor = query.cursor ? decodeDashboardCursor(query.cursor) : undefined;
+    const afterCursor = cursor ? current.filter(row => compareDashboardRows(row, cursor) > 0) : current;
+    const page = afterCursor.slice(0, query.pageSize);
+    const last = page[page.length - 1];
+    return { counts, rows: page.map(({ personId, severity, recordedAt, trendDirection }) => ({ personId, severity, recordedAt, trendDirection })), nextCursor: last && afterCursor.length > page.length ? encodeDashboardCursor(last) : null };
   }
 
   computeTrendDirection(
@@ -239,6 +287,11 @@ export class RisksService {
     };
   }
 }
+
+type DashboardCursor = { severity: RiskLevel; recordedAt: string; createdAt: string; personId: string };
+function encodeDashboardCursor(row: { severity: RiskLevel; recordedAt: Date; createdAt: Date; personId: string }): string { return Buffer.from(JSON.stringify({ severity: row.severity, recordedAt: row.recordedAt.toISOString(), createdAt: row.createdAt.toISOString(), personId: row.personId })).toString('base64url'); }
+function decodeDashboardCursor(value: string): DashboardCursor { try { const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as DashboardCursor; if (!parsed || !['low','need_attention','medium','high','leaver'].includes(parsed.severity) || !Date.parse(parsed.recordedAt) || !Date.parse(parsed.createdAt) || typeof parsed.personId !== 'string') throw new Error(); return parsed; } catch { throw new BadRequestException(); } }
+function compareDashboardRows(row: { severity: RiskLevel; recordedAt: Date; createdAt: Date; personId: string }, cursor: DashboardCursor): number { const rank = RISK_LEVEL_RANK[cursor.severity] - RISK_LEVEL_RANK[row.severity]; if (rank) return rank; const date = new Date(cursor.recordedAt).getTime() - row.recordedAt.getTime(); if (date) return date; const created = new Date(cursor.createdAt).getTime() - row.createdAt.getTime(); if (created) return created; return row.personId.localeCompare(cursor.personId); }
 
 function utcCalendarDate(value: Date): string {
   return value.toISOString().slice(0, 10);

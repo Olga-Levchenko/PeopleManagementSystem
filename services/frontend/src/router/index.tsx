@@ -12,6 +12,7 @@ import { OrganisationalRelationshipsPage } from '@/pages/OrganisationalRelations
 import { AdministrationPage } from '@/pages/AdministrationPage/AdministrationPage'
 import { AllEmployeesPage } from '@/pages/AllEmployeesPage/AllEmployeesPage'
 import { EmployeeProfilePage } from '@/pages/EmployeeProfilePage/EmployeeProfilePage'
+import { RiskDashboardPage } from '@/pages/RiskDashboardPage/RiskDashboardPage'
 
 const router = createBrowserRouter([
   // Standalone error page (rendered outside the main layout)
@@ -42,6 +43,10 @@ const router = createBrowserRouter([
           {
             path: 'all-employees',
             element: <AllEmployeesPage />,
+          },
+          {
+            path: 'risk-dashboard',
+            element: <RiskDashboardPage />,
           },
           {
             path: 'people/:personId',

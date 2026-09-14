@@ -214,6 +214,29 @@ export class EmployeesService {
     private readonly accessRoleResolution: AccessRoleResolutionPort,
   ) {}
 
+  async getRiskDashboardMetadata(personIds: string[]) {
+    const ids = [...new Set(personIds.map((id) => id.toLowerCase()))];
+    const people = await this.prisma.person.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true, fullName: true,
+        department: { select: { id: true, name: true } },
+        manager: { select: { id: true, fullName: true } },
+        peoplePartner: { select: { id: true, fullName: true } },
+        personProjectAssignments: { select: { projectName: true } },
+      },
+    });
+    return {
+      people: people.map((person) => ({
+        personId: person.id, fullName: person.fullName,
+        department: person.department ? { id: person.department.id, label: person.department.name ?? person.department.id } : null,
+        manager: person.manager ? { id: person.manager.id, label: person.manager.fullName } : null,
+        peoplePartner: person.peoplePartner ? { id: person.peoplePartner.id, label: person.peoplePartner.fullName } : null,
+        projects: [...new Set(person.personProjectAssignments.map((project) => project.projectName))].map((name) => ({ id: name, label: name })),
+      })),
+    };
+  }
+
   async getFieldCatalog(
     viewerPersonId: string,
   ): Promise<EmployeeFieldCatalogResponse> {

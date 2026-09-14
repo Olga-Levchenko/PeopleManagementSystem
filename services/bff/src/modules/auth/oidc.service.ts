@@ -15,11 +15,13 @@ import type { BffSession } from './session.types';
 export const BACKEND_AUDIENCES = [
   'people-service',
   'access-control-service',
+  'work-management-service',
 ] as const;
 export type BackendAudience = (typeof BACKEND_AUDIENCES)[number];
 const BACKEND_AUDIENCE_SCOPES: Record<BackendAudience, string> = {
   'people-service': 'people-service-audience',
   'access-control-service': 'access-control-service-audience',
+  'work-management-service': 'work-management-service-audience',
 };
 const BFF_CLIENT_ID = 'bff-confidential';
 const BACKCHANNEL_LOGOUT_EVENT =

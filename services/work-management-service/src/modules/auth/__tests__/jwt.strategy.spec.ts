@@ -5,7 +5,7 @@ import { deriveIssuer, deriveJwksUri, JwtStrategy } from '../jwt.strategy';
 /** The internal shape passport-jwt's `Strategy` constructor stores verify options under. */
 interface StrategyInternals {
   _verifOpts: {
-    audience?: string;
+    audience?: string | string[];
     issuer?: string;
     algorithms?: string[];
     clockTolerance?: number;
@@ -119,12 +119,12 @@ describe('JwtStrategy', () => {
     );
   });
 
-  it('validates the audience claim against the bff-confidential client id', () => {
+  it('validates both the legacy BFF and dedicated work-management audiences', () => {
     const strategy = new JwtStrategy(config);
 
-    expect((strategy as unknown as StrategyInternals)._verifOpts.audience).toBe(
-      'bff-confidential',
-    );
+    expect(
+      (strategy as unknown as StrategyInternals)._verifOpts.audience,
+    ).toEqual(['bff-confidential', 'work-management-service']);
   });
 
   it('sets a small clock-tolerance for real clock drift between this process and Keycloak', () => {
