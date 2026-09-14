@@ -1,12 +1,10 @@
-import { useEffect, useState } from 'react'
 import { AlertTriangle, Home, Network, Settings, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getFunctionalRoles } from '@/api/functionalRoles'
-import { getRiskDashboardApiCall } from '@/api/riskDashboard'
 import { useLayout } from '@/contexts/LayoutContext'
+import { cn } from '@/lib/utils'
+import { useSideMenu } from './hooks/useSideMenu'
 import { SideMenuItem } from './components/SideMenuItem/SideMenuItem'
 import { SideMenuToggle } from './components/SideMenuToggle/SideMenuToggle'
-import { cn } from '@/lib/utils'
 
 interface SideMenuProps {
   collapsible?: boolean
@@ -16,29 +14,10 @@ interface SideMenuProps {
 export const SideMenu = ({ collapsible = true, expanded }: SideMenuProps) => {
   const { t } = useTranslation()
   const { toggleSidebar, isMobileSidebarOpen, closeMobileSidebar } = useLayout()
-  const [canAccessAdministration, setCanAccessAdministration] = useState(false)
-  const [canAccessRiskDashboard, setCanAccessRiskDashboard] = useState(false)
+  const { canAccessAdministration, canAccessRiskDashboard } = useSideMenu()
   // The mobile drawer is always rendered at full width, so labels must be
   // visible there even if the desktop sidebar is currently collapsed.
   const showLabels = expanded || isMobileSidebarOpen
-
-  useEffect(() => {
-    const controller = new AbortController()
-
-    void getFunctionalRoles(controller.signal)
-      .then(() => setCanAccessAdministration(true))
-      .catch(() => setCanAccessAdministration(false))
-
-    return () => controller.abort()
-  }, [])
-
-  useEffect(() => {
-    const controller = new AbortController()
-    void getRiskDashboardApiCall({ pageSize: 1 }, controller.signal)
-      .then(() => setCanAccessRiskDashboard(true))
-      .catch(() => setCanAccessRiskDashboard(false))
-    return () => controller.abort()
-  }, [])
 
   return (
     <>
@@ -79,14 +58,16 @@ export const SideMenu = ({ collapsible = true, expanded }: SideMenuProps) => {
             expanded={showLabels}
             onNavigate={closeMobileSidebar}
           />
-          {canAccessRiskDashboard && <SideMenuItem
-            icon={AlertTriangle}
-            label={t('sidebar.riskDashboard')}
-            path="/risk-dashboard"
-            hint={t('sidebar.riskDashboard')}
-            expanded={showLabels}
-            onNavigate={closeMobileSidebar}
-          />}
+          {canAccessRiskDashboard && (
+            <SideMenuItem
+              icon={AlertTriangle}
+              label={t('sidebar.riskDashboard')}
+              path="/risk-dashboard"
+              hint={t('sidebar.riskDashboard')}
+              expanded={showLabels}
+              onNavigate={closeMobileSidebar}
+            />
+          )}
           <SideMenuItem
             icon={Network}
             label={t('sidebar.relationships')}

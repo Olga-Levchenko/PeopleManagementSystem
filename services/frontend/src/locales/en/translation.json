@@ -20,6 +20,21 @@
     "administration": "Administration",
     "riskDashboard": "Risk Dashboard"
   },
+  "dashboard": {
+    "common": {
+      "severity": {
+        "low": "Low",
+        "need_attention": "Needs attention",
+        "medium": "Medium",
+        "high": "High",
+        "leaver": "Leaver"
+      },
+      "trend": {
+        "up": "Increasing",
+        "down": "Decreasing"
+      }
+    }
+  },
   "riskDashboard": {
     "title": "Risk Dashboard",
     "description": "Current risk posture for your permitted population.",

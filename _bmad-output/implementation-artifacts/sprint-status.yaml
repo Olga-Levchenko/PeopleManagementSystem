@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-30-2026 12:52
-last_updated: 09-13-2026
+last_updated: 09-14-2026
 project: PeopleManagementSystem
 project_key: NOKEY
 tracking_system: file-system
@@ -84,8 +84,8 @@ development_status:
   4-3-profile-s6-risk-history-and-authoring-ui: backlog  # Jira O4-172; follow-up for Employee Profile S6 risk creation/history UI
   epic-4-retrospective: optional
 
-  epic-5: backlog
-  5-1-shared-dashboard-engine-per-audience-configuration: backlog
+  epic-5: in-progress
+  5-1-shared-dashboard-engine-per-audience-configuration: review
   5-2-um-dashboard-early-blocks: backlog
   5-3-dm-pm-dashboard-early-blocks: backlog
   5-4-pp-dashboard: backlog
