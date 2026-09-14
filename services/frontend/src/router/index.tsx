@@ -13,6 +13,7 @@ import { AdministrationPage } from '@/pages/AdministrationPage/AdministrationPag
 import { AllEmployeesPage } from '@/pages/AllEmployeesPage/AllEmployeesPage'
 import { EmployeeProfilePage } from '@/pages/EmployeeProfilePage/EmployeeProfilePage'
 import { RiskDashboardPage } from '@/pages/RiskDashboardPage/RiskDashboardPage'
+import { UMDashboardPage } from '@/pages/UMDashboardPage/UMDashboardPage'
 
 const router = createBrowserRouter([
   // Standalone error page (rendered outside the main layout)
@@ -47,6 +48,10 @@ const router = createBrowserRouter([
           {
             path: 'risk-dashboard',
             element: <RiskDashboardPage />,
+          },
+          {
+            path: 'um-dashboard',
+            element: <UMDashboardPage />,
           },
           {
             path: 'people/:personId',

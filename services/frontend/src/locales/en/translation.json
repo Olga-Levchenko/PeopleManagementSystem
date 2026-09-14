@@ -18,7 +18,8 @@
     "allEmployees": "All Employees",
     "relationships": "Relationships",
     "administration": "Administration",
-    "riskDashboard": "Risk Dashboard"
+    "riskDashboard": "Risk Dashboard",
+    "umDashboard": "UM Dashboard"
   },
   "dashboard": {
     "common": {
@@ -33,6 +34,38 @@
         "up": "Increasing",
         "down": "Decreasing",
         "none": "No change"
+      }
+    },
+    "um": {
+      "title": "UM Dashboard",
+      "loading": "Loading UM dashboard...",
+      "error": "Unable to load dashboard data. Please try again.",
+      "headcount": "Headcount",
+      "riskCounts": {
+        "low": "Low risk",
+        "need_attention": "Needs attention",
+        "medium": "Medium risk",
+        "high": "High risk",
+        "leaver": "Leavers"
+      },
+      "actionItemCounts": {
+        "open": "Open action items",
+        "overdue": "Overdue"
+      },
+      "columns": {
+        "name": "Name",
+        "severity": "Risk",
+        "project": "Project",
+        "leave": "Leave"
+      },
+      "ownActionItems": {
+        "title": "My action items",
+        "due": "Due {{date}}",
+        "overdue": "Overdue"
+      },
+      "empty": {
+        "subordinates": "No direct reports found.",
+        "actionItems": "No action items."
       }
     }
   },

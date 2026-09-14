@@ -1,4 +1,4 @@
-import { AlertTriangle, Home, Network, Settings, Users } from 'lucide-react'
+import { AlertTriangle, Home, LayoutDashboard, Network, Settings, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useLayout } from '@/contexts/LayoutContext'
 import { cn } from '@/lib/utils'
@@ -14,7 +14,7 @@ interface SideMenuProps {
 export const SideMenu = ({ collapsible = true, expanded }: SideMenuProps) => {
   const { t } = useTranslation()
   const { toggleSidebar, isMobileSidebarOpen, closeMobileSidebar } = useLayout()
-  const { canAccessAdministration, canAccessRiskDashboard } = useSideMenu()
+  const { canAccessAdministration, canAccessRiskDashboard, canAccessUMDashboard } = useSideMenu()
   // The mobile drawer is always rendered at full width, so labels must be
   // visible there even if the desktop sidebar is currently collapsed.
   const showLabels = expanded || isMobileSidebarOpen
@@ -64,6 +64,16 @@ export const SideMenu = ({ collapsible = true, expanded }: SideMenuProps) => {
               label={t('sidebar.riskDashboard')}
               path="/risk-dashboard"
               hint={t('sidebar.riskDashboard')}
+              expanded={showLabels}
+              onNavigate={closeMobileSidebar}
+            />
+          )}
+          {canAccessUMDashboard && (
+            <SideMenuItem
+              icon={LayoutDashboard}
+              label={t('sidebar.umDashboard')}
+              path="/um-dashboard"
+              hint={t('sidebar.umDashboard')}
               expanded={showLabels}
               onNavigate={closeMobileSidebar}
             />

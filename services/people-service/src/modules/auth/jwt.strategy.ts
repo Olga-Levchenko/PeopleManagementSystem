@@ -131,10 +131,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const allowedAzp = isRiskDashboardMetadata
       ? ['bff-confidential']
       : isBootstrapIdentityResolver
-      ? ['access-control-service']
-      : isIdentityResolver
-        ? ['access-control-service', 'work-management-service']
-        : ['bff-confidential'];
+        ? ['access-control-service']
+        : isIdentityResolver
+          ? ['access-control-service', 'work-management-service']
+          : ['bff-confidential'];
     if (!allowedAzp.includes(payload.azp)) {
       throw new ForbiddenException('Token caller is not authorized.');
     }
