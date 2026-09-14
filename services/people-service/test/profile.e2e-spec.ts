@@ -312,7 +312,9 @@ describe('Profile (e2e)', () => {
       .get(`/people/${subject.id}/profile`)
       .expect(200);
 
-    expect(Object.keys(res.body as object).sort()).toEqual(SELF_PROFILE_RESPONSE_KEYS);
+    expect(Object.keys(res.body as object).sort()).toEqual(
+      SELF_PROFILE_RESPONSE_KEYS,
+    );
     expect(res.body).not.toHaveProperty('s6');
     const body = res.body as {
       isSelf: boolean;
@@ -983,14 +985,16 @@ describe('Profile (e2e)', () => {
     const profile = await request(app.getHttpServer())
       .get(`/people/${subject.id}/profile`)
       .expect(200);
-    expect((profile.body as { s3: Array<{ contactName: string }> }).s3).toEqual([
-      {
-        id: contactId,
-        contactName: 'Emergency Person',
-        relationship: 'Sibling',
-        phone: '+380991111111',
-      },
-    ]);
+    expect((profile.body as { s3: Array<{ contactName: string }> }).s3).toEqual(
+      [
+        {
+          id: contactId,
+          contactName: 'Emergency Person',
+          relationship: 'Sibling',
+          phone: '+380991111111',
+        },
+      ],
+    );
 
     await request(app.getHttpServer())
       .delete(`/people/${subject.id}/profile/emergency-contacts/${contactId}`)
@@ -1033,7 +1037,9 @@ describe('Profile (e2e)', () => {
       .get(`/people/${subject.id}/profile`)
       .expect(200);
 
-    expect((profile.body as { s1?: { photoUrl: string | null } }).s1?.photoUrl).toBeNull();
+    expect(
+      (profile.body as { s1?: { photoUrl: string | null } }).s1?.photoUrl,
+    ).toBeNull();
 
     await request(app.getHttpServer())
       .get(`/people/${subject.id}/profile/photo`)
@@ -1114,7 +1120,10 @@ describe('Profile (e2e)', () => {
       },
     ]);
     expect(body.s5).toHaveLength(1);
-    expect(body.s5[0]).toMatchObject({ id: certificateId, fileName: 'cert.pdf' });
+    expect(body.s5[0]).toMatchObject({
+      id: certificateId,
+      fileName: 'cert.pdf',
+    });
 
     await request(app.getHttpServer())
       .get(`/people/${subject.id}/profile/photo`)
@@ -1175,7 +1184,9 @@ describe('Profile (e2e)', () => {
 
     const keys = Object.keys(profile.body as object).sort();
     expect(keys).not.toContain('s3');
-    expect((profile.body as { s5: Array<{ fileName: string }> }).s5).toHaveLength(1);
+    expect(
+      (profile.body as { s5: Array<{ fileName: string }> }).s5,
+    ).toHaveLength(1);
     expect(
       (profile.body as { s5: Array<{ fileName: string }> }).s5[0]?.fileName,
     ).toBe('project-line-cert.pdf');

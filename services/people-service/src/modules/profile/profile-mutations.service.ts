@@ -131,7 +131,19 @@ export class ProfileMutationsService {
     if (!existing) {
       throw new NotFoundException('Emergency contact not found.');
     }
-    await this.prisma.emergencyContact.delete({ where: { id: contactId } });
+    try {
+      await this.prisma.emergencyContact.delete({ where: { id: contactId } });
+    } catch (err: unknown) {
+      if (
+        typeof err === 'object' &&
+        err !== null &&
+        'code' in err &&
+        (err as { code: string }).code === 'P2025'
+      ) {
+        throw new NotFoundException('Emergency contact not found.');
+      }
+      throw err;
+    }
   }
 
   async uploadPhoto(
@@ -196,7 +208,9 @@ export class ProfileMutationsService {
     }
     const mimeType = file.mimetype;
     if (!validateCertificateUpload(mimeType, file.buffer)) {
-      throw new BadRequestException('Invalid certificate file type or content.');
+      throw new BadRequestException(
+        'Invalid certificate file type or content.',
+      );
     }
 
     const fileId = randomUUID();
@@ -250,7 +264,10 @@ export class ProfileMutationsService {
     viewerPersonId: string,
     subjectPersonId: string,
   ): Promise<StoredFilePayload> {
-    const audience = await this.resolveAudience(viewerPersonId, subjectPersonId);
+    const audience = await this.resolveAudience(
+      viewerPersonId,
+      subjectPersonId,
+    );
     if (!grantsSectionAccess(audience.s1)) {
       throw new NotFoundException();
     }
@@ -288,7 +305,10 @@ export class ProfileMutationsService {
     subjectPersonId: string,
     certificateId: string,
   ): Promise<StoredFilePayload> {
-    const audience = await this.resolveAudience(viewerPersonId, subjectPersonId);
+    const audience = await this.resolveAudience(
+      viewerPersonId,
+      subjectPersonId,
+    );
     if (!grantsSectionAccess(audience.s5)) {
       throw new NotFoundException();
     }
@@ -318,7 +338,10 @@ export class ProfileMutationsService {
     };
   }
 
-  private assertSelfMutation(actorPersonId: string, subjectPersonId: string): void {
+  private assertSelfMutation(
+    actorPersonId: string,
+    subjectPersonId: string,
+  ): void {
     if (actorPersonId !== subjectPersonId) {
       throw new ForbiddenException();
     }
@@ -328,7 +351,10 @@ export class ProfileMutationsService {
     viewerPersonId: string,
     subjectPersonId: string,
   ): Promise<void> {
-    const audience = await this.resolveAudience(viewerPersonId, subjectPersonId);
+    const audience = await this.resolveAudience(
+      viewerPersonId,
+      subjectPersonId,
+    );
     if (!grantsSectionWriteAccess(audience.s3)) {
       throw new ForbiddenException();
     }
@@ -338,7 +364,10 @@ export class ProfileMutationsService {
     viewerPersonId: string,
     subjectPersonId: string,
   ): Promise<void> {
-    const audience = await this.resolveAudience(viewerPersonId, subjectPersonId);
+    const audience = await this.resolveAudience(
+      viewerPersonId,
+      subjectPersonId,
+    );
     if (!grantsSectionWriteAccess(audience.s1)) {
       throw new ForbiddenException();
     }
@@ -348,7 +377,10 @@ export class ProfileMutationsService {
     viewerPersonId: string,
     subjectPersonId: string,
   ): Promise<void> {
-    const audience = await this.resolveAudience(viewerPersonId, subjectPersonId);
+    const audience = await this.resolveAudience(
+      viewerPersonId,
+      subjectPersonId,
+    );
     if (!grantsSectionWriteAccess(audience.s5)) {
       throw new ForbiddenException();
     }

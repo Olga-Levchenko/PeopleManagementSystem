@@ -34,7 +34,9 @@ export class UploadStorageService {
     ) {
       return null;
     }
-    const root = path.resolve(this.config.getOrThrow<string>('UPLOAD_STORAGE_PATH'));
+    const root = path.resolve(
+      this.config.getOrThrow<string>('UPLOAD_STORAGE_PATH'),
+    );
     const absolute = path.resolve(root, storageKey);
     if (!absolute.startsWith(`${root}${path.sep}`) && absolute !== root) {
       return null;

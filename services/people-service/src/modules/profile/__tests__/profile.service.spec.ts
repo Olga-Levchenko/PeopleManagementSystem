@@ -184,8 +184,8 @@ describe('ProfileService', () => {
       eventType: 'GRADE_CHANGE',
       summary: 'Promoted to L5',
     });
-    expect(result.s9![0]!.occurredAt.getTime()).toBeGreaterThan(
-      result.s9![1]!.occurredAt.getTime(),
+    expect(result.s9![0].occurredAt.getTime()).toBeGreaterThan(
+      result.s9![1].occurredAt.getTime(),
     );
     expect(result).not.toHaveProperty('s6');
     // Self sees full S10 data including leaveType

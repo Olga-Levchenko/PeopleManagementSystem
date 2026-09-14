@@ -21,9 +21,7 @@ export function toGatedStorageReference(storageKey: string): string {
   return `${GATED_STORAGE_PREFIX}${storageKey}`;
 }
 
-export function parseGatedStorageReference(
-  value: string,
-): string | null {
+export function parseGatedStorageReference(value: string): string | null {
   if (!isGatedStorageReference(value)) {
     return null;
   }
