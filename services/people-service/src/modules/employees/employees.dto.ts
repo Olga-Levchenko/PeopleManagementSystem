@@ -1,11 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsInt, IsOptional, IsString, IsUUID, Max, Min, Matches } from 'class-validator';
 
 export class RiskDashboardMetadataDto {
   @IsArray()
   @ArrayMaxSize(500)
-  @IsUUID('4', { each: true })
+  @Matches(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    { each: true },
+  )
   personIds!: string[];
 }
 

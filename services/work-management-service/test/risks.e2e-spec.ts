@@ -322,6 +322,7 @@ describe('Risks (e2e)', () => {
       200,
     );
     expect(res.body).toEqual({
+      canAppend: true,
       summary: {
         currentLevel: null,
         isActive: false,

@@ -37,6 +37,7 @@ export interface RiskSummaryView {
 export interface RiskHistoryView {
   summary: RiskSummaryView;
   records: RiskRecordView[];
+  canAppend: boolean;
 }
 
 export interface RiskDashboardView {
@@ -75,7 +76,7 @@ export class RisksService {
   ): Promise<RiskRecordView> {
     viewerPersonId = viewerPersonId.toLowerCase();
     const subjectPersonId = dto.subjectPersonId.toLowerCase();
-    await this.assertCanAccessSubject(
+    await this.assertCanAppendSubject(
       viewerPersonId,
       subjectPersonId,
       subjectToken,
@@ -112,7 +113,7 @@ export class RisksService {
   ): Promise<RiskHistoryView> {
     viewerPersonId = viewerPersonId.toLowerCase();
     subjectPersonId = subjectPersonId.toLowerCase();
-    await this.assertCanAccessSubject(
+    await this.assertCanReadSubject(
       viewerPersonId,
       subjectPersonId,
       subjectToken,
@@ -131,6 +132,7 @@ export class RisksService {
     return {
       summary: this.buildSummary(rows),
       records: recordsDesc,
+      canAppend: await this.canAppendAfterRead(subjectToken),
     };
   }
 
@@ -285,14 +287,12 @@ export class RisksService {
     };
   }
 
-  private async assertCanAccessSubject(
+  private async assertCanAppendSubject(
     viewerPersonId: string,
     subjectPersonId: string,
     subjectToken: string,
   ): Promise<void> {
-    if (viewerPersonId === subjectPersonId) {
-      throw new ForbiddenException();
-    }
+    this.assertNotSelf(viewerPersonId, subjectPersonId);
 
     const hasPermission =
       await this.permissionsCheck.hasCreateEditRisksPermission(subjectToken);
@@ -300,6 +300,39 @@ export class RisksService {
       throw new ForbiddenException();
     }
 
+    await this.assertQualifyingLine(viewerPersonId, subjectPersonId, subjectToken);
+  }
+
+  private async canAppendAfterRead(subjectToken: string): Promise<boolean> {
+    try {
+      return await this.permissionsCheck.hasCreateEditRisksPermission(
+        subjectToken,
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  private async assertCanReadSubject(
+    viewerPersonId: string,
+    subjectPersonId: string,
+    subjectToken: string,
+  ): Promise<void> {
+    this.assertNotSelf(viewerPersonId, subjectPersonId);
+    await this.assertQualifyingLine(viewerPersonId, subjectPersonId, subjectToken);
+  }
+
+  private assertNotSelf(viewerPersonId: string, subjectPersonId: string): void {
+    if (viewerPersonId === subjectPersonId) {
+      throw new ForbiddenException();
+    }
+  }
+
+  private async assertQualifyingLine(
+    viewerPersonId: string,
+    subjectPersonId: string,
+    subjectToken: string,
+  ): Promise<void> {
     const resolution = await this.accessRoleResolution.resolve(
       viewerPersonId,
       subjectPersonId,

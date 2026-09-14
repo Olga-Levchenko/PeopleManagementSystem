@@ -56,6 +56,38 @@ export class PeopleController {
     );
   }
 
+  @Get(':subjectPersonId/risks')
+  async getProfileRisks(
+    @Param('subjectPersonId') subjectPersonId: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return this.forward(
+      response,
+      this.service.getProfileRisks(
+        subjectPersonId,
+        await this.workManagementContext(request),
+      ),
+    );
+  }
+
+  @Post(':subjectPersonId/risks')
+  async appendProfileRisk(
+    @Param('subjectPersonId') subjectPersonId: string,
+    @Body() body: unknown,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return this.forward(
+      response,
+      this.service.appendProfileRisk(
+        subjectPersonId,
+        body,
+        await this.workManagementContext(request),
+      ),
+    );
+  }
+
   @Post(':subjectPersonId/profile/emergency-contacts')
   async createEmergencyContact(
     @Param('subjectPersonId') subjectPersonId: string,
@@ -217,6 +249,18 @@ export class PeopleController {
         session,
         request.headers.authorization,
         'people-service',
+      ),
+      correlationId: request.correlationId,
+    };
+  }
+
+  private async workManagementContext(request: Request) {
+    const session = request.session as BffSession | undefined;
+    return {
+      authorization: await this.oidc.resolveAuthorization(
+        session,
+        request.headers.authorization,
+        'work-management-service',
       ),
       correlationId: request.correlationId,
     };

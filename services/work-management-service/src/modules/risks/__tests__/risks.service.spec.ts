@@ -551,6 +551,29 @@ describe('RisksService', () => {
       expect(prisma.riskRecord.findMany).toHaveBeenCalled();
     });
 
+    it('qualifying S6 relationship can read without create-edit-risks permission', async () => {
+      const permissionCheck = jest.fn().mockResolvedValue(false);
+      const resolve = jest
+        .fn()
+        .mockResolvedValue(resolution({ peoplePartnerLine: true }));
+      const { service, prisma } = buildService(
+        { hasCreateEditRisksPermission: permissionCheck },
+        resolve,
+      );
+      prisma.riskRecord.findMany.mockResolvedValue([riskRow()]);
+
+      const result = await service.getRiskHistory(
+        VIEWER_ID,
+        SUBJECT_ID,
+        'token',
+      );
+
+      expect(result.records).toHaveLength(1);
+      expect(result.canAppend).toBe(false);
+      expect(permissionCheck).toHaveBeenCalledTimes(1);
+      expect(resolve).toHaveBeenCalledWith(VIEWER_ID, SUBJECT_ID, 'token');
+    });
+
     it('FPA self-subject GET returns 403', async () => {
       const permissionCheck = jest.fn().mockResolvedValue(true);
       const resolve = jest.fn();

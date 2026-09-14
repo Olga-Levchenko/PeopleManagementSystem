@@ -162,6 +162,35 @@ describe('HttpAccessRoleResolutionAdapter', () => {
     expect(calledInit.signal).toBeInstanceOf(AbortSignal);
   });
 
+  it('batch 2xx: accepts ACS responses without projectRoles', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({
+        results: [{
+          subjectPersonId: SUBJECT_ID,
+          reportingLine: true,
+          projectLine: false,
+          peoplePartnerLine: false,
+          fullProfileAccessLine: false,
+        }],
+      }),
+    });
+    const adapter = new HttpAccessRoleResolutionAdapter(createConfig(), {
+      exchangeForAccessControl: exchangeMock,
+    } as unknown as ServiceTokenExchangeService);
+
+    await expect(
+      adapter.resolveBatch(VIEWER_ID, [SUBJECT_ID], 'incoming-token'),
+    ).resolves.toEqual(new Map([[SUBJECT_ID, {
+      reportingLine: true,
+      projectLine: false,
+      projectRoles: [],
+      peoplePartnerLine: false,
+      fullProfileAccessLine: false,
+    }]]));
+  });
+
   it('non-2xx response: fails closed to NO_ACCESS_RESOLUTION, logged not thrown', async () => {
     fetchMock.mockResolvedValue({
       ok: false,

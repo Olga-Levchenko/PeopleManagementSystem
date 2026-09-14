@@ -16,7 +16,7 @@ Managers and people partners record and track employee risk levels with correct 
 
 - Risks live in `work-management-service` per architecture AD-1 (not people-service).
 - S6 matrix: Self **—** (never read own risk — Story 2.7); Reporting line **RW**; Project line **RW**; PP **RW**; Full profile access **RW** (via `fullProfileAccessLine`, Story 1.5).
-- Functional permission `create-edit-risks` (Story 1.4 catalogue) gates every route; access role gates which subjects.
+- Functional permission `create-edit-risks` (Story 1.4 catalogue) gates every append/write route; Story 4.3 profile history read is relationship-gated without this write permission. Access role gates which subjects.
 - Severity order (fixed): `low` < `need_attention` < `medium` < `high` < `leaver`. No resolved/closed state — transitions any direction allowed.
 - `leaver` is a **prediction**, never employment status (Epic 16).
 - Current level = most recent record by `recordedAt` (then `createdAt` desc on tie); full history retained append-only.
@@ -29,7 +29,7 @@ Managers and people partners record and track employee risk levels with correct 
 ## Technical Decisions
 
 - Reuse WMS patterns from Epic 3: `RequestActorContext` (O4-142 platform `Person.id`), JWT auth, service-token exchange, `AccessRoleResolutionPort`, permissions-check port.
-- **Gate order (every route):** resolve actor → self-subject `403` **before** ACS resolve → permission check → relationship resolve → handler.
+- **Gate order (append/write routes):** resolve actor → self-subject `403` **before** ACS resolve → permission check → relationship resolve → handler. **Gate order (profile history read):** resolve actor → self-subject `403` **before** ACS resolve → relationship resolve → handler.
 - Relationship gate for S6 write/read toward **other** subjects: `reportingLine || peoplePartnerLine || projectLine || fullProfileAccessLine`.
 - **Self-subject is always denied** (`403`) on POST and GET — unlike action-items self-assign; S6 Self cell is `—` (even when `fullProfileAccessLine` is true).
 - All authorization denials return uniform `403` (no body differentiation). ACS unreachable → fail-closed `403`.

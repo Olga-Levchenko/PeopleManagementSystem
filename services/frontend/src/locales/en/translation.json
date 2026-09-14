@@ -41,6 +41,7 @@
     "description": "Current risk posture for your permitted population.",
     "loading": "Loading risk dashboard...",
     "error": "Unable to load risk data. Please try again.",
+    "forbidden": "You do not have access to the Risk Dashboard.",
     "empty": "No current risk records to show.",
     "activeCount": "Active risks",
     "severity": {
@@ -124,6 +125,7 @@
       "emergencyContacts": "Emergency contacts",
       "certificates": "Certificates",
       "photo": "Profile photo",
+      "risks": "Risk history",
       "leaves": "Leaves",
       "projects": "Projects",
       "customFields": "Custom fields"
@@ -152,6 +154,25 @@
     },
     "saveSuccess": "Saved {{field}}.",
     "saveError": "Failed to save {{field}}.",
+    "risks": {
+      "add": "Add risk record",
+      "current": "Current level: {{level}} ({{date}})",
+      "loading": "Loading risk history...",
+      "error": "Unable to load risk history.",
+      "empty": "No risk records to show.",
+      "level": "Level",
+      "description": "Description",
+      "details": "Details",
+      "recordedAt": "Recorded date",
+      "save": "Save risk record",
+      "saving": "Saving...",
+      "saved": "Risk record saved.",
+      "saveError": "Unable to save the risk record.",
+      "validation": {
+        "description": "Description is required.",
+        "generic": "Please check the entered values."
+      }
+    },
     "fields": {
       "position": "Position",
       "department": "Department",
