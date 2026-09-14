@@ -31,7 +31,8 @@
       },
       "trend": {
         "up": "Increasing",
-        "down": "Decreasing"
+        "down": "Decreasing",
+        "none": "No change"
       }
     }
   },

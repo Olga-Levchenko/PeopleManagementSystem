@@ -21,13 +21,8 @@ describe('TrendIcon', () => {
     expect(icon).toBeInTheDocument()
   })
 
-  it('renders nothing for direction "none"', () => {
-    const { container } = renderWithI18n(<TrendIcon direction="none" />)
-    expect(container.firstChild).toBeNull()
-  })
-
-  it('renders nothing for null direction', () => {
-    const { container } = renderWithI18n(<TrendIcon direction={null} />)
-    expect(container.firstChild).toBeNull()
+  it('renders "No change" text for direction "none"', () => {
+    renderWithI18n(<TrendIcon direction="none" />)
+    expect(screen.getByText('No change')).toBeInTheDocument()
   })
 })

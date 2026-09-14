@@ -51,6 +51,7 @@ export const RiskDashboardPage = () => {
         key: 'recordedAt',
         header: t('riskDashboard.columns.recordedAt'),
         sortable: true,
+        activeSort: 'descending',
         render: row => row.recordedAt.slice(0, 10),
       },
       {

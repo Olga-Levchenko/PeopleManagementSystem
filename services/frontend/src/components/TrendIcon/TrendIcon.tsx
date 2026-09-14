@@ -28,5 +28,13 @@ export const TrendIcon = ({ direction, className }: TrendIconProps) => {
     )
   }
 
+  if (direction === 'none') {
+    return (
+      <span className="text-sm text-muted-foreground">
+        {t('dashboard.common.trend.none')}
+      </span>
+    )
+  }
+
   return null
 }

@@ -74,7 +74,9 @@ describe('DashboardTable', () => {
       />,
     )
     expect(screen.getByText('Nothing to show')).toBeInTheDocument()
-    expect(screen.queryByRole('table')).toBeNull()
+    // table structure is preserved; message appears inside a cell spanning all columns
+    expect(screen.getByRole('table')).toBeInTheDocument()
+    expect(screen.queryAllByRole('row').length).toBe(2) // header row + empty-state row
   })
 
   it('sets aria-sort on sortable column headers', () => {

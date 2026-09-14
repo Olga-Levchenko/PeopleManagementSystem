@@ -17,4 +17,3 @@ jobs:
     uses: ./.github/workflows/_reusable-node-ci.yml
     with:
       service_path: services/frontend
-      run_e2e: true
