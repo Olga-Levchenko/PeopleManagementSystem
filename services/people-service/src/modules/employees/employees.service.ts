@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { DMPMDashboardMetadataResponseDto } from './dm-pm-dashboard-metadata.dto';
 import {
   deriveAudienceFromResolution,
   grantsSectionAccess,
@@ -253,6 +254,102 @@ export class EmployeesService {
         leaveStatus: person.leaves[0]?.leaveType ?? null,
       })),
     };
+  }
+
+  async getDMPMDashboardMetadata(
+    callerPersonId: string,
+  ): Promise<DMPMDashboardMetadataResponseDto> {
+    const now = new Date();
+
+    // Step 1 — find projects where caller is DM or PM
+    const callerAssignments =
+      await this.prisma.personProjectAssignment.findMany({
+        where: {
+          personId: callerPersonId,
+          role: { in: ['DeliveryManager', 'ProjectManager'] },
+          OR: [{ endDate: null }, { endDate: { gt: now } }],
+        },
+        select: { projectName: true },
+      });
+
+    const projectNames = [
+      ...new Set(callerAssignments.map((a) => a.projectName)),
+    ];
+
+    if (projectNames.length === 0) {
+      return { projects: [] };
+    }
+
+    // Step 2 — find all active members of those projects
+    const memberAssignments =
+      await this.prisma.personProjectAssignment.findMany({
+        where: {
+          projectName: { in: projectNames },
+          OR: [{ endDate: null }, { endDate: { gt: now } }],
+        },
+        select: {
+          projectName: true,
+          person: {
+            select: {
+              id: true,
+              fullName: true,
+              department: { select: { id: true, name: true } },
+              leaves: {
+                select: { leaveType: true },
+                where: { startDate: { lte: now }, endDate: { gte: now } },
+                orderBy: { startDate: 'desc' },
+                take: 1,
+              },
+            },
+          },
+        },
+      });
+
+    // Step 3 — group by project, deduplicate people per project (first-seen wins)
+    const projectMap = new Map<
+      string,
+      Map<
+        string,
+        {
+          personId: string;
+          fullName: string;
+          department: { id: string; label: string } | null;
+          leaveStatus: string | null;
+        }
+      >
+    >();
+
+    for (const projectName of projectNames) {
+      projectMap.set(projectName, new Map());
+    }
+
+    for (const assignment of memberAssignments) {
+      const peopleMap = projectMap.get(assignment.projectName);
+      if (!peopleMap) continue;
+
+      const person = assignment.person;
+      if (!peopleMap.has(person.id)) {
+        peopleMap.set(person.id, {
+          personId: person.id,
+          fullName: person.fullName,
+          department: person.department
+            ? {
+                id: person.department.id,
+                label: person.department.name ?? person.department.id,
+              }
+            : null,
+          leaveStatus: person.leaves[0]?.leaveType ?? null,
+        });
+      }
+    }
+
+    const projects = projectNames.map((projectName) => ({
+      projectId: projectName,
+      projectLabel: projectName,
+      people: [...(projectMap.get(projectName)?.values() ?? [])],
+    }));
+
+    return { projects };
   }
 
   async getRiskDashboardMetadata(personIds: string[]) {

@@ -14,7 +14,7 @@ interface SideMenuProps {
 export const SideMenu = ({ collapsible = true, expanded }: SideMenuProps) => {
   const { t } = useTranslation()
   const { toggleSidebar, isMobileSidebarOpen, closeMobileSidebar } = useLayout()
-  const { canAccessAdministration, canAccessRiskDashboard, canAccessUMDashboard } = useSideMenu()
+  const { canAccessAdministration, canAccessRiskDashboard, canAccessUMDashboard, canAccessDMPMDashboard } = useSideMenu()
   // The mobile drawer is always rendered at full width, so labels must be
   // visible there even if the desktop sidebar is currently collapsed.
   const showLabels = expanded || isMobileSidebarOpen
@@ -74,6 +74,16 @@ export const SideMenu = ({ collapsible = true, expanded }: SideMenuProps) => {
               label={t('sidebar.umDashboard')}
               path="/um-dashboard"
               hint={t('sidebar.umDashboard')}
+              expanded={showLabels}
+              onNavigate={closeMobileSidebar}
+            />
+          )}
+          {canAccessDMPMDashboard && (
+            <SideMenuItem
+              icon={LayoutDashboard}
+              label={t('sidebar.dmpmDashboard')}
+              path="/dm-pm-dashboard"
+              hint={t('sidebar.dmpmDashboard')}
               expanded={showLabels}
               onNavigate={closeMobileSidebar}
             />

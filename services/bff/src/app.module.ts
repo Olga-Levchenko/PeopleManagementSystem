@@ -7,6 +7,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 import { OidcService } from './modules/auth/oidc.service';
 import { CustomFieldDefinitionsModule } from './modules/custom-field-definitions/custom-field-definitions.module';
+import { DMPMDashboardModule } from './modules/dm-pm-dashboard/dm-pm-dashboard.module';
 import { HealthModule } from './modules/health/health.module';
 import { ManagementNotesModule } from './modules/management-notes/management-notes.module';
 import { OrganisationalRelationshipsModule } from './modules/organisational-relationships/organisational-relationships.module';
@@ -23,6 +24,7 @@ import { UMDashboardModule } from './modules/um-dashboard/um-dashboard.module';
     }),
     AuthModule,
     CustomFieldDefinitionsModule,
+    DMPMDashboardModule,
     EmployeesModule,
     HealthModule,
     ManagementNotesModule,

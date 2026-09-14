@@ -774,3 +774,19 @@ photo on management profile UI — scoped in
 - source_spec: `_bmad-output/implementation-artifacts/spec-5-2-um-dashboard-early-blocks.md`
   summary: BFF `UMDashboardService.getUMDashboard` outer `try/catch` is redundant given all `fetch` calls use `.catch(() => null)` inline — the outer catch masks some unexpected error types (e.g. unexpected throws from the compose step) as a generic 502 without distinguishing them. Acceptable fail-closed pattern for a composition endpoint; P3 (ACS JSON parse returning 502 instead of 403) is the specific actionable case.
   evidence: Code review blind-hunter pass; pre-existing fail-closed convention across BFF service modules.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-3-dm-pm-dashboard-early-blocks.md`
+  summary: WMS risk pagination in `DMPMDashboardService` silently drops rows beyond the 50-page × 100-row cap (5000 rows); no truncation flag or error is surfaced to the caller or in logs.
+  evidence: Code review edge-case-hunter pass; while (nextCursor && pageCount < 50) exits silently on hitting the limit — a large org with many risk records would see an incomplete dashboard without any indication.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-3-dm-pm-dashboard-early-blocks.md`
+  summary: When multiple WMS risk rows exist for the same personId, `riskByPersonId` uses last-write-wins (Map constructor takes last entry). The highest-severity risk for that person may be silently discarded. A deterministic merge strategy (e.g. highest-severity-wins, consistent with risk dashboard ranking) should be applied.
+  evidence: Code review edge-case-hunter pass; same pattern exists in um-dashboard.service.ts — fix both together.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-3-dm-pm-dashboard-early-blocks.md`
+  summary: All outbound `fetch` calls in `DMPMDashboardService` (ACS, People Service, WMS) have no request timeout. A slow upstream stalls the BFF handler indefinitely under load.
+  evidence: Code review edge-case-hunter pass; pre-existing pattern across BFF composition services — address with a platform-wide fetch timeout wrapper (e.g. `AbortSignal.timeout(N)`) or HTTP client configuration.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-3-dm-pm-dashboard-early-blocks.md`
+  summary: No unit test exists for `DMPMDashboardController`; the `resolveWmsAuthorization` session-bearer-forwarding path and OidcService integration are untested at the controller level.
+  evidence: Code review blind-hunter pass; spec task list required only a service spec, not a controller spec — add in a future maintenance pass alongside the UM dashboard controller, which also lacks a unit test.
