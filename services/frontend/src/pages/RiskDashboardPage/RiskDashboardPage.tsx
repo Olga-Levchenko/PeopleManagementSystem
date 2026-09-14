@@ -1,36 +1,72 @@
-import axios from 'axios'
-import { AlertTriangle, ArrowDown, ArrowUp } from 'lucide-react'
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useMemo } from 'react'
+import { AlertTriangle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { type RiskSeverity } from '@/api/riskDashboard'
-import { useRiskDashboard } from '@/api/hooks/useRiskDashboard'
+import { type RiskSeverity, type RiskDashboardRow } from '@/api/riskDashboard'
+import { DashboardCountCard } from '@/components/DashboardCountCard/DashboardCountCard'
+import { DashboardTable, type ColumnSpec } from '@/components/DashboardTable/DashboardTable'
+import { SeverityBadge } from '@/components/SeverityBadge/SeverityBadge'
+import { TrendIcon } from '@/components/TrendIcon/TrendIcon'
+import { useRiskDashboardPage } from './hooks/useRiskDashboardPage'
 
 const severities: RiskSeverity[] = ['leaver', 'high', 'medium', 'need_attention', 'low']
 const emphasized = new Set<RiskSeverity>(['leaver', 'high', 'medium'])
 
 export const RiskDashboardPage = () => {
   const { t } = useTranslation()
-  const navigate = useNavigate()
-  const [severity, setSeverity] = useState<RiskSeverity | undefined>()
-  const [departmentId, setDepartmentId] = useState<string>()
-  const [projectId, setProjectId] = useState<string>()
-  const [peoplePartnerId, setPeoplePartnerId] = useState<string>()
-  const [managerId, setManagerId] = useState<string>()
-  const dashboard = useRiskDashboard({
-    severity,
-    departmentId,
-    projectId,
-    peoplePartnerId,
-    managerId,
-  })
-  const forbidden = axios.isAxiosError(dashboard.error) && dashboard.error.response?.status === 403
+  const {
+    filters,
+    setFilter,
+    setSeverity,
+    setDepartmentId,
+    setProjectId,
+    setPeoplePartnerId,
+    setManagerId,
+    isUnauthorized,
+    navigateToProfile,
+    isLoading,
+    isError,
+    data,
+  } = useRiskDashboardPage()
 
-  if (forbidden) return null
+  const columns = useMemo<ColumnSpec<RiskDashboardRow>[]>(
+    () => [
+      {
+        key: 'person',
+        header: t('riskDashboard.columns.person'),
+        sortable: true,
+        render: row => row.fullName,
+      },
+      {
+        key: 'severity',
+        header: t('riskDashboard.columns.severity'),
+        sortable: true,
+        render: row => <SeverityBadge level={row.severity} />,
+      },
+      {
+        key: 'trend',
+        header: t('riskDashboard.columns.trend'),
+        render: row => <TrendIcon direction={row.trendDirection ?? 'none'} />,
+      },
+      {
+        key: 'recordedAt',
+        header: t('riskDashboard.columns.recordedAt'),
+        sortable: true,
+        activeSort: 'descending',
+        render: row => row.recordedAt.slice(0, 10),
+      },
+      {
+        key: 'department',
+        header: t('riskDashboard.columns.department'),
+        sortable: true,
+        render: row => row.department?.label ?? '—',
+      },
+    ],
+    [t],
+  )
 
-  const catalogs = dashboard.data?.catalogs
-  const setFilter = (value: string, setter: (next: string | undefined) => void) =>
-    setter(value || undefined)
+  if (isUnauthorized) return null
+
+  const catalogs = data?.catalogs
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -42,50 +78,35 @@ export const RiskDashboardPage = () => {
         </div>
       </div>
 
-      {dashboard.isLoading ? (
+      {isLoading ? (
         <p className="text-muted-foreground">{t('riskDashboard.loading')}</p>
-      ) : dashboard.isError ? (
+      ) : isError ? (
         <p className="text-destructive">{t('riskDashboard.error')}</p>
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-            <button
-              type="button"
-              className="rounded-lg border border-border bg-card p-4 text-left"
+            <DashboardCountCard
+              label={t('riskDashboard.activeCount')}
+              count={data?.counts.activeCount ?? 0}
+              active={filters.severity === undefined}
               onClick={() => setSeverity(undefined)}
-            >
-              <span className="block text-sm text-muted-foreground">
-                {t('riskDashboard.activeCount')}
-              </span>
-              <span className="text-2xl font-semibold">
-                {dashboard.data?.counts.activeCount ?? 0}
-              </span>
-            </button>
+            />
             {severities.map(level => (
-              <button
+              <DashboardCountCard
                 key={level}
-                type="button"
-                className="rounded-lg border border-border bg-card p-4 text-left"
+                label={t(`dashboard.common.severity.${level}`)}
+                count={data?.counts[level] ?? 0}
+                emphasized={emphasized.has(level)}
+                active={filters.severity === level}
                 onClick={() => setSeverity(level)}
-              >
-                <span className="block text-sm text-muted-foreground">
-                  {t(`riskDashboard.severity.${level}`)}
-                </span>
-                <span
-                  className={
-                    emphasized.has(level) ? 'text-2xl font-bold' : 'text-2xl font-semibold'
-                  }
-                >
-                  {dashboard.data?.counts[level] ?? 0}
-                </span>
-              </button>
+              />
             ))}
           </div>
 
           <div className="flex flex-wrap gap-3 rounded-lg border border-border bg-card p-4">
             <select
               aria-label={t('riskDashboard.filters.department')}
-              value={departmentId ?? ''}
+              value={filters.departmentId ?? ''}
               onChange={event => setFilter(event.target.value, setDepartmentId)}
             >
               <option value="">{t('riskDashboard.filters.department')}</option>
@@ -97,7 +118,7 @@ export const RiskDashboardPage = () => {
             </select>
             <select
               aria-label={t('riskDashboard.filters.project')}
-              value={projectId ?? ''}
+              value={filters.projectId ?? ''}
               onChange={event => setFilter(event.target.value, setProjectId)}
             >
               <option value="">{t('riskDashboard.filters.project')}</option>
@@ -109,7 +130,7 @@ export const RiskDashboardPage = () => {
             </select>
             <select
               aria-label={t('riskDashboard.filters.peoplePartner')}
-              value={peoplePartnerId ?? ''}
+              value={filters.peoplePartnerId ?? ''}
               onChange={event => setFilter(event.target.value, setPeoplePartnerId)}
             >
               <option value="">{t('riskDashboard.filters.peoplePartner')}</option>
@@ -121,7 +142,7 @@ export const RiskDashboardPage = () => {
             </select>
             <select
               aria-label={t('riskDashboard.filters.manager')}
-              value={managerId ?? ''}
+              value={filters.managerId ?? ''}
               onChange={event => setFilter(event.target.value, setManagerId)}
             >
               <option value="">{t('riskDashboard.filters.manager')}</option>
@@ -133,59 +154,13 @@ export const RiskDashboardPage = () => {
             </select>
           </div>
 
-          {(dashboard.data?.rows.length ?? 0) === 0 ? (
-            <p className="text-muted-foreground">{t('riskDashboard.empty')}</p>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="min-w-full text-sm">
-                <thead className="bg-muted text-muted-foreground">
-                  <tr>
-                    <th aria-sort="none" className="px-4 py-3 text-left">
-                      {t('riskDashboard.columns.person')}
-                    </th>
-                    <th aria-sort="none" className="px-4 py-3 text-left">
-                      {t('riskDashboard.columns.severity')}
-                    </th>
-                    <th aria-sort="none" className="px-4 py-3 text-left">
-                      {t('riskDashboard.columns.trend')}
-                    </th>
-                    <th aria-sort="descending" className="px-4 py-3 text-left">
-                      {t('riskDashboard.columns.recordedAt')}
-                    </th>
-                    <th aria-sort="none" className="px-4 py-3 text-left">
-                      {t('riskDashboard.columns.department')}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dashboard.data?.rows.map(row => (
-                    <tr
-                      key={row.personId}
-                      className="cursor-pointer border-t border-border hover:bg-muted/40"
-                      onClick={() => navigate(`/people/${row.personId}`)}
-                    >
-                      <td className="px-4 py-3">{row.fullName}</td>
-                      <td className="px-4 py-3">{t(`riskDashboard.severity.${row.severity}`)}</td>
-                      <td className="px-4 py-3">
-                        {row.trendDirection === 'up' ? (
-                          <ArrowUp aria-label={t('riskDashboard.trend.up')} className="h-4 w-4" />
-                        ) : row.trendDirection === 'down' ? (
-                          <ArrowDown
-                            aria-label={t('riskDashboard.trend.down')}
-                            className="h-4 w-4"
-                          />
-                        ) : (
-                          t('riskDashboard.trend.none')
-                        )}
-                      </td>
-                      <td className="px-4 py-3">{row.recordedAt.slice(0, 10)}</td>
-                      <td className="px-4 py-3">{row.department?.label ?? '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <DashboardTable
+            columns={columns}
+            rows={data?.rows ?? []}
+            getRowKey={row => row.personId}
+            onRowClick={row => navigateToProfile(row.personId)}
+            emptyMessage={t('riskDashboard.empty')}
+          />
         </>
       )}
     </div>

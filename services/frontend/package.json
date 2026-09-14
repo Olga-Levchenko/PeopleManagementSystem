@@ -12,7 +12,9 @@
     "format": "prettier --write \"**/*.{ts,tsx,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,css}\"",
     "preview": "vite preview",
-    "test": "playwright test",
+    "test": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:e2e": "playwright test",
     "test:live": "node scripts/live-e2e.mjs",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui"
@@ -38,14 +40,20 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
+    "@vitest/coverage-v8": "^5.0.0",
     "eslint": "^10.5.0",
+    "jsdom": "^30.0.1",
     "prettier": "^3.8.5",
     "typescript": "~5.7.2",
     "typescript-eslint": "^8.61.0",
-    "vite": "^8.1.0"
+    "vite": "^8.1.0",
+    "vitest": "^5.0.0"
   }
 }
