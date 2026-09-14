@@ -214,12 +214,53 @@ export class EmployeesService {
     private readonly accessRoleResolution: AccessRoleResolutionPort,
   ) {}
 
+  async getUMDashboardMetadata(callerPersonId: string) {
+    const now = new Date();
+    const people = await this.prisma.person.findMany({
+      where: { managerId: callerPersonId },
+      select: {
+        id: true,
+        fullName: true,
+        department: { select: { id: true, name: true } },
+        personProjectAssignments: {
+          select: { projectName: true },
+          where: {
+            OR: [{ endDate: null }, { endDate: { gt: now } }],
+          },
+        },
+        leaves: {
+          select: { leaveType: true, startDate: true, endDate: true },
+          where: { startDate: { lte: now }, endDate: { gte: now } },
+          take: 1,
+        },
+      },
+    });
+
+    return {
+      people: people.map((person) => ({
+        personId: person.id,
+        fullName: person.fullName,
+        department: person.department
+          ? {
+              id: person.department.id,
+              label: person.department.name ?? person.department.id,
+            }
+          : null,
+        projects: [
+          ...new Set(person.personProjectAssignments.map((a) => a.projectName)),
+        ].map((name) => ({ id: name, label: name })),
+        leaveStatus: person.leaves[0]?.leaveType ?? null,
+      })),
+    };
+  }
+
   async getRiskDashboardMetadata(personIds: string[]) {
     const ids = [...new Set(personIds.map((id) => id.toLowerCase()))];
     const people = await this.prisma.person.findMany({
       where: { id: { in: ids } },
       select: {
-        id: true, fullName: true,
+        id: true,
+        fullName: true,
         department: { select: { id: true, name: true } },
         manager: { select: { id: true, fullName: true } },
         peoplePartner: { select: { id: true, fullName: true } },
@@ -228,11 +269,30 @@ export class EmployeesService {
     });
     return {
       people: people.map((person) => ({
-        personId: person.id, fullName: person.fullName,
-        department: person.department ? { id: person.department.id, label: person.department.name ?? person.department.id } : null,
-        manager: person.manager ? { id: person.manager.id, label: person.manager.fullName } : null,
-        peoplePartner: person.peoplePartner ? { id: person.peoplePartner.id, label: person.peoplePartner.fullName } : null,
-        projects: [...new Set(person.personProjectAssignments.map((project) => project.projectName))].map((name) => ({ id: name, label: name })),
+        personId: person.id,
+        fullName: person.fullName,
+        department: person.department
+          ? {
+              id: person.department.id,
+              label: person.department.name ?? person.department.id,
+            }
+          : null,
+        manager: person.manager
+          ? { id: person.manager.id, label: person.manager.fullName }
+          : null,
+        peoplePartner: person.peoplePartner
+          ? {
+              id: person.peoplePartner.id,
+              label: person.peoplePartner.fullName,
+            }
+          : null,
+        projects: [
+          ...new Set(
+            person.personProjectAssignments.map(
+              (project) => project.projectName,
+            ),
+          ),
+        ].map((name) => ({ id: name, label: name })),
       })),
     };
   }

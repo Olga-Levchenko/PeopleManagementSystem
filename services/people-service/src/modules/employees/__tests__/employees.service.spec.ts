@@ -79,9 +79,36 @@ describe('EmployeesService', () => {
   });
 
   it('returns dashboard metadata only for the supplied authorized IDs and de-duplicates projects', async () => {
-    prisma.person.findMany.mockResolvedValue([{ id: subjectId, fullName: 'Pseudonym', department: { id: 'dept', name: 'Engineering' }, manager: null, peoplePartner: null, personProjectAssignments: [{ projectName: 'Alpha' }, { projectName: 'Alpha' }] }]);
-    await expect(service.getRiskDashboardMetadata([subjectId])).resolves.toEqual({ people: [{ personId: subjectId, fullName: 'Pseudonym', department: { id: 'dept', label: 'Engineering' }, manager: null, peoplePartner: null, projects: [{ id: 'Alpha', label: 'Alpha' }] }] });
-    expect(prisma.person.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: { in: [subjectId] } } }));
+    prisma.person.findMany.mockResolvedValue([
+      {
+        id: subjectId,
+        fullName: 'Pseudonym',
+        department: { id: 'dept', name: 'Engineering' },
+        manager: null,
+        peoplePartner: null,
+        personProjectAssignments: [
+          { projectName: 'Alpha' },
+          { projectName: 'Alpha' },
+        ],
+      },
+    ]);
+    await expect(
+      service.getRiskDashboardMetadata([subjectId]),
+    ).resolves.toEqual({
+      people: [
+        {
+          personId: subjectId,
+          fullName: 'Pseudonym',
+          department: { id: 'dept', label: 'Engineering' },
+          manager: null,
+          peoplePartner: null,
+          projects: [{ id: 'Alpha', label: 'Alpha' }],
+        },
+      ],
+    });
+    expect(prisma.person.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: [subjectId] } } }),
+    );
   });
 
   it('getFieldCatalog includes management-only custom fields when ACS reports management audience', async () => {
