@@ -1149,4 +1149,122 @@ describe('EmployeesService', () => {
       expect(beta?.people).toHaveLength(2);
     });
   });
+
+  describe('getPPDashboardMetadata', () => {
+    const ppCallerId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+    const ppPersonId1 = '11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const ppPersonId2 = '22222222-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
+    it('returns mapped people for the PP caller', async () => {
+      prisma.person.findMany.mockResolvedValueOnce([
+        {
+          id: ppPersonId1,
+          fullName: 'Jordan Kim',
+          department: { id: 'dept-1', name: 'Engineering' },
+          personProjectAssignments: [{ projectName: 'Alpha' }],
+          leaves: [
+            {
+              leaveType: 'Annual',
+              startDate: new Date(),
+              endDate: new Date(),
+            },
+          ],
+        },
+      ]);
+
+      const result = await service.getPPDashboardMetadata(ppCallerId);
+
+      expect(result.people).toHaveLength(1);
+      expect(result.people[0].personId).toBe(ppPersonId1);
+      expect(result.people[0].fullName).toBe('Jordan Kim');
+      expect(result.people[0].department).toEqual({
+        id: 'dept-1',
+        label: 'Engineering',
+      });
+      expect(result.people[0].projects).toEqual(['Alpha']);
+      expect(result.people[0].leaveStatus).toBe('Annual');
+    });
+
+    it('returns empty people array when caller has no PP assignments', async () => {
+      prisma.person.findMany.mockResolvedValueOnce([]);
+
+      const result = await service.getPPDashboardMetadata(ppCallerId);
+
+      expect(result.people).toHaveLength(0);
+    });
+
+    it('propagates null leaveStatus and null department when absent', async () => {
+      prisma.person.findMany.mockResolvedValueOnce([
+        {
+          id: ppPersonId1,
+          fullName: 'Sam Reeves',
+          department: null,
+          personProjectAssignments: [],
+          leaves: [],
+        },
+      ]);
+
+      const result = await service.getPPDashboardMetadata(ppCallerId);
+
+      expect(result.people[0].leaveStatus).toBeNull();
+      expect(result.people[0].department).toBeNull();
+      expect(result.people[0].projects).toEqual([]);
+    });
+
+    it('de-duplicates project names for the same person', async () => {
+      prisma.person.findMany.mockResolvedValueOnce([
+        {
+          id: ppPersonId1,
+          fullName: 'Jordan Kim',
+          department: null,
+          personProjectAssignments: [
+            { projectName: 'Alpha' },
+            { projectName: 'Alpha' },
+            { projectName: 'Beta' },
+          ],
+          leaves: [],
+        },
+      ]);
+
+      const result = await service.getPPDashboardMetadata(ppCallerId);
+
+      expect(result.people[0].projects).toEqual(['Alpha', 'Beta']);
+    });
+
+    it('returns multiple people when PP is responsible for multiple', async () => {
+      prisma.person.findMany.mockResolvedValueOnce([
+        {
+          id: ppPersonId1,
+          fullName: 'Jordan Kim',
+          department: { id: 'dept-1', name: 'Engineering' },
+          personProjectAssignments: [],
+          leaves: [],
+        },
+        {
+          id: ppPersonId2,
+          fullName: 'Alex Rivera',
+          department: { id: 'dept-2', name: 'Design' },
+          personProjectAssignments: [{ projectName: 'Beta' }],
+          leaves: [
+            { leaveType: 'Sick', startDate: new Date(), endDate: new Date() },
+          ],
+        },
+      ]);
+
+      const result = await service.getPPDashboardMetadata(ppCallerId);
+
+      expect(result.people).toHaveLength(2);
+      expect(result.people[1].leaveStatus).toBe('Sick');
+    });
+
+    it('queries Prisma with peoplePartnerId equal to the caller ID', async () => {
+      prisma.person.findMany.mockResolvedValueOnce([]);
+
+      await service.getPPDashboardMetadata(ppCallerId);
+
+      expect(prisma.person.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { peoplePartnerId: ppCallerId } }),
+      );
+    });
+  });
 });

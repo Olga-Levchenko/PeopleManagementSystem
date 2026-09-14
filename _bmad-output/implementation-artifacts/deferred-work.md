@@ -790,3 +790,15 @@ photo on management profile UI — scoped in
 - source_spec: `_bmad-output/implementation-artifacts/spec-5-3-dm-pm-dashboard-early-blocks.md`
   summary: No unit test exists for `DMPMDashboardController`; the `resolveWmsAuthorization` session-bearer-forwarding path and OidcService integration are untested at the controller level.
   evidence: Code review blind-hunter pass; spec task list required only a service spec, not a controller spec — add in a future maintenance pass alongside the UM dashboard controller, which also lacks a unit test.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-4-pp-dashboard.md`
+  summary: Risk pagination 50-page cap in all audience-dashboard BFF services (UM, DM/PM, PP) silently truncates without logging a warning when the cap is hit.
+  evidence: Code review edge-case-hunter pass; pre-existing pattern across all three dashboard services — add a warning log when `riskPageCount >= 50` to make truncation observable in production.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-4-pp-dashboard.md`
+  summary: BFF audience-dashboard services (UM, DM/PM, PP) each define duplicate inline TypeScript interfaces for WMS and People Service wire-format shapes instead of sharing them via libs/contracts.
+  evidence: Code review blind-hunter pass; pre-existing pattern across all dashboard modules — consolidate into a shared contract once a cross-language schema-artifact format is decided (tracked in epic-1 action items).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-4-pp-dashboard.md`
+  summary: No unit test exists for `PPDashboardController`; the `resolveWmsAuthorization` session-bearer-forwarding path and OidcService integration are untested at the controller level.
+  evidence: Code review blind-hunter pass; consistent with the UM and DM/PM dashboard controllers which also lack controller-level unit tests — address in a future maintenance pass.

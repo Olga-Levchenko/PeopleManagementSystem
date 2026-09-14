@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getFunctionalRoles } from '@/api/functionalRoles'
 import { getDMPMDashboardApiCall } from '@/api/dmPmDashboard'
+import { getPPDashboardApiCall } from '@/api/ppDashboard'
 import { getRiskDashboardApiCall } from '@/api/riskDashboard'
 import { getUMDashboardApiCall } from '@/api/umDashboard'
 
@@ -9,6 +10,7 @@ interface UseSideMenuResult {
   canAccessRiskDashboard: boolean
   canAccessUMDashboard: boolean
   canAccessDMPMDashboard: boolean
+  canAccessPPDashboard: boolean
 }
 
 export const useSideMenu = (): UseSideMenuResult => {
@@ -16,6 +18,7 @@ export const useSideMenu = (): UseSideMenuResult => {
   const [canAccessRiskDashboard, setCanAccessRiskDashboard] = useState(false)
   const [canAccessUMDashboard, setCanAccessUMDashboard] = useState(false)
   const [canAccessDMPMDashboard, setCanAccessDMPMDashboard] = useState(false)
+  const [canAccessPPDashboard, setCanAccessPPDashboard] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -57,10 +60,21 @@ export const useSideMenu = (): UseSideMenuResult => {
     return () => controller.abort()
   }, [])
 
+  useEffect(() => {
+    const controller = new AbortController()
+
+    void getPPDashboardApiCall(controller.signal)
+      .then(() => setCanAccessPPDashboard(true))
+      .catch(() => setCanAccessPPDashboard(false))
+
+    return () => controller.abort()
+  }, [])
+
   return {
     canAccessAdministration,
     canAccessRiskDashboard,
     canAccessUMDashboard,
     canAccessDMPMDashboard,
+    canAccessPPDashboard,
   }
 }

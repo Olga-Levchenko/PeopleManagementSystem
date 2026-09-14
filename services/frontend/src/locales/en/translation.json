@@ -20,7 +20,8 @@
     "administration": "Administration",
     "riskDashboard": "Risk Dashboard",
     "umDashboard": "UM Dashboard",
-    "dmpmDashboard": "DM/PM Dashboard"
+    "dmpmDashboard": "DM/PM Dashboard",
+    "ppDashboard": "PP Dashboard"
   },
   "dashboard": {
     "common": {
@@ -101,6 +102,42 @@
       },
       "empty": {
         "subordinates": "No direct reports found.",
+        "actionItems": "No action items."
+      }
+    },
+    "pp": {
+      "title": "PP Dashboard",
+      "loading": "Loading PP dashboard...",
+      "error": "Unable to load dashboard data. Please try again.",
+      "headcount": "Headcount",
+      "riskCounts": {
+        "low": "Low risk",
+        "need_attention": "Needs attention",
+        "medium": "Medium risk",
+        "high": "High risk",
+        "leaver": "Leavers"
+      },
+      "actionItemCounts": {
+        "open": "Open action items",
+        "overdue": "Overdue"
+      },
+      "groupBy": {
+        "label": "Group by",
+        "department": "By department",
+        "project": "By project"
+      },
+      "columns": {
+        "name": "Name",
+        "severity": "Risk",
+        "leave": "Leave"
+      },
+      "ownActionItems": {
+        "title": "My action items",
+        "due": "Due {{date}}",
+        "overdue": "Overdue"
+      },
+      "empty": {
+        "members": "No people found.",
         "actionItems": "No action items."
       }
     }

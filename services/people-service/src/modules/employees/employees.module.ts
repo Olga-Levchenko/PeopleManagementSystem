@@ -9,6 +9,7 @@ import { EmployeesService } from './employees.service';
 import { DMPMDashboardMetadataController } from './dm-pm-dashboard-metadata.controller';
 import { RiskDashboardMetadataController } from './risk-dashboard-metadata.controller';
 import { UMDashboardMetadataController } from './um-dashboard-metadata.controller';
+import { PPDashboardMetadataController } from './pp-dashboard-metadata.controller';
 import { SavedViewsController } from './saved-views.controller';
 import { SavedViewsService } from './saved-views.service';
 
@@ -23,6 +24,7 @@ import { SavedViewsService } from './saved-views.service';
     DMPMDashboardMetadataController,
     RiskDashboardMetadataController,
     UMDashboardMetadataController,
+    PPDashboardMetadataController,
     SavedViewsController,
   ],
   providers: [

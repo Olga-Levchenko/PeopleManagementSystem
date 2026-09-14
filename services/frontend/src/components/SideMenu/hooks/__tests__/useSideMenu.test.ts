@@ -18,15 +18,21 @@ vi.mock('@/api/dmPmDashboard', () => ({
   getDMPMDashboardApiCall: vi.fn(),
 }))
 
+vi.mock('@/api/ppDashboard', () => ({
+  getPPDashboardApiCall: vi.fn(),
+}))
+
 import { getFunctionalRoles } from '@/api/functionalRoles'
 import { getRiskDashboardApiCall } from '@/api/riskDashboard'
 import { getUMDashboardApiCall } from '@/api/umDashboard'
 import { getDMPMDashboardApiCall } from '@/api/dmPmDashboard'
+import { getPPDashboardApiCall } from '@/api/ppDashboard'
 
 const mockGetFunctionalRoles = vi.mocked(getFunctionalRoles)
 const mockGetRiskDashboardApiCall = vi.mocked(getRiskDashboardApiCall)
 const mockGetUMDashboardApiCall = vi.mocked(getUMDashboardApiCall)
 const mockGetDMPMDashboardApiCall = vi.mocked(getDMPMDashboardApiCall)
+const mockGetPPDashboardApiCall = vi.mocked(getPPDashboardApiCall)
 
 describe('useSideMenu', () => {
   beforeEach(() => {
@@ -36,6 +42,7 @@ describe('useSideMenu', () => {
     mockGetRiskDashboardApiCall.mockRejectedValue(new Error('Forbidden'))
     mockGetUMDashboardApiCall.mockRejectedValue(new Error('Forbidden'))
     mockGetDMPMDashboardApiCall.mockRejectedValue(new Error('Forbidden'))
+    mockGetPPDashboardApiCall.mockRejectedValue(new Error('Forbidden'))
   })
 
   it('sets all flags to true when all probes resolve', async () => {
@@ -43,6 +50,7 @@ describe('useSideMenu', () => {
     mockGetRiskDashboardApiCall.mockResolvedValue({} as never)
     mockGetUMDashboardApiCall.mockResolvedValue({} as never)
     mockGetDMPMDashboardApiCall.mockResolvedValue({} as never)
+    mockGetPPDashboardApiCall.mockResolvedValue({} as never)
 
     const { result } = renderHook(() => useSideMenu())
 
@@ -51,6 +59,7 @@ describe('useSideMenu', () => {
       expect(result.current.canAccessRiskDashboard).toBe(true)
       expect(result.current.canAccessUMDashboard).toBe(true)
       expect(result.current.canAccessDMPMDashboard).toBe(true)
+      expect(result.current.canAccessPPDashboard).toBe(true)
     })
   })
 
@@ -62,6 +71,7 @@ describe('useSideMenu', () => {
       expect(result.current.canAccessRiskDashboard).toBe(false)
       expect(result.current.canAccessUMDashboard).toBe(false)
       expect(result.current.canAccessDMPMDashboard).toBe(false)
+      expect(result.current.canAccessPPDashboard).toBe(false)
     })
   })
 
@@ -148,6 +158,38 @@ describe('useSideMenu', () => {
 
     await waitFor(() => {
       expect(result.current.canAccessDMPMDashboard).toBe(false)
+    })
+  })
+
+  it('sets canAccessPPDashboard true when PP probe resolves with 200', async () => {
+    mockGetPPDashboardApiCall.mockResolvedValue({} as never)
+
+    const { result } = renderHook(() => useSideMenu())
+
+    await waitFor(() => {
+      expect(result.current.canAccessPPDashboard).toBe(true)
+    })
+  })
+
+  it('sets canAccessPPDashboard false when PP probe rejects with 403', async () => {
+    mockGetPPDashboardApiCall.mockRejectedValue(
+      Object.assign(new Error('Forbidden'), { response: { status: 403 } }),
+    )
+
+    const { result } = renderHook(() => useSideMenu())
+
+    await waitFor(() => {
+      expect(result.current.canAccessPPDashboard).toBe(false)
+    })
+  })
+
+  it('sets canAccessPPDashboard false when PP probe fails with any error', async () => {
+    mockGetPPDashboardApiCall.mockRejectedValue(new Error('Network Error'))
+
+    const { result } = renderHook(() => useSideMenu())
+
+    await waitFor(() => {
+      expect(result.current.canAccessPPDashboard).toBe(false)
     })
   })
 })

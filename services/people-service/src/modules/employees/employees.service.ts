@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { DMPMDashboardMetadataResponseDto } from './dm-pm-dashboard-metadata.dto';
+import type { PPDashboardMetadataResponseDto } from './pp-dashboard-metadata.dto';
 import {
   deriveAudienceFromResolution,
   grantsSectionAccess,
@@ -251,6 +252,53 @@ export class EmployeesService {
         projects: [
           ...new Set(person.personProjectAssignments.map((a) => a.projectName)),
         ].map((name) => ({ id: name, label: name })),
+        leaveStatus: person.leaves[0]?.leaveType ?? null,
+      })),
+    };
+  }
+
+  async getPPDashboardMetadata(
+    callerPersonId: string,
+  ): Promise<PPDashboardMetadataResponseDto> {
+    const now = new Date();
+    const people = await this.prisma.person.findMany({
+      where: { peoplePartnerId: callerPersonId },
+      select: {
+        id: true,
+        fullName: true,
+        department: { select: { id: true, name: true } },
+        personProjectAssignments: {
+          select: { projectName: true },
+          where: {
+            OR: [{ endDate: null }, { endDate: { gt: now } }],
+          },
+        },
+        leaves: {
+          select: { leaveType: true, startDate: true, endDate: true },
+          where: { startDate: { lte: now }, endDate: { gte: now } },
+          orderBy: { startDate: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    return {
+      people: people.map((person) => ({
+        personId: person.id,
+        fullName: person.fullName,
+        department: person.department
+          ? {
+              id: person.department.id,
+              label: person.department.name ?? person.department.id,
+            }
+          : null,
+        projects: [
+          ...new Set(
+            person.personProjectAssignments
+              .map((a) => a.projectName)
+              .filter((n): n is string => n !== null),
+          ),
+        ],
         leaveStatus: person.leaves[0]?.leaveType ?? null,
       })),
     };
