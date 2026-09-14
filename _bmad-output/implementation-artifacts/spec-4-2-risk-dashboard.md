@@ -2,9 +2,13 @@
 title: 'Story 4.2: Risk Dashboard'
 type: 'feature'
 created: '2026-09-13'
-status: 'in-review'
+status: 'done'
 review_loop_iteration: 0
 baseline_commit: 'e97d7d56b19ee9d7343d23bd70a564c3f333693f'
+jira: 'O4-47'
+pr: 'https://github.com/Olga-Levchenko/PeopleManagementSystem/pull/106'
+merged_at: '2026-09-14T07:59:44Z'
+merge_commit: 'fc965a0ec46f018f209047b532e10e602a5396c2'
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-4-context.md'
   - '{project-root}/docs/access-control/section-matrix.md'
