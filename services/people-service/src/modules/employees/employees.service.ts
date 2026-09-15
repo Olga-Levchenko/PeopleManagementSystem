@@ -137,7 +137,7 @@ const PERSON_LIST_SELECT = {
   workPhone: true,
   birthdayMonth: true,
   birthdayDay: true,
-  department: { select: { name: true } },
+  department: { select: { id: true, name: true } },
   manager: { select: { fullName: true } },
   peoplePartner: { select: { fullName: true } },
   leaves: {
@@ -176,7 +176,7 @@ type PersonListRecord = {
   workPhone: string | null;
   birthdayMonth: number | null;
   birthdayDay: number | null;
-  department: { name: string } | null;
+  department: { id: string; name: string } | null;
   manager: { fullName: string } | null;
   peoplePartner: { fullName: string } | null;
   leaves: Array<{ startDate: Date; endDate: Date }>;
@@ -525,7 +525,7 @@ export class EmployeesService {
       this.prisma.person.count({ where }),
       this.prisma.person.findMany({
         where,
-        orderBy: { fullName: 'asc' },
+        orderBy: this.employeeOrderBy(query),
         skip: (page - 1) * pageSize,
         take: pageSize,
         select: PERSON_LIST_SELECT,
@@ -836,6 +836,7 @@ export class EmployeesService {
       values.fullName = person.fullName;
       values.position = person.position;
       values.departmentName = person.department?.name ?? null;
+      values.departmentId = person.department?.id ?? null;
       values.countryCity = person.countryCity;
       values.startDate = person.startDate
         ? person.startDate.toISOString().slice(0, 10)
@@ -870,6 +871,7 @@ export class EmployeesService {
       values.fullName = person.fullName;
       values.position = person.position;
       values.departmentName = person.department?.name ?? null;
+      values.departmentId = person.department?.id ?? null;
       values.countryCity = person.countryCity;
       values.workEmail = person.workEmail;
       values.workPhone = person.workPhone;
@@ -1066,8 +1068,14 @@ export class EmployeesService {
     if (query.departmentId) {
       where.departmentId = query.departmentId;
     }
-    if (query.name) {
-      where.fullName = { contains: query.name, mode: 'insensitive' };
+    if (query.fullName) {
+      where.fullName = { contains: query.fullName, mode: 'insensitive' };
+    }
+    if (query.position) {
+      where.position = { contains: query.position, mode: 'insensitive' };
+    }
+    if (query.departmentName) {
+      where.department = { name: { contains: query.departmentName, mode: 'insensitive' } };
     }
     if (query.countryCity) {
       where.countryCity = {
@@ -1102,6 +1110,16 @@ export class EmployeesService {
     }
 
     return where;
+  }
+
+  private employeeOrderBy(query: ListEmployeesQueryDto): Prisma.PersonOrderByWithRelationInput {
+    const direction = query.sortDirection ?? 'asc';
+    switch (query.sortBy) {
+      case 'position': return { position: direction };
+      case 'departmentName': return { department: { name: direction } };
+      case 'countryCity': return { countryCity: direction };
+      default: return { fullName: direction };
+    }
   }
 
   private startDateRangeForYearsFilter(
@@ -1212,7 +1230,6 @@ export class EmployeesService {
           where: { id: { not: viewerPersonId } },
           select: { id: true },
           take: 25,
-          orderBy: { fullName: 'asc' },
         }),
       ]);
 

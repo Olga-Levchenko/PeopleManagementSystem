@@ -21,11 +21,15 @@ export interface EmployeeFieldCatalogResponse {
 }
 
 export interface SavedViewFilters {
+  fullName?: string
+  position?: string
   countryCity?: string
   departmentId?: string
   yearsWithCompanyMin?: number
   yearsWithCompanyMax?: number
   customFieldFilters?: Record<string, string>
+  sortBy?: 'fullName' | 'position' | 'departmentName' | 'countryCity'
+  sortDirection?: 'asc' | 'desc'
 }
 
 export interface SavedViewConfiguration {
@@ -83,7 +87,12 @@ export interface ListEmployeesParams {
   pageSize?: number
   name?: string
   departmentId?: string
+  fullName?: string
+  position?: string
+  departmentName?: string
   countryCity?: string
+  sortBy?: 'fullName' | 'position' | 'departmentName' | 'countryCity'
+  sortDirection?: 'asc' | 'desc'
   yearsWithCompanyMin?: number
   yearsWithCompanyMax?: number
   customFieldFilters?: Record<string, string>

@@ -6,7 +6,6 @@ import {
   IsInt,
   IsOptional,
   IsString,
-  IsUUID,
   Max,
   Min,
   Matches,
@@ -39,18 +38,38 @@ export class ListEmployeesQueryDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsUUID()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
   departmentId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  name?: string;
+  fullName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  position?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  departmentName?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   countryCity?: string;
+
+  @ApiPropertyOptional({ enum: ['fullName', 'position', 'departmentName', 'countryCity'] })
+  @IsOptional()
+  @IsString()
+  sortBy?: 'fullName' | 'position' | 'departmentName' | 'countryCity';
+
+  @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'asc' })
+  @IsOptional()
+  @IsString()
+  sortDirection?: 'asc' | 'desc';
 
   @ApiPropertyOptional({
     description: 'Inclusive lower bound for yearsWithCompany',

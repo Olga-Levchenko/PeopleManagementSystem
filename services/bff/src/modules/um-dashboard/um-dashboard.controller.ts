@@ -21,24 +21,21 @@ export class UMDashboardController {
   ) {
     const session = req.session as BffSession;
 
-    // Audience-exchanged token for people-service and access-control-service calls
+    // Audience-exchanged token for people-service calls.
+    // people-service handles the view-dashboard permission check internally.
     const peopleAuthorization = await this.oidc.resolveAuthorization(
       session,
       incomingAuth,
       'people-service',
     );
-    const acsAuthorization = await this.oidc.resolveAuthorization(
+
+    const wmsAuthorization = await this.oidc.resolveAuthorization(
       session,
       incomingAuth,
-      'access-control-service',
+      'work-management-service',
     );
 
-    // WMS uses the session bearer token directly (no dedicated WMS audience scope),
-    // matching the ManagementNotesController forwarding pattern.
-    const wmsAuthorization = this.resolveWmsAuthorization(incomingAuth, req);
-
     const upstream = await this.service.getUMDashboard(
-      acsAuthorization,
       peopleAuthorization,
       wmsAuthorization,
     );
@@ -47,24 +44,4 @@ export class UMDashboardController {
     return upstream.body;
   }
 
-  /**
-   * Returns the Authorization header value to forward to work-management-service.
-   *
-   * WMS's JwtStrategy still validates the plain `bff-confidential` audience (no dedicated
-   * `work-management-service-audience` client scope exists yet), so the session bearer token
-   * is forwarded unchanged — the same pattern used by ManagementNotesController.
-   */
-  private resolveWmsAuthorization(
-    incomingAuth: string | undefined,
-    req: Request,
-  ): string | undefined {
-    if (incomingAuth) {
-      return incomingAuth;
-    }
-    const session = req.session as BffSession;
-    if (session.accessToken) {
-      return `Bearer ${session.accessToken}`;
-    }
-    return undefined;
-  }
 }

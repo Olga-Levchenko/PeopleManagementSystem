@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { EmployeeFieldCatalogEntry, EmployeeSavedView } from '@/api/employees'
+import type {
+  EmployeeFieldCatalogEntry,
+  EmployeeSavedView,
+  ListEmployeesParams,
+} from '@/api/employees'
 import {
   useCreateSavedView,
   useDeleteSavedView,
@@ -33,7 +37,13 @@ const COLLEAGUE_DEFAULT_COLUMNS = [
   'projectName',
 ]
 const DEFAULT_PAGE_SIZE = 50
+const FILTER_DEBOUNCE_MS = 400
+
 const createDefaultUiState = (): AllEmployeesUiState => ({
+  fullName: '',
+  position: '',
+  sortBy: 'fullName',
+  sortDirection: 'asc',
   countryCity: '',
   departmentId: '',
   yearsMin: '',
@@ -52,6 +62,20 @@ const parseOptionalInt = (value: string): number | undefined => {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
+const useDebouncedValue = <T,>(value: T, delayMs: number): T => {
+  const [debouncedValue, setDebouncedValue] = useState(value)
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedValue(value)
+    }, delayMs)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [delayMs, value])
+
+  return debouncedValue
+}
+
 export const useAllEmployeesPage = () => {
   const { t } = useTranslation()
   const [page, setPage] = useState(1)
@@ -65,9 +89,13 @@ export const useAllEmployeesPage = () => {
   const showSavedViews = !isColleagueBrowseMode
   const savedViewsQuery = useSavedViews(showSavedViews)
 
-  const listParams = {
+  const listParams = useMemo<ListEmployeesParams>(() => ({
     page,
     pageSize: uiState.pageSize,
+    fullName: uiState.fullName.trim() || undefined,
+    position: uiState.position.trim() || undefined,
+    sortBy: uiState.sortBy,
+    sortDirection: uiState.sortDirection,
     countryCity: uiState.countryCity.trim() || undefined,
     departmentId: isColleagueBrowseMode
       ? undefined
@@ -79,12 +107,26 @@ export const useAllEmployeesPage = () => {
       ? undefined
       : parseOptionalInt(uiState.yearsMax),
     customFieldFilters: uiState.customFieldFilters,
-  }
+  }), [
+    isColleagueBrowseMode,
+    page,
+    uiState.countryCity,
+    uiState.customFieldFilters,
+    uiState.departmentId,
+    uiState.fullName,
+    uiState.pageSize,
+    uiState.position,
+    uiState.sortBy,
+    uiState.sortDirection,
+    uiState.yearsMax,
+    uiState.yearsMin,
+  ])
+  const debouncedListParams = useDebouncedValue(listParams, FILTER_DEBOUNCE_MS)
 
-  const listQuery = useEmployeesList(listParams)
+  const listQuery = useEmployeesList(debouncedListParams)
   const isRowNavigationEnabled =
     catalogQuery.isSuccess && !listQuery.isLoading && !listQuery.isError
-  const patchMutation = usePatchEmployeeField(listParams)
+  const patchMutation = usePatchEmployeeField(debouncedListParams)
   const createSavedViewMutation = useCreateSavedView()
   const updateSavedViewMutation = useUpdateSavedView()
   const deleteSavedViewMutation = useDeleteSavedView()
@@ -236,6 +278,8 @@ export const useAllEmployeesPage = () => {
     setPage(1)
     setUiState(current => ({
       ...current,
+      fullName: '',
+      position: '',
       countryCity: '',
       departmentId: '',
       yearsMin: '',
@@ -396,9 +440,22 @@ export const useAllEmployeesPage = () => {
     deleteCurrentOwnedView,
     createViewFromCurrentState,
     countryCity: uiState.countryCity,
+    fullName: uiState.fullName,
+    setFullName: (value: string) => { setPage(1); setUiState(current => ({ ...current, fullName: value })) },
+    position: uiState.position,
+    setPosition: (value: string) => { setPage(1); setUiState(current => ({ ...current, position: value })) },
+    sortBy: uiState.sortBy,
+    setSortBy: (value: AllEmployeesUiState['sortBy']) => { setPage(1); setUiState(current => ({ ...current, sortBy: value })) },
+    sortDirection: uiState.sortDirection,
+    setSortDirection: (value: AllEmployeesUiState['sortDirection']) => { setPage(1); setUiState(current => ({ ...current, sortDirection: value })) },
     setCountryCity: (value: string) => {
       setPage(1)
       setUiState(current => ({ ...current, countryCity: value }))
+    },
+    departmentId: uiState.departmentId,
+    setDepartmentId: (value: string) => {
+      setPage(1)
+      setUiState(current => ({ ...current, departmentId: value }))
     },
     yearsMin: uiState.yearsMin,
     setYearsMin: (value: string) => {
@@ -419,6 +476,8 @@ export const useAllEmployeesPage = () => {
     clearFilters,
     hasActiveFilters:
       Boolean(uiState.countryCity.trim()) ||
+      Boolean(uiState.fullName.trim()) ||
+      Boolean(uiState.position.trim()) ||
       Boolean(uiState.departmentId.trim()) ||
       Boolean(uiState.yearsMin.trim()) ||
       Boolean(uiState.yearsMax.trim()) ||

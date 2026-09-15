@@ -21,16 +21,12 @@ export class PPDashboardController {
   ) {
     const session = req.session as BffSession;
 
-    // Audience-exchanged token for people-service and access-control-service calls
+    // Audience-exchanged token for people-service calls.
+    // people-service handles the view-dashboard permission check internally.
     const peopleAuthorization = await this.oidc.resolveAuthorization(
       session,
       incomingAuth,
       'people-service',
-    );
-    const acsAuthorization = await this.oidc.resolveAuthorization(
-      session,
-      incomingAuth,
-      'access-control-service',
     );
 
     // WMS uses the session bearer token directly (no dedicated WMS audience scope),
@@ -38,7 +34,6 @@ export class PPDashboardController {
     const wmsAuthorization = this.resolveWmsAuthorization(incomingAuth, req);
 
     const upstream = await this.service.getPPDashboard(
-      acsAuthorization,
       peopleAuthorization,
       wmsAuthorization,
     );

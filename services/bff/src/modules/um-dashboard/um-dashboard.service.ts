@@ -34,48 +34,18 @@ export class UMDashboardService {
   constructor(private readonly config: ConfigService) {}
 
   async getUMDashboard(
-    authorization?: string,
     peopleAuthorization?: string,
     wmsAuthorization?: string,
   ): Promise<UMDashboardUpstreamResponse> {
     try {
-      const acsBaseUrl = this.config.getOrThrow<string>(
-        'ACCESS_CONTROL_SERVICE_BASE_URL',
-      );
       const peopleBaseUrl =
         this.config.getOrThrow<string>('PEOPLE_SERVICE_URL');
       const wmsBaseUrl = this.config.getOrThrow<string>(
         'WORK_MANAGEMENT_SERVICE_URL',
       );
 
-      // Step 1 — functional permission check: view-dashboard / unit-manager
-      const permCheckResponse = await fetch(
-        `${acsBaseUrl}/api/v1/permissions/check`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(authorization ? { Authorization: authorization } : {}),
-          },
-          body: JSON.stringify({
-            permissionKey: 'view-dashboard',
-            scope: { dashboardType: 'unit-manager' },
-          }),
-        },
-      ).catch(() => null);
-
-      if (!permCheckResponse || !permCheckResponse.ok) {
-        return { status: 403, body: undefined };
-      }
-
-      const permCheckBody = (await permCheckResponse
-        .json()
-        .catch(() => null)) as { granted: boolean } | null;
-      if (!permCheckBody?.granted) {
-        return { status: 403, body: undefined };
-      }
-
-      // Step 2 — fetch People Service metadata (direct reports of caller)
+      // Step 1 — fetch People Service metadata; people-service gates this with the
+      // view-dashboard/unit-manager permission check and returns 403 if not granted.
       const metadataResponse = await fetch(
         `${peopleBaseUrl}/api/v1/internal/um-dashboard/metadata`,
         {
@@ -85,7 +55,13 @@ export class UMDashboardService {
         },
       ).catch(() => null);
 
-      if (!metadataResponse || !metadataResponse.ok) {
+      if (!metadataResponse) {
+        return { status: 502, body: { message: 'Request failed' } };
+      }
+      if (metadataResponse.status === 403) {
+        return { status: 403, body: undefined };
+      }
+      if (!metadataResponse.ok) {
         return { status: 502, body: { message: 'Request failed' } };
       }
 
@@ -98,7 +74,7 @@ export class UMDashboardService {
         return { status: 403, body: undefined };
       }
 
-      // Step 3 — fetch WMS risk rows (paginate, collect all)
+      // Step 2 — fetch WMS risk rows (paginate, collect all)
       const riskRows: WmsRiskRow[] = [];
       const riskUrl = new URL('/api/v1/risks/dashboard', wmsBaseUrl);
       riskUrl.searchParams.set('pageSize', '100');
@@ -133,7 +109,7 @@ export class UMDashboardService {
         riskRows.push(...riskPage.rows);
       }
 
-      // Step 4 — fetch own action items
+      // Step 3 — fetch own action items
       const actionItemsResponse = await fetch(
         `${wmsBaseUrl}/api/v1/action-items/mine`,
         {
@@ -150,7 +126,7 @@ export class UMDashboardService {
       };
       const ownActionItems: WmsActionItem[] = actionItemsBody.items ?? [];
 
-      // Step 5 — compose response
+      // Step 4 — compose response
       const riskByPersonId = new Map(
         riskRows.map((row) => [row.personId, row]),
       );
