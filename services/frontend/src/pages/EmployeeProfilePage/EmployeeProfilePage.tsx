@@ -13,6 +13,7 @@ import { useAuthenticatedAssetUrl } from '@/pages/EmployeeProfilePage/hooks/useA
 import { ProfileInlineEditableField } from './ProfileInlineEditableField'
 import { ProfileManagementReadOnlySection } from './ProfileManagementReadOnlySection'
 import { ProfileSelfServiceSection } from './ProfileSelfServiceSection'
+import { ProfileRelationshipEditField } from './components/ProfileRelationshipEditField'
 
 const formatDate = (value: string | null | undefined): string => {
   if (!value) {
@@ -169,12 +170,13 @@ export const EmployeeProfilePage = () => {
                   <dt className="text-muted-foreground">{t('employeeProfile.fields.position')}</dt>
                   <dd className="text-foreground">{profileQuery.data.s1.position ?? '—'}</dd>
                 </div>
-                <div>
-                  <dt className="text-muted-foreground">{t('employeeProfile.fields.department')}</dt>
-                  <dd className="text-foreground">
-                    {profileQuery.data.s1.department?.name ?? '—'}
-                  </dd>
-                </div>
+                <ProfileRelationshipEditField
+                  label={t('employeeProfile.fields.department')}
+                  displayValue={profileQuery.data.s1.department?.name ?? null}
+                  type="department"
+                  subjectPersonId={personId ?? ''}
+                  canEdit={!isSelfProfile}
+                />
                 <div>
                   <dt className="text-muted-foreground">{t('employeeProfile.fields.countryCity')}</dt>
                   <dd className="text-foreground">{profileQuery.data.s1.countryCity ?? '—'}</dd>
@@ -202,18 +204,20 @@ export const EmployeeProfilePage = () => {
                     {formatDate(profileQuery.data.s1.startDate)}
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-muted-foreground">{t('employeeProfile.fields.manager')}</dt>
-                  <dd className="text-foreground">
-                    {profileQuery.data.s1.manager?.fullName ?? '—'}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">{t('employeeProfile.fields.peoplePartner')}</dt>
-                  <dd className="text-foreground">
-                    {profileQuery.data.s1.peoplePartner?.fullName ?? '—'}
-                  </dd>
-                </div>
+                <ProfileRelationshipEditField
+                  label={t('employeeProfile.fields.manager')}
+                  displayValue={profileQuery.data.s1.manager?.fullName ?? null}
+                  type="manager"
+                  subjectPersonId={personId ?? ''}
+                  canEdit={!isSelfProfile}
+                />
+                <ProfileRelationshipEditField
+                  label={t('employeeProfile.fields.peoplePartner')}
+                  displayValue={profileQuery.data.s1.peoplePartner?.fullName ?? null}
+                  type="peoplePartner"
+                  subjectPersonId={personId ?? ''}
+                  canEdit={!isSelfProfile}
+                />
               </dl>
             </section>
           )}

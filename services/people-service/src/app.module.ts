@@ -6,6 +6,7 @@ import { envValidationSchema } from './config/env.validation';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 import { CustomFieldDefinitionsModule } from './modules/custom-field-definitions/custom-field-definitions.module';
+import { DepartmentsModule } from './modules/departments/departments.module';
 import { HealthModule } from './modules/health/health.module';
 import { IdentityMappingsModule } from './modules/identity-mappings/identity-mappings.module';
 import { OrganisationalRelationshipsModule } from './modules/organisational-relationships/organisational-relationships.module';
@@ -23,6 +24,7 @@ import { PrismaModule } from './prisma/prisma.module';
     PrismaModule,
     AuthModule,
     CustomFieldDefinitionsModule,
+    DepartmentsModule,
     HealthModule,
     IdentityMappingsModule,
     OrganisationalRelationshipsModule,
