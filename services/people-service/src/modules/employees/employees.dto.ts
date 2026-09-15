@@ -45,6 +45,11 @@ export class ListEmployeesQueryDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   countryCity?: string;
 
   @ApiPropertyOptional({

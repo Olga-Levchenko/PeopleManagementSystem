@@ -1066,6 +1066,9 @@ export class EmployeesService {
     if (query.departmentId) {
       where.departmentId = query.departmentId;
     }
+    if (query.name) {
+      where.fullName = { contains: query.name, mode: 'insensitive' };
+    }
     if (query.countryCity) {
       where.countryCity = {
         contains: query.countryCity,

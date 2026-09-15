@@ -34,6 +34,15 @@ export const useEmployeesList = (params: ListEmployeesParams) =>
     queryFn: ({ signal }) => listEmployeesApiCall(params, signal),
   })
 
+export const useEmployeeSearch = (query: string) =>
+  useQuery({
+    queryKey: ['employees', 'search', query],
+    queryFn: ({ signal }) =>
+      listEmployeesApiCall({ name: query, pageSize: 10 }, signal),
+    enabled: query.length >= 2,
+    staleTime: 30_000,
+  })
+
 export const usePatchEmployeeField = (listParams: ListEmployeesParams) => {
   const queryClient = useQueryClient()
 

@@ -81,6 +81,7 @@ export interface EmployeeListResponse {
 export interface ListEmployeesParams {
   page?: number
   pageSize?: number
+  name?: string
   departmentId?: string
   countryCity?: string
   yearsWithCompanyMin?: number

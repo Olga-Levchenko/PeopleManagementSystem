@@ -6,6 +6,7 @@ import { type CustomFieldDefinitionError } from '@/api/customFieldDefinitions'
 import { type FunctionalRoleError } from '@/api/functionalRoles'
 import { useCustomFieldDefinitions } from './hooks/useCustomFieldDefinitions'
 import { useFunctionalRoles } from './hooks/useFunctionalRoles'
+import { PersonSearchCombobox, type PersonOption } from './components/PersonSearchCombobox'
 
 const EMPTY_SCOPE = ''
 
@@ -82,7 +83,7 @@ export const AdministrationPage = () => {
   const [editDisplayName, setEditDisplayName] = useState('')
   const [permissionKey, setPermissionKey] = useState('')
   const [dashboardType, setDashboardType] = useState(EMPTY_SCOPE)
-  const [personId, setPersonId] = useState('')
+  const [selectedPerson, setSelectedPerson] = useState<PersonOption | null>(null)
   const [assignmentRoleKey, setAssignmentRoleKey] = useState('')
 
   const errorMessage = (error: FunctionalRoleError | null) =>
@@ -94,6 +95,7 @@ export const AdministrationPage = () => {
   const roleGrants = state.grants.filter(
     grantValue => grantValue.roleKey === selectedRole?.roleKey
   )
+  const personId = selectedPerson?.personId ?? ''
   const assignmentsAreCurrent = state.assignmentPersonId === personId
   const scope = selectedPermission?.requiresScope
     ? dashboardType
@@ -367,18 +369,16 @@ export const AdministrationPage = () => {
       <section className="space-y-4 rounded-lg border border-border bg-card p-5">
         <h2 className="text-xl font-semibold">{t('administration.assignments.title')}</h2>
         <div className="grid gap-3 md:grid-cols-2">
-          <label className="space-y-1 text-sm">
+          <div className="space-y-1 text-sm">
             <span>{t('administration.fields.personId')}</span>
-            <input
-              className="w-full rounded-md border border-input bg-background px-3 py-2"
-              value={personId}
-              onChange={event => {
+            <PersonSearchCombobox
+              value={selectedPerson}
+              onChange={person => {
                 state.resetAssignments()
-                setPersonId(event.target.value)
+                setSelectedPerson(person)
               }}
-              aria-label={t('administration.fields.personId')}
             />
-          </label>
+          </div>
           <label className="space-y-1 text-sm">
             <span>{t('administration.fields.assignmentRole')}</span>
             <select

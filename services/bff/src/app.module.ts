@@ -7,6 +7,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 import { OidcService } from './modules/auth/oidc.service';
 import { CustomFieldDefinitionsModule } from './modules/custom-field-definitions/custom-field-definitions.module';
+import { DepartmentsModule } from './modules/departments/departments.module';
 import { DMPMDashboardModule } from './modules/dm-pm-dashboard/dm-pm-dashboard.module';
 import { PPDashboardModule } from './modules/pp-dashboard/pp-dashboard.module';
 import { HealthModule } from './modules/health/health.module';
@@ -25,6 +26,7 @@ import { UMDashboardModule } from './modules/um-dashboard/um-dashboard.module';
     }),
     AuthModule,
     CustomFieldDefinitionsModule,
+    DepartmentsModule,
     DMPMDashboardModule,
     EmployeesModule,
     PPDashboardModule,
