@@ -20,6 +20,15 @@ export class SavedViewFiltersDto implements SavedViewFilters {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  fullName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  position?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   countryCity?: string;
 
   @ApiPropertyOptional()
@@ -45,6 +54,16 @@ export class SavedViewFiltersDto implements SavedViewFilters {
   @IsOptional()
   @IsObject()
   customFieldFilters?: Record<string, string>;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  sortBy?: 'fullName' | 'position' | 'departmentName' | 'countryCity';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  sortDirection?: 'asc' | 'desc';
 }
 
 export class SavedViewConfigurationDto implements SavedViewConfiguration {

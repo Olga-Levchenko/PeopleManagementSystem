@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createSavedViewApiCall,
   deleteSavedViewApiCall,
@@ -32,6 +32,7 @@ export const useEmployeesList = (params: ListEmployeesParams) =>
   useQuery({
     queryKey: ['employees', 'list', params],
     queryFn: ({ signal }) => listEmployeesApiCall(params, signal),
+    placeholderData: keepPreviousData,
   })
 
 export const usePatchEmployeeField = (listParams: ListEmployeesParams) => {

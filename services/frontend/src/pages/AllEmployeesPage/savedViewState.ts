@@ -4,6 +4,10 @@ import type {
 } from '@/api/employees'
 
 export interface AllEmployeesUiState {
+  fullName: string
+  position: string
+  sortBy: 'fullName' | 'position' | 'departmentName' | 'countryCity'
+  sortDirection: 'asc' | 'desc'
   countryCity: string
   departmentId: string
   yearsMin: string
@@ -18,6 +22,8 @@ export const buildConfigurationFromUiState = (
 ): SavedViewConfiguration => ({
   visibleColumnKeys: state.visibleColumnKeys,
   filters: {
+    fullName: state.fullName.trim() || undefined,
+    position: state.position.trim() || undefined,
     countryCity: state.countryCity.trim() || undefined,
     departmentId: state.departmentId.trim() || undefined,
     yearsWithCompanyMin: parseOptionalInt(state.yearsMin),
@@ -26,6 +32,8 @@ export const buildConfigurationFromUiState = (
       Object.keys(state.customFieldFilters).length > 0
         ? state.customFieldFilters
         : undefined,
+    sortBy: state.sortBy,
+    sortDirection: state.sortDirection,
   },
 })
 
@@ -33,6 +41,10 @@ export const applyConfigurationToUiState = (
   configuration: SavedViewConfiguration,
   pageSize: number,
 ): AllEmployeesUiState => ({
+  fullName: configuration.filters.fullName ?? '',
+  position: configuration.filters.position ?? '',
+  sortBy: configuration.filters.sortBy ?? 'fullName',
+  sortDirection: configuration.filters.sortDirection ?? 'asc',
   countryCity: configuration.filters.countryCity ?? '',
   departmentId: configuration.filters.departmentId ?? '',
   yearsMin:
@@ -66,9 +78,13 @@ const parseOptionalInt = (value: string): number | undefined => {
 }
 
 export const filtersToListParams = (filters: SavedViewFilters) => ({
+  fullName: filters.fullName,
+  position: filters.position,
   countryCity: filters.countryCity,
   departmentId: filters.departmentId,
   yearsWithCompanyMin: filters.yearsWithCompanyMin,
   yearsWithCompanyMax: filters.yearsWithCompanyMax,
   customFieldFilters: filters.customFieldFilters ?? {},
+  sortBy: filters.sortBy,
+  sortDirection: filters.sortDirection,
 })
