@@ -173,6 +173,7 @@
     "trend": { "up": "Increasing", "down": "Decreasing", "none": "No change" }
   },
   "allEmployees": {
+    "sort": { "field": "Sort by", "direction": "Direction", "ascending": "Ascending", "descending": "Descending", "clickToSort": "Sort this column" },
     "title": "All Employees",
     "description": "Browse, filter, and configure columns for your team.",
     "loading": "Loading employees...",
@@ -182,9 +183,16 @@
     },
     "filters": {
       "countryCity": "Country / city",
+      "fullName": "Full name",
+      "position": "Position",
+      "department": "Department",
+      "allDepartments": "All departments",
+      "search": "Filter...",
       "yearsMin": "Years with company (min)",
       "yearsMax": "Years with company (max)",
       "clear": "Clear filters",
+      "toggle": "Filters",
+      "active": "active",
       "clearFilter": "Clear filter",
       "clearField": "Clear {{field}}"
     },
@@ -205,9 +213,17 @@
     },
     "views": {
       "all": "All",
+      "menu": "Views",
       "shared": "shared",
-      "new": "+ New view",
+      "new": "New view",
+      "createMenuItem": "Create new view…",
       "newPrompt": "Name for the new saved view",
+      "newTitle": "Create a saved view",
+      "newDescription": "Save the current filters and visible columns as a reusable view.",
+      "nameLabel": "View name",
+      "namePlaceholder": "e.g. Engineering team",
+      "cancel": "Cancel",
+      "create": "Create view",
       "saveChanges": "Save changes",
       "rename": "Rename",
       "renamePrompt": "New name for this saved view",

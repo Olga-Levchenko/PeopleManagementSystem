@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { describe, expect, test } from 'vitest'
 import {
   applyConfigurationToUiState,
   buildConfigurationFromUiState,
@@ -8,6 +8,10 @@ import {
 } from '../savedViewState'
 
 const baseState: AllEmployeesUiState = {
+  fullName: '',
+  position: '',
+  sortBy: 'fullName',
+  sortDirection: 'asc',
   countryCity: 'Kyiv',
   departmentId: 'dept-1',
   yearsMin: '1',
@@ -17,7 +21,7 @@ const baseState: AllEmployeesUiState = {
   pageSize: 25,
 }
 
-test.describe('savedViewState', () => {
+describe('savedViewState', () => {
   test('round-trips departmentId through configuration', () => {
     const configuration = buildConfigurationFromUiState(baseState)
     expect(configuration.filters.departmentId).toBe('dept-1')
