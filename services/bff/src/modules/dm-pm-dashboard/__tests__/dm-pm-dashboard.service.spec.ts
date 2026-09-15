@@ -5,8 +5,6 @@ describe('DMPMDashboardService', () => {
   const config = {
     getOrThrow: jest.fn((key: string) => {
       switch (key) {
-        case 'ACCESS_CONTROL_SERVICE_BASE_URL':
-          return 'http://acs';
         case 'PEOPLE_SERVICE_URL':
           return 'http://people';
         case 'WORK_MANAGEMENT_SERVICE_URL':
@@ -23,9 +21,6 @@ describe('DMPMDashboardService', () => {
       status,
       json: jest.fn().mockResolvedValue(body),
     }) as unknown as Response;
-
-  const acsGranted = makeResponse({ granted: true });
-  const acsDenied = makeResponse({ granted: false });
 
   const metadataWithProjects = makeResponse({
     projects: [
@@ -79,146 +74,31 @@ describe('DMPMDashboardService', () => {
 
   afterEach(() => jest.restoreAllMocks());
 
-  it('returns 403 when both ACS checks deny', async () => {
-    jest
-      .spyOn(global, 'fetch')
-      .mockResolvedValueOnce(acsDenied)
-      .mockResolvedValueOnce(acsDenied);
+  it('returns 403 when people-service metadata returns 403 (permission denied)', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValueOnce(makeResponse({}, 403));
 
     const service = new DMPMDashboardService(config);
-    const result = await service.getDMPMDashboard(
-      'Bearer acs',
-      'Bearer people',
-      'Bearer wms',
-    );
+    const result = await service.getDMPMDashboard('Bearer people', 'Bearer wms');
 
     expect(result).toEqual({ status: 403, body: undefined });
   });
 
-  it('proceeds when only DM check is granted', async () => {
+  it('returns 502 when people-service metadata endpoint is unreachable', async () => {
     jest
       .spyOn(global, 'fetch')
-      .mockResolvedValueOnce(acsGranted) // DM check
-      .mockResolvedValueOnce(acsDenied) // PM check
-      .mockResolvedValueOnce(metadataWithProjects)
-      .mockResolvedValueOnce(riskPage)
-      .mockResolvedValueOnce(actionItemsResponse);
+      .mockRejectedValueOnce(new Error('network error'));
 
     const service = new DMPMDashboardService(config);
-    const result = await service.getDMPMDashboard(
-      'Bearer acs',
-      'Bearer people',
-      'Bearer wms',
-    );
+    const result = await service.getDMPMDashboard('Bearer people', 'Bearer wms');
 
-    expect(result.status).toBe(200);
+    expect(result).toEqual({ status: 502, body: { message: 'Request failed' } });
   });
 
-  it('proceeds when only PM check is granted', async () => {
-    jest
-      .spyOn(global, 'fetch')
-      .mockResolvedValueOnce(acsDenied) // DM check
-      .mockResolvedValueOnce(acsGranted) // PM check
-      .mockResolvedValueOnce(metadataWithProjects)
-      .mockResolvedValueOnce(riskPage)
-      .mockResolvedValueOnce(actionItemsResponse);
+  it('returns 403 when projects array is empty (no DM/PM relationships)', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValueOnce(metadataEmpty);
 
     const service = new DMPMDashboardService(config);
-    const result = await service.getDMPMDashboard(
-      'Bearer acs',
-      'Bearer people',
-      'Bearer wms',
-    );
-
-    expect(result.status).toBe(200);
-  });
-
-  it('returns 403 when ACS HTTP 5xx on both legs', async () => {
-    jest
-      .spyOn(global, 'fetch')
-      .mockResolvedValueOnce(makeResponse({}, 500))
-      .mockResolvedValueOnce(makeResponse({}, 500));
-
-    const service = new DMPMDashboardService(config);
-    const result = await service.getDMPMDashboard(
-      'Bearer acs',
-      'Bearer people',
-      'Bearer wms',
-    );
-
-    expect(result).toEqual({ status: 403, body: undefined });
-  });
-
-  it('returns 403 when ACS throws network error on both legs', async () => {
-    jest
-      .spyOn(global, 'fetch')
-      .mockRejectedValueOnce(new Error('network'))
-      .mockRejectedValueOnce(new Error('network'));
-
-    const service = new DMPMDashboardService(config);
-    const result = await service.getDMPMDashboard(
-      'Bearer acs',
-      'Bearer people',
-      'Bearer wms',
-    );
-
-    expect(result).toEqual({ status: 403, body: undefined });
-  });
-
-  it('grants access when one ACS leg throws and the other grants', async () => {
-    jest
-      .spyOn(global, 'fetch')
-      .mockRejectedValueOnce(new Error('network')) // DM throws
-      .mockResolvedValueOnce(acsGranted) // PM grants
-      .mockResolvedValueOnce(metadataWithProjects)
-      .mockResolvedValueOnce(riskPage)
-      .mockResolvedValueOnce(actionItemsResponse);
-
-    const service = new DMPMDashboardService(config);
-    const result = await service.getDMPMDashboard(
-      'Bearer acs',
-      'Bearer people',
-      'Bearer wms',
-    );
-
-    expect(result.status).toBe(200);
-  });
-
-  it('returns 403 when ACS returns invalid JSON on both legs', async () => {
-    const badJsonResponse = {
-      ok: true,
-      status: 200,
-      json: jest.fn().mockRejectedValue(new SyntaxError('bad json')),
-    } as unknown as Response;
-
-    jest
-      .spyOn(global, 'fetch')
-      .mockResolvedValueOnce(badJsonResponse)
-      .mockResolvedValueOnce(badJsonResponse);
-
-    const service = new DMPMDashboardService(config);
-    const result = await service.getDMPMDashboard(
-      'Bearer acs',
-      'Bearer people',
-      'Bearer wms',
-    );
-
-    expect(result).toEqual({ status: 403, body: undefined });
-  });
-
-  it('returns 403 when projects array is empty after ACS grant', async () => {
-    jest
-      .spyOn(global, 'fetch')
-      .mockResolvedValueOnce(acsGranted)
-      .mockResolvedValueOnce(acsDenied)
-      .mockResolvedValueOnce(metadataEmpty);
-
-    const service = new DMPMDashboardService(config);
-    const result = await service.getDMPMDashboard(
-      'Bearer acs',
-      'Bearer people',
-      'Bearer wms',
-    );
+    const result = await service.getDMPMDashboard('Bearer people', 'Bearer wms');
 
     expect(result).toEqual({ status: 403, body: undefined });
   });
@@ -226,18 +106,12 @@ describe('DMPMDashboardService', () => {
   it('composes a full response with risk counts and action items', async () => {
     jest
       .spyOn(global, 'fetch')
-      .mockResolvedValueOnce(acsGranted)
-      .mockResolvedValueOnce(acsDenied)
       .mockResolvedValueOnce(metadataWithProjects)
       .mockResolvedValueOnce(riskPage)
       .mockResolvedValueOnce(actionItemsResponse);
 
     const service = new DMPMDashboardService(config);
-    const result = await service.getDMPMDashboard(
-      'Bearer acs',
-      'Bearer people',
-      'Bearer wms',
-    );
+    const result = await service.getDMPMDashboard('Bearer people', 'Bearer wms');
 
     expect(result.status).toBe(200);
     const body = result.body as Record<string, unknown>;
@@ -256,8 +130,6 @@ describe('DMPMDashboardService', () => {
   it('propagates null leaveStatus to the row when person has no active leave', async () => {
     jest
       .spyOn(global, 'fetch')
-      .mockResolvedValueOnce(acsGranted)
-      .mockResolvedValueOnce(acsDenied)
       .mockResolvedValueOnce(
         makeResponse({
           projects: [
@@ -280,11 +152,7 @@ describe('DMPMDashboardService', () => {
       .mockResolvedValueOnce(makeResponse({ items: [] }));
 
     const service = new DMPMDashboardService(config);
-    const result = await service.getDMPMDashboard(
-      'Bearer acs',
-      'Bearer people',
-      'Bearer wms',
-    );
+    const result = await service.getDMPMDashboard('Bearer people', 'Bearer wms');
 
     expect(result.status).toBe(200);
     const body = result.body as Record<string, unknown>;
@@ -294,19 +162,11 @@ describe('DMPMDashboardService', () => {
     expect(projects[0].rows[0].leaveStatus).toBeNull();
   });
 
-  it('returns 502 when People Service is unavailable', async () => {
-    jest
-      .spyOn(global, 'fetch')
-      .mockResolvedValueOnce(acsGranted)
-      .mockResolvedValueOnce(acsDenied)
-      .mockResolvedValueOnce(makeResponse({}, 503));
+  it('returns 502 when People Service returns 5xx', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValueOnce(makeResponse({}, 503));
 
     const service = new DMPMDashboardService(config);
-    const result = await service.getDMPMDashboard(
-      'Bearer acs',
-      'Bearer people',
-      'Bearer wms',
-    );
+    const result = await service.getDMPMDashboard('Bearer people', 'Bearer wms');
 
     expect(result).toEqual({
       status: 502,
@@ -317,17 +177,11 @@ describe('DMPMDashboardService', () => {
   it('returns 502 when WMS risks endpoint is unavailable', async () => {
     jest
       .spyOn(global, 'fetch')
-      .mockResolvedValueOnce(acsGranted)
-      .mockResolvedValueOnce(acsDenied)
       .mockResolvedValueOnce(metadataWithProjects)
       .mockResolvedValueOnce(makeResponse({}, 503));
 
     const service = new DMPMDashboardService(config);
-    const result = await service.getDMPMDashboard(
-      'Bearer acs',
-      'Bearer people',
-      'Bearer wms',
-    );
+    const result = await service.getDMPMDashboard('Bearer people', 'Bearer wms');
 
     expect(result).toEqual({
       status: 502,
@@ -338,18 +192,12 @@ describe('DMPMDashboardService', () => {
   it('returns 502 when WMS action-items endpoint is unavailable (distinct path from risks 5xx)', async () => {
     jest
       .spyOn(global, 'fetch')
-      .mockResolvedValueOnce(acsGranted)
-      .mockResolvedValueOnce(acsDenied)
       .mockResolvedValueOnce(metadataWithProjects)
       .mockResolvedValueOnce(riskPage)
       .mockResolvedValueOnce(makeResponse({}, 503));
 
     const service = new DMPMDashboardService(config);
-    const result = await service.getDMPMDashboard(
-      'Bearer acs',
-      'Bearer people',
-      'Bearer wms',
-    );
+    const result = await service.getDMPMDashboard('Bearer people', 'Bearer wms');
 
     expect(result).toEqual({
       status: 502,
@@ -360,8 +208,6 @@ describe('DMPMDashboardService', () => {
   it('own action items are sorted by dueDate ascending in response', async () => {
     jest
       .spyOn(global, 'fetch')
-      .mockResolvedValueOnce(acsGranted)
-      .mockResolvedValueOnce(acsDenied)
       .mockResolvedValueOnce(metadataWithProjects)
       .mockResolvedValueOnce(riskPage)
       .mockResolvedValueOnce(
@@ -386,11 +232,7 @@ describe('DMPMDashboardService', () => {
       );
 
     const service = new DMPMDashboardService(config);
-    const result = await service.getDMPMDashboard(
-      'Bearer acs',
-      'Bearer people',
-      'Bearer wms',
-    );
+    const result = await service.getDMPMDashboard('Bearer people', 'Bearer wms');
 
     const body = result.body as Record<string, unknown>;
     const items = body.ownActionItems as Array<{ id: string }>;
@@ -401,8 +243,6 @@ describe('DMPMDashboardService', () => {
   it('counts in_progress items as open and excludes completed items from open count', async () => {
     jest
       .spyOn(global, 'fetch')
-      .mockResolvedValueOnce(acsGranted)
-      .mockResolvedValueOnce(acsDenied)
       .mockResolvedValueOnce(metadataWithProjects)
       .mockResolvedValueOnce(riskPage)
       .mockResolvedValueOnce(
@@ -427,11 +267,7 @@ describe('DMPMDashboardService', () => {
       );
 
     const service = new DMPMDashboardService(config);
-    const result = await service.getDMPMDashboard(
-      'Bearer acs',
-      'Bearer people',
-      'Bearer wms',
-    );
+    const result = await service.getDMPMDashboard('Bearer people', 'Bearer wms');
 
     const body = result.body as Record<string, unknown>;
     const counts = body.actionItemCounts as Record<string, number>;

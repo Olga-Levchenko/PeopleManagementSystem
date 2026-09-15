@@ -39,34 +39,19 @@ export class DMPMDashboardService {
   constructor(private readonly config: ConfigService) {}
 
   async getDMPMDashboard(
-    acsAuthorization?: string,
     peopleAuthorization?: string,
     wmsAuthorization?: string,
   ): Promise<DMPMDashboardUpstreamResponse> {
     try {
-      const acsBaseUrl = this.config.getOrThrow<string>(
-        'ACCESS_CONTROL_SERVICE_BASE_URL',
-      );
       const peopleBaseUrl =
         this.config.getOrThrow<string>('PEOPLE_SERVICE_URL');
       const wmsBaseUrl = this.config.getOrThrow<string>(
         'WORK_MANAGEMENT_SERVICE_URL',
       );
 
-      // Step 1 — fire both ACS permission checks in parallel (OR logic)
-      const [dmResult, pmResult] = await Promise.allSettled([
-        this.checkPermission(acsBaseUrl, 'delivery-manager', acsAuthorization),
-        this.checkPermission(acsBaseUrl, 'project-manager', acsAuthorization),
-      ]);
-
-      const dmGranted = dmResult.status === 'fulfilled' && dmResult.value;
-      const pmGranted = pmResult.status === 'fulfilled' && pmResult.value;
-
-      if (!dmGranted && !pmGranted) {
-        return { status: 403, body: undefined };
-      }
-
-      // Step 2 — fetch People Service metadata (projects where caller is DM or PM)
+      // Step 1 — fetch People Service metadata; people-service gates this with the
+      // view-dashboard/delivery-manager OR view-dashboard/project-manager permission
+      // check and returns 403 if neither is granted.
       const metadataResponse = await fetch(
         `${peopleBaseUrl}/api/v1/internal/dm-pm-dashboard/metadata`,
         {
@@ -76,7 +61,13 @@ export class DMPMDashboardService {
         },
       ).catch(() => null);
 
-      if (!metadataResponse || !metadataResponse.ok) {
+      if (!metadataResponse) {
+        return { status: 502, body: { message: 'Request failed' } };
+      }
+      if (metadataResponse.status === 403) {
+        return { status: 403, body: undefined };
+      }
+      if (!metadataResponse.ok) {
         return { status: 502, body: { message: 'Request failed' } };
       }
 
@@ -89,7 +80,7 @@ export class DMPMDashboardService {
         return { status: 403, body: undefined };
       }
 
-      // Step 3 — fetch WMS risk rows (paginate, collect all)
+      // Step 2 — fetch WMS risk rows (paginate, collect all)
       const riskRows: WmsRiskRow[] = [];
       const riskUrl = new URL('/api/v1/risks/dashboard', wmsBaseUrl);
       riskUrl.searchParams.set('pageSize', '100');
@@ -124,7 +115,7 @@ export class DMPMDashboardService {
         riskRows.push(...riskPage.rows);
       }
 
-      // Step 4 — fetch own action items (session bearer forwarded unchanged)
+      // Step 3 — fetch own action items (session bearer forwarded unchanged)
       const actionItemsResponse = await fetch(
         `${wmsBaseUrl}/api/v1/action-items/mine`,
         {
@@ -141,7 +132,7 @@ export class DMPMDashboardService {
       };
       const ownActionItems: WmsActionItem[] = actionItemsBody.items ?? [];
 
-      // Step 5 — compose response
+      // Step 4 — compose response
       const riskByPersonId = new Map(
         riskRows.map((row) => [row.personId, row]),
       );
@@ -209,38 +200,4 @@ export class DMPMDashboardService {
     }
   }
 
-  /**
-   * Fires a single ACS permission check for `view-dashboard` scoped to the given dashboard type.
-   * Returns true if granted, false on denial or any error (fail-closed).
-   */
-  private async checkPermission(
-    acsBaseUrl: string,
-    dashboardType: string,
-    authorization?: string,
-  ): Promise<boolean> {
-    try {
-      const response = await fetch(`${acsBaseUrl}/api/v1/permissions/check`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(authorization ? { Authorization: authorization } : {}),
-        },
-        body: JSON.stringify({
-          permissionKey: 'view-dashboard',
-          scope: { dashboardType },
-        }),
-      });
-
-      if (!response.ok) {
-        return false;
-      }
-
-      const body = (await response.json().catch(() => null)) as {
-        granted: boolean;
-      } | null;
-      return body?.granted === true;
-    } catch {
-      return false;
-    }
-  }
 }
