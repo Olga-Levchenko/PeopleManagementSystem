@@ -44,10 +44,6 @@ export const AllEmployeesPage = () => {
     setSortDirection,
     departmentId,
     setDepartmentId,
-    yearsMin,
-    setYearsMin,
-    yearsMax,
-    setYearsMax,
     visibleColumns,
     columnableFields,
     toggleColumn,
@@ -247,6 +243,31 @@ export const AllEmployeesPage = () => {
             <span className="sr-only">{t('allEmployees.export.button')}</span>
           </Button>
         )}
+        {filterableCustomFields.map(field => (
+          <label key={field.key} className="flex flex-col gap-1 text-sm">
+            <span className="text-muted-foreground">{field.label}</span>
+            <span className="relative">
+              <input
+                className={filterInputClassName}
+                value={customFieldFilters[field.key] ?? ''}
+                onChange={event => setCustomFieldFilter(field.key, event.target.value)}
+              />
+              {(customFieldFilters[field.key] ?? '').trim() && (
+                <button
+                  type="button"
+                  aria-label={t('allEmployees.filters.clearFilter')}
+                  title={t('allEmployees.filters.clearField', {
+                    field: field.label,
+                  })}
+                  className={filterClearButtonClassName}
+                  onClick={() => setCustomFieldFilter(field.key, '')}
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              )}
+            </span>
+          </label>
+        ))}
         <div className="relative ml-auto">
           <Button type="button" variant="outline" onClick={() => setPickerOpen(open => !open)}>
             <Settings2 className="h-4 w-4" aria-hidden="true" />
@@ -267,119 +288,6 @@ export const AllEmployeesPage = () => {
           )}
         </div>
       </div>
-      {false && <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card p-4">
-        <label className="flex flex-col gap-1 text-sm"><span className="text-muted-foreground">{t('allEmployees.sort.field')}</span><select className="rounded-md border border-input bg-background px-3 py-2 text-foreground" value={sortBy} onChange={event => setSortBy(event.target.value as typeof sortBy)}><option value="fullName">{t('allEmployees.filters.fullName')}</option><option value="position">{t('allEmployees.filters.position')}</option><option value="departmentName">{t('allEmployees.filters.department')}</option><option value="countryCity">{t('allEmployees.filters.countryCity')}</option></select></label>
-        <label className="flex flex-col gap-1 text-sm"><span className="text-muted-foreground">{t('allEmployees.sort.direction')}</span><select className="rounded-md border border-input bg-background px-3 py-2 text-foreground" value={sortDirection} onChange={event => setSortDirection(event.target.value as typeof sortDirection)}><option value="asc">{t('allEmployees.sort.ascending')}</option><option value="desc">{t('allEmployees.sort.descending')}</option></select></label>
-        <label className="flex flex-col gap-1 text-sm"><span className="text-muted-foreground">{t('allEmployees.filters.fullName')}</span><input className={filterInputClassName} value={fullName} onChange={event => setFullName(event.target.value)} /></label>
-        <label className="flex flex-col gap-1 text-sm"><span className="text-muted-foreground">{t('allEmployees.filters.position')}</span><input className={filterInputClassName} value={position} onChange={event => setPosition(event.target.value)} /></label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-muted-foreground">{t('allEmployees.filters.countryCity')}</span>
-          <span className="relative">
-            <input
-              className={filterInputClassName}
-              value={countryCity}
-              onChange={event => setCountryCity(event.target.value)}
-            />
-            {countryCity.trim() && (
-              <button
-                type="button"
-                aria-label={t('allEmployees.filters.clearFilter')}
-                title={t('allEmployees.filters.clearField', {
-                  field: t('allEmployees.filters.countryCity'),
-                })}
-                className={filterClearButtonClassName}
-                onClick={() => setCountryCity('')}
-              >
-                <X className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
-            )}
-          </span>
-        </label>
-        {showSavedViews && (
-          <>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-muted-foreground">{t('allEmployees.filters.department')}</span>
-              <select
-                className="rounded-md border border-input bg-background px-3 py-2 text-foreground"
-                value={departmentId}
-                onChange={event => setDepartmentId(event.target.value)}
-              >
-                <option value="">{t('allEmployees.filters.allDepartments')}</option>
-                {departmentOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-muted-foreground">{t('allEmployees.filters.yearsMin')}</span>
-              <input
-                type="number"
-                min={0}
-                className="rounded-md border border-input bg-background px-3 py-2 text-foreground"
-                value={yearsMin}
-                onChange={event => setYearsMin(event.target.value)}
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-muted-foreground">{t('allEmployees.filters.yearsMax')}</span>
-              <input
-                type="number"
-                min={0}
-                className="rounded-md border border-input bg-background px-3 py-2 text-foreground"
-                value={yearsMax}
-                onChange={event => setYearsMax(event.target.value)}
-              />
-            </label>
-          </>
-        )}
-        {filterableCustomFields.map(field => (
-            <label key={field.key} className="flex flex-col gap-1 text-sm">
-              <span className="text-muted-foreground">{field.label}</span>
-              <span className="relative">
-                <input
-                  className={filterInputClassName}
-                  value={customFieldFilters[field.key] ?? ''}
-                  onChange={event => setCustomFieldFilter(field.key, event.target.value)}
-                />
-                {(customFieldFilters[field.key] ?? '').trim() && (
-                  <button
-                    type="button"
-                    aria-label={t('allEmployees.filters.clearFilter')}
-                    title={t('allEmployees.filters.clearField', {
-                      field: field.label,
-                    })}
-                    className={filterClearButtonClassName}
-                    onClick={() => setCustomFieldFilter(field.key, '')}
-                  >
-                    <X className="h-3.5 w-3.5" aria-hidden="true" />
-                  </button>
-                )}
-              </span>
-          </label>
-        ))}
-        <div className="relative ml-auto">
-          <Button type="button" variant="outline" onClick={() => setPickerOpen(open => !open)}>
-            {t('allEmployees.columns.manage')}
-          </Button>
-          {pickerOpen && (
-            <div className="absolute right-0 z-10 mt-2 w-72 rounded-md border border-border bg-popover p-3 shadow-md">
-              <p className="mb-2 text-sm font-medium text-popover-foreground">
-                {t('allEmployees.columns.title')}
-              </p>
-              <div className="flex max-h-64 flex-col gap-2 overflow-auto">
-                {columnableFields.map(field => (
-                  <label key={field.key} className="flex items-center gap-2 text-sm text-foreground">
-                    <input
-                      type="checkbox"
-                      checked={visibleColumns.some(column => column.key === field.key)}
-                      onChange={() => toggleColumn(field.key)}
-                    />
-                    {field.label}
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>}
 
       {catalogQuery.isError ? (
         <p className="text-destructive">{t('allEmployees.errors.catalog')}</p>
