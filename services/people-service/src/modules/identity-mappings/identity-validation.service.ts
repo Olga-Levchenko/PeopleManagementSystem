@@ -13,11 +13,25 @@ export class IdentityValidationService {
 
   constructor(private readonly config: ConfigService) {
     this.nodeEnvironment = this.readOptional('NODE_ENV') ?? 'development';
+
+    const configured = (this.readOptional('OIDC_ALLOWED_ISSUERS') ?? '')
+      .split(',')
+      .filter((issuer) => issuer.length > 0);
+
+    // When OIDC_ALLOWED_ISSUERS is not set, derive the single allowed issuer from the
+    // already-required KEYCLOAK_BASE_URL / KEYCLOAK_REALM pair — the same formula
+    // JwtStrategy uses to validate the token's iss claim — so the service works out of
+    // the box without duplicating information already present in the required config.
+    if (configured.length === 0) {
+      const baseUrl = this.config
+        .getOrThrow<string>('KEYCLOAK_BASE_URL')
+        .replace(/\/+$/, '');
+      const realm = this.config.getOrThrow<string>('KEYCLOAK_REALM');
+      configured.push(`${baseUrl}/realms/${realm}`);
+    }
+
     this.allowedIssuers = new Set(
-      (this.readOptional('OIDC_ALLOWED_ISSUERS') ?? '')
-        .split(',')
-        .filter((issuer) => issuer.length > 0)
-        .map((issuer) => this.canonicalizeIssuer(issuer)),
+      configured.map((issuer) => this.canonicalizeIssuer(issuer)),
     );
   }
 
