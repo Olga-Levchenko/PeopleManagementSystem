@@ -39,7 +39,7 @@ export const useEmployeeSearch = (query: string) =>
   useQuery({
     queryKey: ['employees', 'search', query],
     queryFn: ({ signal }) =>
-      listEmployeesApiCall({ name: query, pageSize: 10 }, signal),
+      listEmployeesApiCall({ fullName: query, pageSize: 10 }, signal),
     enabled: query.length >= 2,
     staleTime: 30_000,
   })
